@@ -3,11 +3,11 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Stack from '@mui/material/Stack';
-import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { PasswordField } from '@/components/form/PasswordField';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { apiPost } from '@/lib/api/client';
 
 function ResetForm() {
@@ -46,9 +46,9 @@ function ResetForm() {
       <Stack spacing={2}>
         <PasswordField label="New password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
         <PasswordField label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required fullWidth />
-        <Button type="submit" variant="contained" size="large" disabled={loading} fullWidth>
+        <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
           {loading ? 'Saving…' : 'Reset password'}
-        </Button>
+        </SubmitButton>
       </Stack>
     </form>
   );

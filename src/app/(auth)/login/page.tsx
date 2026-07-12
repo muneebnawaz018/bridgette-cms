@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
 import MuiLink from '@mui/material/Link';
 import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { PasswordField } from '@/components/form/PasswordField';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { apiPost } from '@/lib/api/client';
 
 export default function LoginPage() {
@@ -44,6 +44,7 @@ export default function LoginPage() {
             required
             fullWidth
             autoComplete="email"
+            disabled={loading}
           />
           <PasswordField
             label="Password"
@@ -52,11 +53,18 @@ export default function LoginPage() {
             required
             fullWidth
             autoComplete="current-password"
+            disabled={loading}
           />
-          <Button type="submit" variant="contained" size="large" disabled={loading} fullWidth>
+          <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
             {loading ? 'Signing in…' : 'Sign in'}
-          </Button>
-          <MuiLink component={Link} href="/forgot-password" variant="body2" align="center">
+          </SubmitButton>
+          <MuiLink
+            component={Link}
+            href="/forgot-password"
+            variant="body2"
+            align="center"
+            sx={loading ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
+          >
             Forgot password?
           </MuiLink>
         </Stack>

@@ -4,10 +4,10 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
 import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { PasswordField } from '@/components/form/PasswordField';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { apiPost } from '@/lib/api/client';
 
 function SetPasswordForm() {
@@ -44,9 +44,9 @@ function SetPasswordForm() {
         <TextField label="Verification code" value={code} onChange={(e) => setCode(e.target.value)} required fullWidth />
         <PasswordField label="New password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
         <PasswordField label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required fullWidth />
-        <Button type="submit" variant="contained" size="large" disabled={loading} fullWidth>
+        <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
           {loading ? 'Saving…' : 'Set password'}
-        </Button>
+        </SubmitButton>
       </Stack>
     </form>
   );

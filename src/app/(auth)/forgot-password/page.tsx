@@ -4,10 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import MuiLink from '@mui/material/Link';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { apiPost } from '@/lib/api/client';
 
 export default function ForgotPasswordPage() {
@@ -44,10 +44,11 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
+              disabled={loading}
             />
-            <Button type="submit" variant="contained" size="large" disabled={loading} fullWidth>
+            <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
               {loading ? 'Sending…' : 'Send reset link'}
-            </Button>
+            </SubmitButton>
             <MuiLink component={Link} href="/login" variant="body2" align="center">
               Back to sign in
             </MuiLink>
