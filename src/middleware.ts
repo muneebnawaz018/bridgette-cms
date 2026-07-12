@@ -27,5 +27,11 @@ export function middleware(req: NextRequest) {
 
 // Protect the dashboard shell and the invoices API. Auth routes/pages stay public.
 export const config = {
-  matcher: ['/dashboard/:path*', '/invoices/:path*', '/api/invoices/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/invoices/:path*',
+    '/users/:path*',
+    '/api/invoices/:path*',
+    '/api/auth/users/:path*',
+  ],
 };

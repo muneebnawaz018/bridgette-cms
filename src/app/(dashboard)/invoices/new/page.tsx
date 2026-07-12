@@ -13,6 +13,7 @@ import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
+import { useSnackbar } from 'notistack';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import { Permission } from '@/modules/auth/rbac';
 import { useCan } from '@/components/auth/SessionProvider';
@@ -28,6 +29,7 @@ const emptyLine: Line = { description: '', quantity: 1, unitPrice: 0 };
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const { enqueueSnackbar } = useSnackbar();
   const canCreate = useCan(Permission.InvoiceCreate);
 
   const [type, setType] = useState<InvoiceType>(InvoiceType.Tax);
@@ -36,7 +38,6 @@ export default function NewInvoicePage() {
   const [items, setItems] = useState<Line[]>([{ ...emptyLine }]);
   const [taxRate, setTaxRate] = useState(8.75);
   const [applyTax, setApplyTax] = useState(false);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const taxPolicy = TAX_POLICY[type];
@@ -54,7 +55,6 @@ export default function NewInvoicePage() {
   }
 
   async function submit(asDraft: boolean) {
-    setError('');
     setLoading(true);
     const res = await apiPost('/api/invoices', {
       type,
@@ -69,8 +69,12 @@ export default function NewInvoicePage() {
       asDraft,
     });
     setLoading(false);
-    if (res.ok) router.push('/invoices');
-    else setError(res.error ?? 'Failed to create invoice');
+    if (res.ok) {
+      enqueueSnackbar(asDraft ? 'Draft saved' : 'Invoice created', { variant: 'success' });
+      router.push('/invoices');
+    } else {
+      enqueueSnackbar(res.error ?? 'Failed to create invoice', { variant: 'error' });
+    }
   }
 
   if (!canCreate) {
@@ -83,8 +87,6 @@ export default function NewInvoicePage() {
         New invoice
       </Typography>
       <Stack spacing={2}>
-        {error && <Alert severity="error">{error}</Alert>}
-
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField

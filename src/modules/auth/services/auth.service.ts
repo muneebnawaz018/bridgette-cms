@@ -1,11 +1,13 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
+import type { PipelineStage } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { connectDb } from '@/lib/db/connection';
+import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
 import { otpEmail, resetPasswordEmail } from '@/lib/email/templates';
-import { User } from '../models/user.model';
+import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { UserStatus, OtpPurpose } from '../enums';
 import { Role, Permission, assertCan } from '../rbac';
@@ -19,6 +21,7 @@ import {
 } from '../jwt';
 import { setAuthCookies, clearAuthCookies, readRefreshToken } from '../cookies';
 import type { SessionUser } from '../session';
+import type { ListUsersInput, UpdateUserInput } from '../schemas';
 
 const OTP_TTL_MIN = 15;
 const RESET_TTL_MIN = 30;
@@ -227,4 +230,66 @@ export async function deactivateUser(actor: SessionUser, targetId: string): Prom
     { userId: targetId, revokedAt: null },
     { $set: { revokedAt: new Date() } },
   );
+}
+
+/** Paginated, searchable user list (passwordHash never returned). */
+export async function listUsers(
+  actor: SessionUser,
+  query: ListUsersInput,
+): Promise<Paginated<UserDoc>> {
+  assertCan(actor.role, Permission.UserView);
+  await connectDb();
+
+  const match: Record<string, unknown> = {};
+  if (query.role) match.role = query.role;
+  if (query.search) {
+    const rx = new RegExp(query.search.trim(), 'i');
+    match.$or = [{ name: rx }, { email: rx }];
+  }
+
+  const stages: PipelineStage[] = [{ $match: match }, { $project: { passwordHash: 0 } }];
+  return aggregatePaginate<UserDoc>(User, stages, { page: query.page, limit: query.limit });
+}
+
+/** Fetch one user (no passwordHash). */
+export async function getUser(actor: SessionUser, id: string) {
+  assertCan(actor.role, Permission.UserView);
+  await connectDb();
+  const user = await User.findById(id).select('-passwordHash').lean<UserDoc>();
+  if (!user) throw new Error('User not found');
+  return user;
+}
+
+/** Update a user's profile/role/status with RBAC + protection guards. */
+export async function updateUser(actor: SessionUser, id: string, input: UpdateUserInput) {
+  assertCan(actor.role, Permission.UserManage);
+  await connectDb();
+  const user = await User.findById(id);
+  if (!user) throw new Error('User not found');
+
+  // Only the Super Admin may create/assign admin-level roles.
+  if (input.role && ADMIN_ROLES.includes(input.role)) {
+    assertCan(actor.role, Permission.UserCreateAdmin);
+  }
+  // Protected (seeded Super Admin) cannot have role/status changed or be disabled.
+  if (user.isProtected && (input.role || input.status)) {
+    throw new Error('This user is protected and cannot be modified');
+  }
+
+  if (input.name !== undefined) user.name = input.name;
+  if (input.phone !== undefined) user.phone = input.phone;
+  if (input.role !== undefined) user.role = input.role;
+  if (input.status !== undefined) {
+    user.status = input.status;
+    if (input.status === UserStatus.Disabled) {
+      await RefreshToken.updateMany(
+        { userId: id, revokedAt: null },
+        { $set: { revokedAt: new Date() } },
+      );
+    }
+  }
+  await user.save();
+  const obj = user.toObject();
+  delete (obj as { passwordHash?: string }).passwordHash;
+  return obj;
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Role } from './rbac';
+import { UserStatus } from './enums';
 
 const password = z.string().min(8, 'Password must be at least 8 characters');
 
@@ -31,6 +32,22 @@ export const resetPasswordSchema = z.object({
   password,
 });
 
+export const listUsersSchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  search: z.string().optional(),
+  role: z.nativeEnum(Role).optional(),
+});
+
+export const updateUserSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: z.string().optional(),
+  role: z.nativeEnum(Role).optional(),
+  status: z.nativeEnum(UserStatus).optional(),
+});
+
+export type ListUsersInput = z.infer<typeof listUsersSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type SetPasswordInput = z.infer<typeof setPasswordSchema>;

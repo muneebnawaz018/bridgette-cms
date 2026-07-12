@@ -1,11 +1,21 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { Inter, Oswald } from 'next/font/google';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from '@/lib/theme';
+import { ToastProvider } from '@/components/ToastProvider';
 import { BRAND_RED } from '@/lib/colors';
 import './globals.css';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+const oswald = Oswald({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-oswald',
+  display: 'swap',
+});
 
 const APP_NAME = 'Bridgette Portal';
 const APP_TITLE = 'Bridgette Enterprises — Management Portal';
@@ -48,14 +58,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${oswald.variable}`}>
       {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) inject
           attributes into <body> before React hydrates, causing a false mismatch. */}
       <body suppressHydrationWarning>
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            {children}
+            <ToastProvider>{children}</ToastProvider>
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>

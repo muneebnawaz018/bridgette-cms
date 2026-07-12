@@ -7,7 +7,7 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import { getSession, ROLE_PERMISSIONS } from '@/modules/auth';
+import { getSession, ROLE_PERMISSIONS, Permission } from '@/modules/auth';
 import { LogoutButton } from '@/components/layout/LogoutButton';
 import { SessionProvider } from '@/components/auth/SessionProvider';
 
@@ -39,6 +39,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             <Button component={Link} href="/invoices" color="inherit" size="small">
               Invoices
             </Button>
+            {clientSession.permissions.includes(Permission.UserView) && (
+              <Button component={Link} href="/users" color="inherit" size="small">
+                Users
+              </Button>
+            )}
           </Box>
           <Chip label={session.role} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff' }} />
           <Typography variant="body2">{session.email}</Typography>

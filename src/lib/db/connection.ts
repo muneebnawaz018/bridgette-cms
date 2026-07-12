@@ -1,14 +1,17 @@
 import mongoose from 'mongoose';
 
 /**
- * Cached MongoDB connection.
+ * Cached MongoDB connection (singleton).
  *
- * Next.js hot-reloads modules in dev, which would open a new connection on every
- * change. We cache the connection (and the in-flight promise) on `globalThis` so a
- * single pooled connection is reused across reloads and across serverless invocations.
+ * Next.js hot-reloads modules in dev and reuses warm containers in serverless, which
+ * would otherwise open a new connection on every reload/invocation. We cache the
+ * connection AND the in-flight promise on `globalThis` so a single pooled connection is
+ * shared across reloads and invocations.
+ *
+ * Note on closing: do NOT close the connection per request in the app — the pool is meant
+ * to stay warm and shared. Closing belongs only in one-off scripts/tests (use
+ * `disconnectDb`). The seed script disconnects when it finishes.
  */
-
-const MONGODB_URI = process.env.MONGODB_URI;
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -22,17 +25,45 @@ declare global {
 const cache: MongooseCache = globalThis._mongoose ?? { conn: null, promise: null };
 globalThis._mongoose = cache;
 
+// Log every query (collection.op(...)) in development.
+if (process.env.NODE_ENV !== 'production') {
+  mongoose.set('debug', true);
+}
+
+const CONNECT_OPTIONS: mongoose.ConnectOptions = {
+  bufferCommands: false,
+  maxPoolSize: 10,
+  minPoolSize: 1,
+  serverSelectionTimeoutMS: 10_000,
+  socketTimeoutMS: 45_000,
+};
+
 export async function connectDb(): Promise<typeof mongoose> {
   if (cache.conn) return cache.conn;
 
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI is not set. Add it to .env.local');
-  }
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error('MONGODB_URI is not set. Add it to .env.local');
 
   if (!cache.promise) {
-    cache.promise = mongoose.connect(MONGODB_URI, { bufferCommands: false });
+    cache.promise = mongoose.connect(uri, CONNECT_OPTIONS);
   }
 
-  cache.conn = await cache.promise;
+  try {
+    cache.conn = await cache.promise;
+  } catch (err) {
+    // Reset so the next call retries instead of awaiting a permanently-rejected promise.
+    cache.promise = null;
+    throw err;
+  }
+
   return cache.conn;
+}
+
+/** Close the connection. Use only in scripts/tests — never per request in the app. */
+export async function disconnectDb(): Promise<void> {
+  if (cache.conn) {
+    await cache.conn.disconnect();
+    cache.conn = null;
+    cache.promise = null;
+  }
 }

@@ -12,6 +12,9 @@ export {
   forgotPassword,
   resetPassword,
   deactivateUser,
+  listUsers,
+  getUser,
+  updateUser,
 } from './services/auth.service';
 export {
   loginSchema,
@@ -19,10 +22,14 @@ export {
   setPasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  listUsersSchema,
+  updateUserSchema,
   type LoginInput,
   type CreateUserInput,
   type SetPasswordInput,
   type ForgotPasswordInput,
   type ResetPasswordInput,
+  type ListUsersInput,
+  type UpdateUserInput,
 } from './schemas';
 export { User } from './models/user.model';

@@ -6,33 +6,36 @@ import Link from 'next/link';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-import Alert from '@mui/material/Alert';
 import MuiLink from '@mui/material/Link';
+import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { PasswordField } from '@/components/form/PasswordField';
 import { apiPost } from '@/lib/api/client';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { enqueueSnackbar } = useSnackbar();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
     setLoading(true);
     const res = await apiPost('/api/auth/login', { email, password });
     setLoading(false);
-    if (res.ok) router.push('/dashboard');
-    else setError(res.error ?? 'Login failed');
+    if (res.ok) {
+      enqueueSnackbar('Signed in', { variant: 'success' });
+      router.push('/dashboard');
+    } else {
+      enqueueSnackbar(res.error ?? 'Login failed', { variant: 'error' });
+    }
   }
 
   return (
     <AuthCard title="Sign in" subtitle="Bridgette Enterprises — Management Portal">
       <form onSubmit={submit}>
         <Stack spacing={2}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField
             label="Email"
             type="email"
@@ -42,9 +45,8 @@ export default function LoginPage() {
             fullWidth
             autoComplete="email"
           />
-          <TextField
+          <PasswordField
             label="Password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
