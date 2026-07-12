@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+dist
+coverage
+
+# env
+.env
+.env*.local
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# local secret scripts (never commit — hold API keys)
+*.secret.sh
