@@ -158,6 +158,36 @@ export const openApiSpec = {
       get: { tags: ['Invoices'], summary: 'Get invoice (InvoiceView)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'OK' } } },
       patch: { tags: ['Invoices'], summary: 'Update invoice (InvoiceEdit)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'OK' } } },
     },
+    '/api/invoices/{id}/payments': {
+      get: {
+        tags: ['Invoices'],
+        summary: 'List payments for an invoice (InvoiceView)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Payment ledger' } },
+      },
+      post: {
+        tags: ['Invoices'],
+        summary: 'Record a payment (PaymentRecord) — recomputes balance + state',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['amount', 'method'],
+                properties: {
+                  amount: { type: 'number' },
+                  method: { type: 'string' },
+                  reference: { type: 'string' },
+                  allowOverpay: { type: 'boolean' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Recorded' }, 400: { description: 'Overpayment / invalid' } },
+      },
+    },
     '/api/invoices/{id}/archive': {
       post: {
         tags: ['Invoices'],
