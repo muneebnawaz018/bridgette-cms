@@ -98,11 +98,82 @@ export async function listInvoices(
     match.$and = [{ $or: [{ number: rx }, { 'billTo.name': rx }, { 'billTo.email': rx }] }];
   }
 
-  const stages: PipelineStage[] = [{ $match: match }];
+  // Project only what the list UI needs — drop the heavy items[] array from the payload.
+  const stages: PipelineStage[] = [
+    { $match: match },
+    {
+      $project: {
+        number: 1,
+        type: 1,
+        state: 1,
+        currency: 1,
+        grandTotal: 1,
+        balanceDue: 1,
+        isArchived: 1,
+        createdBy: 1,
+        createdAt: 1,
+        'billTo.name': 1,
+        'billTo.email': 1,
+      },
+    },
+  ];
   return aggregatePaginate<InvoiceDoc>(Invoice, stages, {
     page: query.page,
     limit: query.limit,
   });
+}
+
+export interface TypeTotals {
+  count: number;
+  invoiced: number;
+  outstanding: number;
+}
+export interface InvoiceStats {
+  total: number;
+  byState: Record<string, number>;
+  byType: Record<string, TypeTotals>; // { tax: {...}, cash: {...}, pk: {...} }
+}
+
+const round2 = (n: number) => Math.round((n ?? 0) * 100) / 100;
+
+/** Aggregated dashboard stats over the invoices this user may see (split by invoice type). */
+export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats> {
+  assertCan(actor.role, Permission.InvoiceView);
+  await connectDb();
+
+  const [row] = await Invoice.aggregate([
+    { $match: { ...invoiceVisibilityFilter(actor), isArchived: { $ne: true } } },
+    {
+      $facet: {
+        type: [
+          {
+            $group: {
+              _id: '$type',
+              count: { $sum: 1 },
+              invoiced: { $sum: '$grandTotal' },
+              outstanding: { $sum: '$balanceDue' },
+            },
+          },
+        ],
+        state: [{ $group: { _id: '$state', count: { $sum: 1 } } }],
+        total: [{ $count: 'n' }],
+      },
+    },
+  ]);
+
+  const byState: Record<string, number> = {};
+  for (const s of row?.state ?? []) byState[s._id] = s.count;
+
+  const byType: Record<string, TypeTotals> = {};
+  for (const t of row?.type ?? []) {
+    byType[t._id] = {
+      count: t.count,
+      invoiced: round2(t.invoiced),
+      outstanding: round2(t.outstanding),
+    };
+  }
+
+  return { total: row?.total?.[0]?.n ?? 0, byState, byType };
 }
 
 /** Fetch one invoice, enforcing archive visibility. */

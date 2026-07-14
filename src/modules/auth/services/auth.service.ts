@@ -117,10 +117,15 @@ async function issueTokens(session: SessionUser, ctx: RequestContext): Promise<v
     role: session.role,
     email: session.email,
   };
-  const accessToken = signAccessToken(payload);
+  const accessToken = await signAccessToken(payload);
 
   const jti = randomUUID();
-  const refreshToken = signRefreshToken({ sub: session.userId, jti });
+  const refreshToken = await signRefreshToken({
+    sub: session.userId,
+    jti,
+    role: session.role,
+    email: session.email,
+  });
   await RefreshToken.create({
     userId: session.userId,
     jti,
@@ -138,7 +143,7 @@ export async function refreshSession(ctx: RequestContext = {}): Promise<SessionU
   const token = await readRefreshToken();
   if (!token) throw new Error('No refresh token');
 
-  const payload = verifyRefreshToken(token);
+  const payload = await verifyRefreshToken(token);
   const stored = await RefreshToken.findOne({ jti: payload.jti, revokedAt: null });
   if (!stored) throw new Error('Refresh token revoked');
   if (stored.expiresAt.getTime() < Date.now()) throw new Error('Refresh token expired');
@@ -167,7 +172,7 @@ export async function logout(): Promise<void> {
   const token = await readRefreshToken();
   if (token) {
     try {
-      const payload = verifyRefreshToken(token);
+      const payload = await verifyRefreshToken(token);
       await RefreshToken.updateOne(
         { jti: payload.jti, revokedAt: null },
         { $set: { revokedAt: new Date() } },

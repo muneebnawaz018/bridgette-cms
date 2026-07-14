@@ -15,3 +15,6 @@ npm-debug.log*
 
 # local secret scripts (never commit — hold API keys)
 *.secret.sh
+
+# typescript build info
+*.tsbuildinfo

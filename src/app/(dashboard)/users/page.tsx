@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -12,10 +12,13 @@ import DialogActions from '@mui/material/DialogActions';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import type { GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission, Role } from '@/modules/auth/rbac';
 import { useCan } from '@/components/auth/SessionProvider';
+import { SubmitButton } from '@/components/ui/SubmitButton';
+import { DataTable } from '@/components/ui/DataTable';
+import { useApi } from '@/lib/api/useApi';
 import { apiPost } from '@/lib/api/client';
 
 interface UserRow {
@@ -39,22 +42,11 @@ export default function UsersPage() {
   const canCreateAdmin = useCan(Permission.UserCreateAdmin);
   const canManage = useCan(Permission.UserManage);
 
-  const [rows, setRows] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, mutate } = useApi<{ items: UserRow[] }>('/api/auth/users?limit=100');
+  const rows = data?.items ?? [];
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', role: Role.Accountant as Role });
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch('/api/auth/users?limit=100');
-    const json = await res.json();
-    setRows(json.ok ? json.data.items : []);
-    setLoading(false);
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   async function createUser() {
     setSaving(true);
@@ -64,7 +56,7 @@ export default function UsersPage() {
       enqueueSnackbar('User created — invite email sent', { variant: 'success' });
       setOpen(false);
       setForm({ name: '', email: '', role: Role.Accountant });
-      void load();
+      void mutate();
     } else {
       enqueueSnackbar(res.error ?? 'Failed to create user', { variant: 'error' });
     }
@@ -75,7 +67,7 @@ export default function UsersPage() {
     const json = await res.json();
     if (json.ok) {
       enqueueSnackbar('User deactivated', { variant: 'success' });
-      void load();
+      void mutate();
     } else {
       enqueueSnackbar(json.error ?? 'Failed', { variant: 'error' });
     }
@@ -107,7 +99,7 @@ export default function UsersPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
         <Typography variant="h5" sx={{ flexGrow: 1 }}>
           Users
         </Typography>
@@ -118,17 +110,7 @@ export default function UsersPage() {
         )}
       </Box>
 
-      <div style={{ height: 560, width: '100%' }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          getRowId={(r) => r._id}
-          loading={loading}
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
-          disableRowSelectionOnClick
-        />
-      </div>
+      <DataTable rows={rows} columns={columns} getRowId={(r) => r._id} loading={isLoading} />
 
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>New user</DialogTitle>
@@ -143,10 +125,12 @@ export default function UsersPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={createUser} disabled={saving || !form.name || !form.email}>
-            {saving ? 'Creating…' : 'Create'}
+          <Button onClick={() => setOpen(false)} disabled={saving}>
+            Cancel
           </Button>
+          <SubmitButton variant="contained" loading={saving} onClick={createUser} disabled={!form.name || !form.email}>
+            Create
+          </SubmitButton>
         </DialogActions>
       </Dialog>
     </Box>

@@ -2,6 +2,7 @@
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import Typography from '@mui/material/Typography';
 
 /**
  * Brand-themed loading spinner. `fullscreen` centers it over the viewport (used by
@@ -20,24 +21,13 @@ export function BrandLoader({ fullscreen = false, label }: { fullscreen?: boolea
         width: '100%',
       }}
     >
-      <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-        <CircularProgress size={64} thickness={4} sx={{ color: 'primary.main' }} />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/icon.png"
-          alt=""
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            height: 30,
-          }}
-        />
-      </Box>
-      {label && (
-        <Box sx={{ color: 'text.secondary', fontSize: 14 }}>{label}</Box>
-      )}
+      <CircularProgress size={56} thickness={4} sx={{ color: 'primary.main' }} />
+      <Typography
+        variant="h6"
+        sx={{ color: 'primary.main', letterSpacing: 2 }}
+      >
+        {label ?? 'Bridgette'}
+      </Typography>
     </Box>
   );
 }

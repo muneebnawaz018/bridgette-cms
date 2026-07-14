@@ -30,6 +30,7 @@
     "@mui/x-data-grid": "^7.23.6",
     "@scalar/nextjs-api-reference": "^0.11.9",
     "bcryptjs": "^2.4.3",
+    "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "next": "^15.1.6",
@@ -38,6 +39,7 @@
     "pino": "^10.3.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "swr": "^2.4.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

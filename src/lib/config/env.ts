@@ -24,7 +24,7 @@ export const env = {
   get jwtRefreshSecret() {
     return required('JWT_REFRESH_SECRET');
   },
-  accessTokenTtl: optional('JWT_ACCESS_TTL', '15m'),
+  accessTokenTtl: optional('JWT_ACCESS_TTL', '1h'),
   refreshTokenTtl: optional('JWT_REFRESH_TTL', '7d'),
   get appUrl() {
     return optional('NEXT_PUBLIC_SITE_URL', 'http://localhost:3000');

@@ -18,6 +18,9 @@ export {
   getInvoice,
   updateInvoice,
   archiveInvoice,
+  getInvoiceStats,
+  type InvoiceStats,
+  type TypeTotals,
 } from './services/invoice.service';
 export {
   createInvoiceSchema,

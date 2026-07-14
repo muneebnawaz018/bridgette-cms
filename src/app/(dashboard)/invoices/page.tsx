@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -13,12 +13,14 @@ import DialogActions from '@mui/material/DialogActions';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import type { GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
 import { PaymentMethod } from '@/modules/invoicing/enums';
 import { useCan } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { DataTable } from '@/components/ui/DataTable';
+import { useApi } from '@/lib/api/useApi';
 import { apiPost } from '@/lib/api/client';
 
 interface InvoiceRow {
@@ -46,23 +48,12 @@ export default function InvoicesPage() {
   const canCreate = useCan(Permission.InvoiceCreate);
   const canPay = useCan(Permission.PaymentRecord);
 
-  const [rows, setRows] = useState<InvoiceRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, mutate } = useApi<{ items: InvoiceRow[] }>('/api/invoices?limit=50');
+  const rows = data?.items ?? [];
   const [payFor, setPayFor] = useState<InvoiceRow | null>(null);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>(PaymentMethod.BankTransfer);
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch('/api/invoices?limit=50');
-    const json = await res.json();
-    setRows(json.ok ? json.data.items : []);
-    setLoading(false);
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   function openPay(row: InvoiceRow) {
     setPayFor(row);
@@ -81,7 +72,7 @@ export default function InvoicesPage() {
     if (res.ok) {
       enqueueSnackbar('Payment recorded', { variant: 'success' });
       setPayFor(null);
-      void load();
+      void mutate();
     } else {
       enqueueSnackbar(res.error ?? 'Failed to record payment', { variant: 'error' });
     }
@@ -115,7 +106,7 @@ export default function InvoicesPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
         <Typography variant="h5" sx={{ flexGrow: 1 }}>
           Invoices
         </Typography>
@@ -126,17 +117,7 @@ export default function InvoicesPage() {
         )}
       </Box>
 
-      <div style={{ height: 560, width: '100%' }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          getRowId={(r) => r._id}
-          loading={loading}
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }}
-          disableRowSelectionOnClick
-        />
-      </div>
+      <DataTable rows={rows} columns={columns} getRowId={(r) => r._id} loading={isLoading} />
 
       <Dialog open={Boolean(payFor)} onClose={() => setPayFor(null)} fullWidth maxWidth="xs">
         <DialogTitle>Record payment — {payFor?.number}</DialogTitle>

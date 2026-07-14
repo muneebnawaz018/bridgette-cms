@@ -4,8 +4,19 @@ import { env } from '@/lib/config/env';
 export const ACCESS_COOKIE = 'bp_at';
 export const REFRESH_COOKIE = 'bp_rt';
 
-const ACCESS_MAX_AGE = 60 * 15; // 15 min
-const REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+/** Parse a JWT-style duration ("15m", "1h", "24h", "7d", "30s") into seconds. */
+function durationToSeconds(ttl: string, fallback: number): number {
+  const m = /^(\d+)\s*(s|m|h|d)$/.exec(ttl.trim());
+  if (!m) return fallback;
+  const n = Number(m[1]);
+  const unit = { s: 1, m: 60, h: 3600, d: 86400 }[m[2] as 's' | 'm' | 'h' | 'd'];
+  return n * unit;
+}
+
+// Cookie lifetimes are derived from the same env TTLs used to sign the tokens, so they
+// never drift. JWT_ACCESS_TTL / JWT_REFRESH_TTL are the single source of truth.
+const ACCESS_MAX_AGE = durationToSeconds(env.accessTokenTtl, 60 * 60);
+const REFRESH_MAX_AGE = durationToSeconds(env.refreshTokenTtl, 60 * 60 * 24 * 7);
 
 const baseOptions = {
   httpOnly: true,
