@@ -1,16 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { Modal } from '@/components/ui/Modal';
 import { apiPatch } from '@/lib/api/client';
+
+const FORM_ID = 'edit-profile-form';
 
 /** Edit your own name and phone (email/role/status stay read-only and admin-controlled). */
 export function EditProfileDialog({
@@ -51,24 +51,30 @@ export function EditProfileDialog({
   }
 
   return (
-    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ fontWeight: 700 }}>Edit profile</DialogTitle>
-      <form onSubmit={submit}>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 0.5 }}>
-            <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth disabled={saving} />
-            <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth disabled={saving} placeholder="Optional" />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+    <Modal
+      open={open}
+      onClose={saving ? () => {} : onClose}
+      title="Edit profile"
+      icon={<EditRounded />}
+      maxWidth="xs"
+      busy={saving}
+      actions={
+        <>
           <Button onClick={onClose} disabled={saving} color="inherit">
             Cancel
           </Button>
-          <SubmitButton type="submit" variant="contained" loading={saving}>
+          <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving}>
             Save changes
           </SubmitButton>
-        </DialogActions>
+        </>
+      }
+    >
+      <form id={FORM_ID} onSubmit={submit}>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth disabled={saving} autoFocus />
+          <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth disabled={saving} placeholder="Optional" />
+        </Stack>
       </form>
-    </Dialog>
+    </Modal>
   );
 }

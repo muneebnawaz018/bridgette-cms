@@ -8,10 +8,6 @@ import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
@@ -20,6 +16,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import AddRounded from '@mui/icons-material/AddRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
+import PaymentsRounded from '@mui/icons-material/PaymentsRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
@@ -29,6 +26,7 @@ import { useCan } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -196,27 +194,29 @@ export default function InvoicesPage() {
     {
       field: 'number',
       headerName: 'Number',
-      width: 160,
+      flex: 1.1,
+      minWidth: 140,
       renderCell: (p) => (
         <MuiLink component={Link} href={`/invoices/${p.row._id}`} sx={{ fontWeight: 600, color: 'primary.main' }} underline="hover">
           {p.value}
         </MuiLink>
       ),
     },
-    { field: 'type', headerName: 'Type', width: 80 },
+    { field: 'type', headerName: 'Type', width: 90 },
     {
       field: 'state',
       headerName: 'State',
-      width: 130,
+      flex: 0.9,
+      minWidth: 130,
       renderCell: (p) => <StatusChip label={p.value} tone={invoiceStateTone[p.value] ?? 'neutral'} />,
     },
-    { field: 'billTo', headerName: 'Bill to', width: 160, valueGetter: (_v, r) => r.billTo?.name ?? '—' },
-    { field: 'grandTotal', headerName: 'Total', width: 120, valueGetter: (_v, r) => `${r.currency} ${Number(r.grandTotal).toFixed(2)}` },
-    { field: 'balanceDue', headerName: 'Balance', width: 120, valueGetter: (_v, r) => `${r.currency} ${Number(r.balanceDue).toFixed(2)}` },
+    { field: 'billTo', headerName: 'Bill to', flex: 1.4, minWidth: 150, valueGetter: (_v, r) => r.billTo?.name ?? 'No customer' },
+    { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, valueGetter: (_v, r) => `${r.currency} ${Number(r.grandTotal).toFixed(2)}` },
+    { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, valueGetter: (_v, r) => `${r.currency} ${Number(r.balanceDue).toFixed(2)}` },
     {
       field: 'actions',
       headerName: '',
-      width: 70,
+      width: 64,
       sortable: false,
       align: 'center',
       renderCell: (p) => (
@@ -286,46 +286,53 @@ export default function InvoicesPage() {
       </Paper>
 
       {/* Record payment */}
-      <Dialog open={Boolean(payFor)} onClose={() => setPayFor(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Record payment for {payFor?.number}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Balance due: {payFor?.currency} {Number(payFor?.balanceDue ?? 0).toFixed(2)}
-            </Typography>
-            <TextField
-              label="Amount"
-              type="number"
-              value={pay.amount}
-              onChange={(e) => setPay((p) => ({ ...p, amount: e.target.value }))}
-              fullWidth
-              disabled={saving}
-            />
-            <TextField
-              select
-              label="Method"
-              value={pay.method}
-              onChange={(e) => setPay((p) => ({ ...p, method: e.target.value as PaymentMethod }))}
-              fullWidth
-              disabled={saving}
-            >
-              {Object.values(PaymentMethod).map((m) => (
-                <MenuItem key={m} value={m}>
-                  {m}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPayFor(null)} disabled={saving}>
-            Cancel
-          </Button>
-          <SubmitButton variant="contained" loading={saving} onClick={submitPayment} disabled={!pay.amount || Number(pay.amount) <= 0}>
-            Record
-          </SubmitButton>
-        </DialogActions>
-      </Dialog>
+      <Modal
+        open={Boolean(payFor)}
+        onClose={() => setPayFor(null)}
+        title={`Record payment for ${payFor?.number ?? ''}`}
+        icon={<PaymentsRounded />}
+        maxWidth="xs"
+        busy={saving}
+        actions={
+          <>
+            <Button onClick={() => setPayFor(null)} disabled={saving} color="inherit">
+              Cancel
+            </Button>
+            <SubmitButton variant="contained" loading={saving} onClick={submitPayment} disabled={!pay.amount || Number(pay.amount) <= 0}>
+              Record
+            </SubmitButton>
+          </>
+        }
+      >
+        <Stack spacing={2}>
+          <Typography variant="body2" color="text.secondary">
+            Balance due: {payFor?.currency} {Number(payFor?.balanceDue ?? 0).toFixed(2)}
+          </Typography>
+          <TextField
+            label="Amount"
+            type="number"
+            value={pay.amount}
+            onChange={(e) => setPay((p) => ({ ...p, amount: e.target.value }))}
+            fullWidth
+            disabled={saving}
+            autoFocus
+          />
+          <TextField
+            select
+            label="Method"
+            value={pay.method}
+            onChange={(e) => setPay((p) => ({ ...p, method: e.target.value as PaymentMethod }))}
+            fullWidth
+            disabled={saving}
+          >
+            {Object.values(PaymentMethod).map((m) => (
+              <MenuItem key={m} value={m}>
+                {m}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+      </Modal>
 
       {/* Archive / delete, both require a reason */}
       <ConfirmDialog

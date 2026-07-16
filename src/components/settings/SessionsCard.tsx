@@ -109,13 +109,25 @@ export function SessionsCard() {
   async function revokeOne(id: string) {
     setRevoking(id);
     const res = await apiDelete(`/api/auth/sessions/${id}`);
-    setRevoking(null);
     if (res.ok) {
       enqueueSnackbar('Device signed out', { variant: 'success' });
-      void mutate();
+      // Optimistically move the row to "revoked" so its action button doesn't flash back
+      // during revalidation.
+      await mutate(
+        (curr) =>
+          curr
+            ? {
+                sessions: curr.sessions.map((s) =>
+                  s.id === id ? { ...s, status: 'revoked' as const, revokedAt: new Date().toISOString() } : s,
+                ),
+              }
+            : curr,
+        { revalidate: true },
+      );
     } else {
       enqueueSnackbar(res.error ?? 'Could not sign out that device', { variant: 'error' });
     }
+    setRevoking(null);
   }
 
   return (

@@ -18,9 +18,12 @@ import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import MenuRounded from '@mui/icons-material/MenuRounded';
 import { BrandLockup } from '@/components/layout/BrandLockup';
 import { ProfileMenu } from '@/components/layout/ProfileMenu';
-import { colors } from '@/lib/colors';
+import { colors, gradients } from '@/lib/colors';
+import { displayFont } from '@/lib/theme';
 
 const RAIL = 268;
+// Rail shows from tablet up; below this the hamburger + drawer take over.
+const RAIL_QUERY = '@media (min-width:768px)';
 
 interface NavItem {
   href: string;
@@ -112,18 +115,18 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100dvh' }}>
-      {/* Desktop rail — reserves width in flow, panel is fixed */}
-      <Box component="nav" sx={{ width: RAIL, flexShrink: 0, display: { xs: 'none', lg: 'block' } }}>
+      {/* Tablet/desktop rail (>=768px) — reserves width in flow, panel is fixed */}
+      <Box component="nav" sx={{ width: RAIL, flexShrink: 0, display: 'none', [RAIL_QUERY]: { display: 'block' } }}>
         <Box sx={{ position: 'fixed', top: 0, bottom: 0, width: RAIL, bgcolor: colors.rail.bg, borderRight: `1px solid ${colors.rail.border}` }}>
           <RailContent items={items} isActive={isActive} />
         </Box>
       </Box>
 
-      {/* Mobile drawer */}
+      {/* Drawer (<768px) */}
       <Drawer
         open={open}
         onClose={() => setOpen(false)}
-        sx={{ display: { lg: 'none' } }}
+        sx={{ [RAIL_QUERY]: { display: 'none' } }}
         ModalProps={{ keepMounted: true }}
         PaperProps={{ sx: { width: RAIL, bgcolor: colors.rail.bg, backgroundImage: 'none', border: 'none' } }}
       >
@@ -148,11 +151,25 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
             borderBottom: `1px solid ${colors.surface.border}`,
           }}
         >
-          <IconButton onClick={() => setOpen(true)} edge="start" aria-label="Open navigation" sx={{ display: { lg: 'none' } }}>
+          <IconButton onClick={() => setOpen(true)} edge="start" aria-label="Open navigation" sx={{ [RAIL_QUERY]: { display: 'none' } }}>
             <MenuRounded />
           </IconButton>
-          {/* Single page title (the brand lives in the rail / drawer). */}
-          <Typography sx={{ fontWeight: 700, fontSize: { xs: '1.05rem', md: '1.2rem' }, letterSpacing: '-0.01em', color: 'text.primary' }}>
+          {/* Single page title — brand gradient, display font (brand lives in the rail/drawer). */}
+          <Typography
+            component="h1"
+            sx={{
+              fontFamily: displayFont,
+              fontWeight: 600,
+              fontSize: { xs: '1.5rem', md: '1.8rem' },
+              lineHeight: 1,
+              letterSpacing: '-0.01em',
+              background: gradients.brand,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              display: 'inline-block',
+            }}
+          >
             {pageTitle(pathname)}
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
@@ -160,7 +177,7 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
         </Box>
 
         <Box component="main" sx={{ flexGrow: 1, px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2.5, md: 3.5 } }}>
-          <Box sx={{ maxWidth: 1240, mx: 'auto', width: '100%' }}>{children}</Box>
+          <Box sx={{ maxWidth: 1520, mx: 'auto', width: '100%' }}>{children}</Box>
         </Box>
       </Box>
     </Box>

@@ -2,11 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
@@ -16,6 +11,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import DevicesRounded from '@mui/icons-material/DevicesRounded';
 import LogoutRounded from '@mui/icons-material/LogoutRounded';
 import { useSnackbar } from 'notistack';
+import { Modal } from '@/components/ui/Modal';
 import { apiPost } from '@/lib/api/client';
 
 type Scope = 'others' | 'all';
@@ -66,38 +62,41 @@ export function SessionScopeDialog({
   const locked = busy !== null;
 
   return (
-    <Dialog open={open} onClose={locked ? undefined : allowDismiss ? onClose : undefined} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ fontWeight: 700 }}>{title}</DialogTitle>
-      <DialogContent>
-        <DialogContentText sx={{ color: 'text.secondary', mb: 2 }}>{description}</DialogContentText>
-        <Stack spacing={1.25}>
-          <Option
-            icon={<DevicesRounded />}
-            title="Keep this device"
-            subtitle="Sign out everywhere else. Recommended."
-            loading={busy === 'others'}
-            disabled={locked}
-            onClick={() => run('others')}
-          />
-          <Option
-            icon={<LogoutRounded />}
-            title="Sign out everywhere"
-            subtitle="End every session, including this one."
-            tone="error"
-            loading={busy === 'all'}
-            disabled={locked}
-            onClick={() => run('all')}
-          />
-        </Stack>
-      </DialogContent>
-      {allowDismiss && (
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+    <Modal
+      open={open}
+      onClose={allowDismiss ? onClose : () => {}}
+      title={title}
+      description={description}
+      maxWidth="xs"
+      busy={locked}
+      actions={
+        allowDismiss ? (
           <Button onClick={onClose} disabled={locked} color="inherit">
             Keep all devices signed in
           </Button>
-        </DialogActions>
-      )}
-    </Dialog>
+        ) : undefined
+      }
+    >
+      <Stack spacing={1.25}>
+        <Option
+          icon={<DevicesRounded />}
+          title="Keep this device"
+          subtitle="Sign out everywhere else. Recommended."
+          loading={busy === 'others'}
+          disabled={locked}
+          onClick={() => run('others')}
+        />
+        <Option
+          icon={<LogoutRounded />}
+          title="Sign out everywhere"
+          subtitle="End every session, including this one."
+          tone="error"
+          loading={busy === 'all'}
+          disabled={locked}
+          onClick={() => run('all')}
+        />
+      </Stack>
+    </Modal>
   );
 }
 

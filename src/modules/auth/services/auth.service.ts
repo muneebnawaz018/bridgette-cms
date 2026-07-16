@@ -261,6 +261,7 @@ export async function updateOwnProfile(
 export async function deactivateUser(actor: SessionUser, targetId: string): Promise<void> {
   await connectDb();
   assertCan(actor.role, Permission.UserManage);
+  if (targetId === actor.userId) throw new Error('You cannot deactivate your own account');
   const target = await User.findById(targetId);
   if (!target) throw new Error('User not found');
   if (target.isProtected) throw new Error('This user is protected and cannot be deactivated');

@@ -1,17 +1,14 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import { Modal } from '@/components/ui/Modal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 
 /**
- * Reusable confirmation dialog for actions the user should not trigger by accident
- * (sign out, deactivate, archive, and other one-way changes). Locks while `loading`.
+ * Confirmation dialog for actions the user should not trigger by accident (sign out,
+ * deactivate, archive, and other one-way changes). Built on the shared Modal, so it gets
+ * the close (X), click-outside dismiss, and transition for free. Locks while `loading`.
  */
 export function ConfirmDialog({
   open,
@@ -39,34 +36,26 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const hasBody = Boolean(description || children);
   return (
-    <Dialog open={open} onClose={loading ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ fontWeight: 700 }}>{title}</DialogTitle>
-      {hasBody && (
-        <DialogContent>
-          {description && (
-            <DialogContentText sx={{ color: 'text.secondary', mb: children ? 2 : 0 }}>
-              {description}
-            </DialogContentText>
-          )}
-          {children}
-        </DialogContent>
-      )}
-      <DialogActions sx={{ px: 3, pb: 2.5, pt: hasBody ? 0 : 1 }}>
-        <Button onClick={onClose} disabled={loading} color="inherit">
-          {cancelLabel}
-        </Button>
-        <SubmitButton
-          onClick={onConfirm}
-          loading={loading}
-          disabled={confirmDisabled}
-          variant="contained"
-          color={confirmColor}
-        >
-          {confirmLabel}
-        </SubmitButton>
-      </DialogActions>
-    </Dialog>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={description}
+      busy={loading}
+      maxWidth="xs"
+      actions={
+        <>
+          <Button onClick={onClose} disabled={loading} color="inherit">
+            {cancelLabel}
+          </Button>
+          <SubmitButton onClick={onConfirm} loading={loading} disabled={confirmDisabled} variant="contained" color={confirmColor}>
+            {confirmLabel}
+          </SubmitButton>
+        </>
+      }
+    >
+      {children}
+    </Modal>
   );
 }

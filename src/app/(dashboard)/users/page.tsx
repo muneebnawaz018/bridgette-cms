@@ -6,10 +6,6 @@ import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
@@ -20,10 +16,11 @@ import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission, Role } from '@/modules/auth/rbac';
 import { UserStatus } from '@/modules/auth/enums';
-import { useCan } from '@/components/auth/SessionProvider';
+import { useCan, useSession } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, type Tone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -62,16 +59,19 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 function UserRowActions({
   row,
   canManage,
+  isSelf,
   onEdit,
   onDeactivate,
 }: {
   row: UserRow;
   canManage: boolean;
+  isSelf: boolean;
   onEdit: (row: UserRow) => void;
   onDeactivate: (row: UserRow) => void;
 }) {
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
-  const deactivatable = canManage && row.status !== 'disabled' && !row.isProtected;
+  // Cannot deactivate a disabled user, a protected user, or your own account.
+  const deactivatable = canManage && row.status !== 'disabled' && !row.isProtected && !isSelf;
   if (!canManage) return null;
 
   const close = () => setAnchor(null);
@@ -94,6 +94,7 @@ function UserRowActions({
 
 export default function UsersPage() {
   const { enqueueSnackbar } = useSnackbar();
+  const { userId: currentUserId } = useSession();
   const canCreate = useCan(Permission.UserCreate);
   const canCreateAdmin = useCan(Permission.UserCreateAdmin);
   const canManage = useCan(Permission.UserManage);
@@ -194,23 +195,24 @@ export default function UsersPage() {
   }
 
   const columns: GridColDef<UserRow>[] = [
-    { field: 'name', headerName: 'Name', width: 180 },
-    { field: 'email', headerName: 'Email', width: 240 },
-    { field: 'role', headerName: 'Role', width: 170, valueGetter: (_v, r) => ROLE_LABEL[r.role] ?? r.role },
+    { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150 },
+    { field: 'email', headerName: 'Email', flex: 1.8, minWidth: 200 },
+    { field: 'role', headerName: 'Role', flex: 1.1, minWidth: 150, valueGetter: (_v, r) => ROLE_LABEL[r.role] ?? r.role },
     {
       field: 'status',
       headerName: 'Status',
-      width: 130,
+      flex: 0.9,
+      minWidth: 120,
       renderCell: (p) => <StatusChip label={p.value} tone={statusTone[p.value] ?? 'neutral'} />,
     },
     {
       field: 'actions',
       headerName: '',
-      width: 70,
+      width: 64,
       sortable: false,
       align: 'center',
       renderCell: (p) => (
-        <UserRowActions row={p.row} canManage={canManage} onEdit={openEdit} onDeactivate={setToDeactivate} />
+        <UserRowActions row={p.row} canManage={canManage} isSelf={p.row._id === currentUserId} onEdit={openEdit} onDeactivate={setToDeactivate} />
       ),
     },
   ];
@@ -268,25 +270,31 @@ export default function UsersPage() {
       </Paper>
 
       {/* Create */}
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>New user</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth required />
-            <TextField label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth required />
-            <TextField select label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })} fullWidth>
-              <MenuItem value={Role.Accountant}>Accountant / Manager</MenuItem>
-              {canCreateAdmin && <MenuItem value={Role.Admin}>Administrator</MenuItem>}
-            </TextField>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-          <SubmitButton variant="contained" loading={saving} onClick={createUser} disabled={!form.name || !form.email}>
-            Create
-          </SubmitButton>
-        </DialogActions>
-      </Dialog>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="New user"
+        icon={<PersonAddRounded />}
+        maxWidth="xs"
+        busy={saving}
+        actions={
+          <>
+            <Button onClick={() => setOpen(false)} disabled={saving} color="inherit">Cancel</Button>
+            <SubmitButton variant="contained" loading={saving} onClick={createUser} disabled={!form.name || !form.email}>
+              Create
+            </SubmitButton>
+          </>
+        }
+      >
+        <Stack spacing={2}>
+          <TextField label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth required autoFocus />
+          <TextField label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth required />
+          <TextField select label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })} fullWidth>
+            <MenuItem value={Role.Accountant}>Accountant / Manager</MenuItem>
+            {canCreateAdmin && <MenuItem value={Role.Admin}>Administrator</MenuItem>}
+          </TextField>
+        </Stack>
+      </Modal>
 
       {/* Edit (modify) */}
       <ConfirmDialog

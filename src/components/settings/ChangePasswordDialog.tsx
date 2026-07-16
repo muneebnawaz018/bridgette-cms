@@ -1,20 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import LockResetRounded from '@mui/icons-material/LockResetRounded';
 import { useSnackbar } from 'notistack';
 import { PasswordField } from '@/components/form/PasswordField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { Modal } from '@/components/ui/Modal';
 import { SessionScopeDialog } from '@/components/settings/SessionScopeDialog';
 import { apiPost } from '@/lib/api/client';
 
 const EMPTY = { current: '', next: '', confirm: '' };
+const FORM_ID = 'change-password-form';
 
 /**
  * Change-password modal. On success it does NOT close immediately — it opens the
@@ -54,7 +52,7 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
     if (res.ok) {
       enqueueSnackbar('Password changed', { variant: 'success' });
       setPw(EMPTY);
-      setScopeOpen(true); // chain into the "where to stay signed in" choice
+      setScopeOpen(true);
     } else {
       enqueueSnackbar(res.error ?? 'Could not change password', { variant: 'error' });
     }
@@ -62,29 +60,33 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
 
   return (
     <>
-      <Dialog open={open} onClose={close} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 700 }}>Change password</DialogTitle>
-        <form onSubmit={submit}>
-          <DialogContent>
-            <DialogContentText sx={{ color: 'text.secondary', mb: 2 }}>
-              Enter your current password, then choose a new one of at least 8 characters.
-            </DialogContentText>
-            <Stack spacing={2}>
-              <PasswordField label="Current password" value={pw.current} onChange={set('current')} required fullWidth disabled={saving} autoComplete="current-password" autoFocus />
-              <PasswordField label="New password" value={pw.next} onChange={set('next')} required fullWidth disabled={saving} autoComplete="new-password" />
-              <PasswordField label="Confirm new password" value={pw.confirm} onChange={set('confirm')} required fullWidth disabled={saving} autoComplete="new-password" />
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+      <Modal
+        open={open}
+        onClose={close}
+        title="Change password"
+        description="Enter your current password, then choose a new one of at least 8 characters."
+        icon={<LockResetRounded />}
+        maxWidth="xs"
+        busy={saving}
+        actions={
+          <>
             <Button onClick={close} disabled={saving} color="inherit">
               Cancel
             </Button>
-            <SubmitButton type="submit" variant="contained" loading={saving} disabled={!filled}>
+            <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving} disabled={!filled}>
               Update password
             </SubmitButton>
-          </DialogActions>
+          </>
+        }
+      >
+        <form id={FORM_ID} onSubmit={submit}>
+          <Stack spacing={2}>
+            <PasswordField label="Current password" value={pw.current} onChange={set('current')} required fullWidth disabled={saving} autoComplete="current-password" autoFocus />
+            <PasswordField label="New password" value={pw.next} onChange={set('next')} required fullWidth disabled={saving} autoComplete="new-password" />
+            <PasswordField label="Confirm new password" value={pw.confirm} onChange={set('confirm')} required fullWidth disabled={saving} autoComplete="new-password" />
+          </Stack>
         </form>
-      </Dialog>
+      </Modal>
 
       <SessionScopeDialog
         open={scopeOpen}
