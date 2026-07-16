@@ -25,8 +25,9 @@ declare global {
 const cache: MongooseCache = globalThis._mongoose ?? { conn: null, promise: null };
 globalThis._mongoose = cache;
 
-// Log every query (collection.op(...)) in development.
-if (process.env.NODE_ENV !== 'production') {
+// Query logging is opt-in via MONGOOSE_DEBUG=true. It prints (and serializes) every
+// collection op, which adds real per-request overhead in dev, so it stays off by default.
+if (process.env.MONGOOSE_DEBUG === 'true') {
   mongoose.set('debug', true);
 }
 

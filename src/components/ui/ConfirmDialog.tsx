@@ -17,9 +17,11 @@ export function ConfirmDialog({
   open,
   title,
   description,
+  children,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   confirmColor = 'primary',
+  confirmDisabled = false,
   loading = false,
   onConfirm,
   onClose,
@@ -27,26 +29,41 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
   description?: ReactNode;
+  /** Extra content (e.g. a reason field) rendered below the description. */
+  children?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   confirmColor?: 'primary' | 'error';
+  confirmDisabled?: boolean;
   loading?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const hasBody = Boolean(description || children);
   return (
     <Dialog open={open} onClose={loading ? undefined : onClose} fullWidth maxWidth="xs">
       <DialogTitle sx={{ fontWeight: 700 }}>{title}</DialogTitle>
-      {description && (
+      {hasBody && (
         <DialogContent>
-          <DialogContentText sx={{ color: 'text.secondary' }}>{description}</DialogContentText>
+          {description && (
+            <DialogContentText sx={{ color: 'text.secondary', mb: children ? 2 : 0 }}>
+              {description}
+            </DialogContentText>
+          )}
+          {children}
         </DialogContent>
       )}
-      <DialogActions sx={{ px: 3, pb: 2.5, pt: description ? 0 : 1 }}>
+      <DialogActions sx={{ px: 3, pb: 2.5, pt: hasBody ? 0 : 1 }}>
         <Button onClick={onClose} disabled={loading} color="inherit">
           {cancelLabel}
         </Button>
-        <SubmitButton onClick={onConfirm} loading={loading} variant="contained" color={confirmColor}>
+        <SubmitButton
+          onClick={onConfirm}
+          loading={loading}
+          disabled={confirmDisabled}
+          variant="contained"
+          color={confirmColor}
+        >
           {confirmLabel}
         </SubmitButton>
       </DialogActions>

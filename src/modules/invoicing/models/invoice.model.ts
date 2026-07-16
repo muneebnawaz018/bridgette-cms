@@ -80,11 +80,18 @@ const invoiceSchema = new Schema(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     cancelledReason: { type: String },
 
-    // Archive (never hard-deleted). Visible only to Admin+ or the creator.
+    // Archive: hidden from the default list. Visible to Admin+ or the creator.
     isArchived: { type: Boolean, default: false, index: true },
     archivedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     archivedAt: { type: Date },
     archiveReason: { type: String },
+
+    // Soft-delete: invoices are never hard-deleted. A deleted invoice is hidden from
+    // everyone and visible only to admins (InvoiceViewAllArchived) in the Deleted view.
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    deletedAt: { type: Date },
+    deleteReason: { type: String },
   },
   { timestamps: true },
 );
@@ -92,7 +99,7 @@ const invoiceSchema = new Schema(
 // Compound indexes matching the list/visibility query patterns.
 invoiceSchema.index({ type: 1, state: 1, createdAt: -1 });
 invoiceSchema.index({ createdBy: 1, isArchived: 1, createdAt: -1 });
-invoiceSchema.index({ isArchived: 1, createdAt: -1 });
+invoiceSchema.index({ isDeleted: 1, isArchived: 1, createdAt: -1 }); // default/archived/deleted views
 invoiceSchema.index({ dueDate: 1 }); // overdue sweeps + reminders
 invoiceSchema.index({ 'billTo.name': 1 });
 

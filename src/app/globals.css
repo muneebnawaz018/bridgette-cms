@@ -74,11 +74,35 @@ body {
   animation: rise-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Brand loader motion: the mark breathes, a soft red halo pulses behind it. */
+@keyframes loader-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+@keyframes loader-halo {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.6;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .rise-in {
-    animation: none;
+  .rise-in,
+  [data-loader-breathe],
+  [data-loader-halo] {
+    animation: none !important;
   }
 }

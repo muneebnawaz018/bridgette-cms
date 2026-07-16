@@ -91,7 +91,7 @@ export async function listInvoices(
   assertCan(actor.role, Permission.InvoiceView);
   await connectDb();
 
-  const match: Record<string, unknown> = { ...invoiceVisibilityFilter(actor) };
+  const match: Record<string, unknown> = { ...invoiceVisibilityFilter(actor, query.view) };
   if (query.type) match.type = query.type;
   if (query.search) {
     const rx = new RegExp(query.search.trim(), 'i');
@@ -110,6 +110,7 @@ export async function listInvoices(
         grandTotal: 1,
         balanceDue: 1,
         isArchived: 1,
+        isDeleted: 1,
         createdBy: 1,
         createdAt: 1,
         'billTo.name': 1,
@@ -142,7 +143,8 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
   await connectDb();
 
   const [row] = await Invoice.aggregate([
-    { $match: { ...invoiceVisibilityFilter(actor), isArchived: { $ne: true } } },
+    // Stats cover the active set only (archived + deleted excluded).
+    { $match: invoiceVisibilityFilter(actor, 'active') },
     {
       $facet: {
         type: [
@@ -249,16 +251,34 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   return doc.toObject();
 }
 
-/** Archive (never delete). Records who/when/reason. */
+/** Archive. Hidden from the default list; visible to Admin+ or creator. Records who/when/reason. */
 export async function archiveInvoice(actor: SessionUser, id: string, reason: string) {
   assertCan(actor.role, Permission.InvoiceArchive);
   await connectDb();
   const doc = await Invoice.findById(id);
   if (!doc) throw new Error('Invoice not found');
+  if (doc.isDeleted) throw new Error('Deleted invoices cannot be archived');
   doc.isArchived = true;
   doc.archivedBy = actor.userId as unknown as InvoiceDoc['archivedBy'];
   doc.archivedAt = new Date();
   doc.archiveReason = reason;
+  await doc.save();
+  return doc.toObject();
+}
+
+/**
+ * Soft-delete. Invoices are never hard-deleted. A deleted invoice is hidden from
+ * everyone (including its creator) and visible only to admins in the Deleted view.
+ */
+export async function deleteInvoice(actor: SessionUser, id: string, reason: string) {
+  assertCan(actor.role, Permission.InvoiceDelete);
+  await connectDb();
+  const doc = await Invoice.findById(id);
+  if (!doc) throw new Error('Invoice not found');
+  doc.isDeleted = true;
+  doc.deletedBy = actor.userId as unknown as InvoiceDoc['deletedBy'];
+  doc.deletedAt = new Date();
+  doc.deleteReason = reason;
   await doc.save();
   return doc.toObject();
 }

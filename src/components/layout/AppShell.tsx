@@ -14,6 +14,7 @@ import Typography from '@mui/material/Typography';
 import SpaceDashboardRounded from '@mui/icons-material/SpaceDashboardRounded';
 import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
 import GroupRounded from '@mui/icons-material/GroupRounded';
+import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import MenuRounded from '@mui/icons-material/MenuRounded';
 import { BrandLockup } from '@/components/layout/BrandLockup';
 import { ProfileMenu } from '@/components/layout/ProfileMenu';
@@ -31,6 +32,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/invoices/new')) return 'New invoice';
   if (pathname.startsWith('/invoices')) return 'Invoices';
   if (pathname.startsWith('/users')) return 'Users';
+  if (pathname.startsWith('/settings')) return 'Settings';
   if (pathname.startsWith('/profile')) return 'My profile';
   return 'Dashboard';
 }
@@ -104,6 +106,7 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
     { href: '/dashboard', label: 'Dashboard', icon: <SpaceDashboardRounded fontSize="small" /> },
     { href: '/invoices', label: 'Invoices', icon: <ReceiptLongRounded fontSize="small" /> },
     ...(canViewUsers ? [{ href: '/users', label: 'Users', icon: <GroupRounded fontSize="small" /> }] : []),
+    { href: '/settings', label: 'Settings', icon: <SettingsRounded fontSize="small" /> },
   ];
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -148,12 +151,8 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
           <IconButton onClick={() => setOpen(true)} edge="start" aria-label="Open navigation" sx={{ display: { lg: 'none' } }}>
             <MenuRounded />
           </IconButton>
-          {/* Mobile: colored logo (header is white). Desktop: page title. */}
-          <Box sx={{ display: { xs: 'flex', lg: 'none' }, alignItems: 'center' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/logo.png" alt="Bridgette Enterprises" style={{ height: 26 }} />
-          </Box>
-          <Typography sx={{ display: { xs: 'none', lg: 'block' }, fontWeight: 600, color: 'text.secondary', fontSize: '0.95rem' }}>
+          {/* Single page title (the brand lives in the rail / drawer). */}
+          <Typography sx={{ fontWeight: 700, fontSize: { xs: '1.05rem', md: '1.2rem' }, letterSpacing: '-0.01em', color: 'text.primary' }}>
             {pageTitle(pathname)}
           </Typography>
           <Box sx={{ flexGrow: 1 }} />

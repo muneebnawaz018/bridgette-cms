@@ -15,14 +15,16 @@ import { apiPost } from '@/lib/api/client';
 export default function LoginPage() {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+
+  const set = (k: 'email' | 'password') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await apiPost('/api/auth/login', { email, password });
+    const res = await apiPost('/api/auth/login', form);
     setLoading(false);
     if (res.ok) {
       enqueueSnackbar('Signed in', { variant: 'success' });
@@ -39,8 +41,8 @@ export default function LoginPage() {
           <TextField
             label="Email"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={form.email}
+            onChange={set('email')}
             required
             fullWidth
             autoComplete="email"
@@ -48,8 +50,8 @@ export default function LoginPage() {
           />
           <PasswordField
             label="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={form.password}
+            onChange={set('password')}
             required
             fullWidth
             autoComplete="current-password"

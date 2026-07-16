@@ -8,26 +8,29 @@ import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { PasswordField } from '@/components/form/PasswordField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 import { apiPost } from '@/lib/api/client';
+
+type Field = 'email' | 'code' | 'password' | 'confirm';
 
 function SetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
-  const [email, setEmail] = useState(params.get('email') ?? '');
-  const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [form, setForm] = useState({ email: params.get('email') ?? '', code: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
+
+  const set = (k: Field) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (password !== confirm) {
+    if (form.password !== form.confirm) {
       enqueueSnackbar('Passwords do not match', { variant: 'warning' });
       return;
     }
     setLoading(true);
-    const res = await apiPost('/api/auth/verify', { email, code, password });
+    const res = await apiPost('/api/auth/verify', { email: form.email, code: form.code, password: form.password });
     setLoading(false);
     if (res.ok) {
       enqueueSnackbar('Password set. You can sign in now.', { variant: 'success' });
@@ -40,10 +43,10 @@ function SetPasswordForm() {
   return (
     <form onSubmit={submit}>
       <Stack spacing={2}>
-        <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
-        <TextField label="Verification code" value={code} onChange={(e) => setCode(e.target.value)} required fullWidth />
-        <PasswordField label="New password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
-        <PasswordField label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required fullWidth />
+        <TextField label="Email" type="email" value={form.email} onChange={set('email')} required fullWidth disabled={loading} />
+        <TextField label="Verification code" value={form.code} onChange={set('code')} required fullWidth disabled={loading} />
+        <PasswordField label="New password" value={form.password} onChange={set('password')} required fullWidth disabled={loading} />
+        <PasswordField label="Confirm password" value={form.confirm} onChange={set('confirm')} required fullWidth disabled={loading} />
         <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
           {loading ? 'Saving…' : 'Set password'}
         </SubmitButton>
@@ -55,7 +58,7 @@ function SetPasswordForm() {
 export default function SetPasswordPage() {
   return (
     <AuthCard title="Verify your account" subtitle="Enter the code we emailed you and choose a password">
-      <Suspense fallback={null}>
+      <Suspense fallback={<BrandLoader label="Loading…" />}>
         <SetPasswordForm />
       </Suspense>
     </AuthCard>

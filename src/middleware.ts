@@ -65,6 +65,7 @@ export const config = {
     '/dashboard/:path*',
     '/invoices/:path*',
     '/users/:path*',
+    '/settings/:path*',
     '/profile/:path*',
     '/api/invoices/:path*',
     '/api/auth/users/:path*',

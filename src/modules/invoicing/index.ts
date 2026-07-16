@@ -18,6 +18,7 @@ export {
   getInvoice,
   updateInvoice,
   archiveInvoice,
+  deleteInvoice,
   getInvoiceStats,
   type InvoiceStats,
   type TypeTotals,
@@ -27,8 +28,10 @@ export {
   updateInvoiceSchema,
   listInvoiceSchema,
   archiveInvoiceSchema,
+  deleteInvoiceSchema,
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
   type ListInvoiceInput,
+  type InvoiceView,
 } from './schemas';
 export { Invoice, type InvoiceDoc } from './models/invoice.model';

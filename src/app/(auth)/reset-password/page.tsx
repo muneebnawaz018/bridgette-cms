@@ -8,6 +8,7 @@ import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { PasswordField } from '@/components/form/PasswordField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 import { apiPost } from '@/lib/api/client';
 
 function ResetForm() {
@@ -16,18 +17,20 @@ function ResetForm() {
   const { enqueueSnackbar } = useSnackbar();
   const userId = params.get('uid') ?? '';
   const code = params.get('code') ?? '';
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [form, setForm] = useState({ password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
+
+  const set = (k: 'password' | 'confirm') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (password !== confirm) {
+    if (form.password !== form.confirm) {
       enqueueSnackbar('Passwords do not match', { variant: 'warning' });
       return;
     }
     setLoading(true);
-    const res = await apiPost('/api/auth/reset', { userId, code, password });
+    const res = await apiPost('/api/auth/reset', { userId, code, password: form.password });
     setLoading(false);
     if (res.ok) {
       enqueueSnackbar('Password reset. Sign in with your new password.', { variant: 'success' });
@@ -44,8 +47,8 @@ function ResetForm() {
   return (
     <form onSubmit={submit}>
       <Stack spacing={2}>
-        <PasswordField label="New password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
-        <PasswordField label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required fullWidth />
+        <PasswordField label="New password" value={form.password} onChange={set('password')} required fullWidth disabled={loading} />
+        <PasswordField label="Confirm password" value={form.confirm} onChange={set('confirm')} required fullWidth disabled={loading} />
         <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
           {loading ? 'Saving…' : 'Reset password'}
         </SubmitButton>
@@ -57,7 +60,7 @@ function ResetForm() {
 export default function ResetPasswordPage() {
   return (
     <AuthCard title="Reset password" subtitle="Choose a new password">
-      <Suspense fallback={null}>
+      <Suspense fallback={<BrandLoader label="Loading…" />}>
         <ResetForm />
       </Suspense>
     </AuthCard>

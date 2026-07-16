@@ -41,17 +41,26 @@ export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
   type: z.nativeEnum(InvoiceType).optional(),
 });
 
+/** Which slice of invoices to list. Default `active` hides archived + deleted. */
+export const invoiceViewSchema = z.enum(['active', 'archived', 'deleted']);
+
 export const listInvoiceSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional(),
   type: z.nativeEnum(InvoiceType).optional(),
   search: z.string().optional(),
+  view: invoiceViewSchema.optional(),
 });
 
 export const archiveInvoiceSchema = z.object({
   reason: z.string().min(1, 'A reason is required to archive'),
 });
 
+export const deleteInvoiceSchema = z.object({
+  reason: z.string().min(1, 'A reason is required to delete'),
+});
+
+export type InvoiceView = z.infer<typeof invoiceViewSchema>;
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
 export type ListInvoiceInput = z.infer<typeof listInvoiceSchema>;

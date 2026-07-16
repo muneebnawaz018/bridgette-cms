@@ -5,20 +5,26 @@ import { Invoice } from '@/modules/invoicing';
 import { InvoiceState } from '@/modules/invoicing/enums';
 import { computePaymentState } from '@/modules/invoicing/state';
 import { canViewInvoice } from '@/modules/invoicing/visibility';
-import { sum, round2, nonNegative } from '@/lib/money/money';
+import { round2, nonNegative } from '@/lib/money/money';
 import { Payment, type PaymentDoc } from '../models/payment.model';
 import type { RecordPaymentInput } from '../schemas';
 
 /**
  * Recompute an invoice's amountPaid, balanceDue, and state from its payment ledger.
  * Payment-driven state is derived, never set by hand. Drafts stay Draft.
+ *
+ * The ledger total is summed in the database (indexed `invoiceId` + `$group`), so we
+ * never pull every payment document into memory just to add them up.
  */
 async function recalcInvoice(invoiceId: string): Promise<void> {
   const invoice = await Invoice.findById(invoiceId);
   if (!invoice) return;
 
-  const payments = await Payment.find({ invoiceId }).lean<PaymentDoc[]>();
-  const amountPaid = sum(payments.map((p) => p.amount));
+  const [agg] = await Payment.aggregate<{ total: number }>([
+    { $match: { invoiceId: invoice._id } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
+  ]);
+  const amountPaid = round2(agg?.total ?? 0);
   invoice.amountPaid = amountPaid;
   invoice.balanceDue = nonNegative(invoice.grandTotal - amountPaid);
 

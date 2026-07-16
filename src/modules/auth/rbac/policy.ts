@@ -16,6 +16,7 @@ const ADMIN_PERMS: Permission[] = [
   Permission.InvoiceCreate,
   Permission.InvoiceEdit,
   Permission.InvoiceArchive,
+  Permission.InvoiceDelete,
   Permission.InvoiceCancel,
   Permission.InvoiceView,
   Permission.InvoiceViewAllArchived,

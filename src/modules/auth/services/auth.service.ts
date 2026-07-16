@@ -221,6 +221,39 @@ export async function resetPassword(input: {
   );
 }
 
+/** Change your own password. Verifies the current password before setting the new one. */
+export async function changePassword(
+  actor: SessionUser,
+  input: { currentPassword: string; newPassword: string },
+): Promise<void> {
+  await connectDb();
+  const user = await User.findById(actor.userId);
+  if (!user || !user.passwordHash) throw new Error('Account not found');
+
+  const ok = await verifyPassword(input.currentPassword, user.passwordHash);
+  if (!ok) throw new Error('Current password is incorrect');
+  if (input.currentPassword === input.newPassword) {
+    throw new Error('New password must be different from the current one');
+  }
+
+  user.passwordHash = await hashPassword(input.newPassword);
+  await user.save();
+}
+
+/** Update your OWN profile — name/phone only. Never touches role, status, or email. */
+export async function updateOwnProfile(
+  actor: SessionUser,
+  input: { name?: string; phone?: string },
+): Promise<{ name: string; phone: string | null }> {
+  await connectDb();
+  const user = await User.findById(actor.userId);
+  if (!user) throw new Error('Account not found');
+  if (input.name !== undefined) user.name = input.name;
+  if (input.phone !== undefined) user.phone = input.phone;
+  await user.save();
+  return { name: user.name, phone: user.phone ?? null };
+}
+
 /** Soft-delete: deactivate a user. Never hard-deletes; refuses protected users. */
 export async function deactivateUser(actor: SessionUser, targetId: string): Promise<void> {
   await connectDb();

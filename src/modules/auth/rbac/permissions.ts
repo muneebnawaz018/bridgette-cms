@@ -9,10 +9,11 @@ export enum Permission {
   // Invoices
   InvoiceCreate = 'invoice:create',
   InvoiceEdit = 'invoice:edit',
-  InvoiceArchive = 'invoice:archive', // invoices are archived, never deleted
+  InvoiceArchive = 'invoice:archive', // archive: hidden from default list, visible to Admin+ or creator
+  InvoiceDelete = 'invoice:delete', // soft-delete: hidden from everyone, visible to admins only
   InvoiceCancel = 'invoice:cancel',
   InvoiceView = 'invoice:view',
-  InvoiceViewAllArchived = 'invoice:viewAllArchived', // see any archived invoice (else only own)
+  InvoiceViewAllArchived = 'invoice:viewAllArchived', // see any archived/deleted invoice (else only own archived)
 
   // Payments
   PaymentRecord = 'payment:record',
