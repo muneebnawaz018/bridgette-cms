@@ -30,7 +30,7 @@ function SetPasswordForm() {
     const res = await apiPost('/api/auth/verify', { email, code, password });
     setLoading(false);
     if (res.ok) {
-      enqueueSnackbar('Password set — you can sign in now', { variant: 'success' });
+      enqueueSnackbar('Password set. You can sign in now.', { variant: 'success' });
       router.push('/login');
     } else {
       enqueueSnackbar(res.error ?? 'Verification failed', { variant: 'error' });

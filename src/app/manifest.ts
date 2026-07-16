@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Bridgette Enterprises — Management Portal',
+    name: 'Bridgette Enterprises Management Portal',
     short_name: 'Bridgette Portal',
     description: 'Customer support portal and management system for Bridgette Enterprises LLC.',
     start_url: '/',

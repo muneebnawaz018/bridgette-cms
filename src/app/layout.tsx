@@ -18,9 +18,9 @@ const oswald = Oswald({
 });
 
 const APP_NAME = 'Bridgette Portal';
-const APP_TITLE = 'Bridgette Enterprises — Management Portal';
+const APP_TITLE = 'Bridgette Enterprises Management Portal';
 const APP_DESCRIPTION =
-  'Customer support portal and management system for Bridgette Enterprises LLC — invoicing, payments, customers, and reporting.';
+  'Customer support portal and management system for Bridgette Enterprises LLC. Handles invoicing, payments, customers, and reporting.';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 export const metadata: Metadata = {

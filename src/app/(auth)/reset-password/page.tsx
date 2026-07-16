@@ -30,7 +30,7 @@ function ResetForm() {
     const res = await apiPost('/api/auth/reset', { userId, code, password });
     setLoading(false);
     if (res.ok) {
-      enqueueSnackbar('Password reset — sign in with your new password', { variant: 'success' });
+      enqueueSnackbar('Password reset. Sign in with your new password.', { variant: 'success' });
       router.push('/login');
     } else {
       enqueueSnackbar(res.error ?? 'Reset failed', { variant: 'error' });

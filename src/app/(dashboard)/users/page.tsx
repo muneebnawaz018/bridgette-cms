@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -12,12 +12,15 @@ import DialogActions from '@mui/material/DialogActions';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
+import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
 import type { GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission, Role } from '@/modules/auth/rbac';
 import { useCan } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { StatusChip, type Tone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
 import { apiPost } from '@/lib/api/client';
 
@@ -30,10 +33,10 @@ interface UserRow {
   createdAt: string;
 }
 
-const statusColor: Record<string, 'default' | 'success' | 'warning'> = {
+const statusTone: Record<string, Tone> = {
   active: 'success',
   invited: 'warning',
-  disabled: 'default',
+  disabled: 'neutral',
 };
 
 export default function UsersPage() {
@@ -47,13 +50,15 @@ export default function UsersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', role: Role.Accountant as Role });
   const [saving, setSaving] = useState(false);
+  const [toDeactivate, setToDeactivate] = useState<UserRow | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
 
   async function createUser() {
     setSaving(true);
     const res = await apiPost('/api/auth/users', form);
     setSaving(false);
     if (res.ok) {
-      enqueueSnackbar('User created — invite email sent', { variant: 'success' });
+      enqueueSnackbar('User created. Invite email sent.', { variant: 'success' });
       setOpen(false);
       setForm({ name: '', email: '', role: Role.Accountant });
       void mutate();
@@ -62,14 +67,18 @@ export default function UsersPage() {
     }
   }
 
-  async function deactivate(id: string) {
-    const res = await fetch(`/api/auth/users/${id}`, { method: 'DELETE' });
+  async function confirmDeactivate() {
+    if (!toDeactivate) return;
+    setDeactivating(true);
+    const res = await fetch(`/api/auth/users/${toDeactivate._id}`, { method: 'DELETE' });
     const json = await res.json();
+    setDeactivating(false);
     if (json.ok) {
       enqueueSnackbar('User deactivated', { variant: 'success' });
+      setToDeactivate(null);
       void mutate();
     } else {
-      enqueueSnackbar(json.error ?? 'Failed', { variant: 'error' });
+      enqueueSnackbar(json.error ?? 'Could not deactivate user', { variant: 'error' });
     }
   }
 
@@ -81,7 +90,7 @@ export default function UsersPage() {
       field: 'status',
       headerName: 'Status',
       width: 130,
-      renderCell: (p) => <Chip size="small" label={p.value} color={statusColor[p.value] ?? 'default'} />,
+      renderCell: (p) => <StatusChip label={p.value} tone={statusTone[p.value] ?? 'neutral'} />,
     },
     {
       field: 'actions',
@@ -90,7 +99,7 @@ export default function UsersPage() {
       sortable: false,
       renderCell: (p) =>
         canManage && p.row.status !== 'disabled' ? (
-          <Button size="small" color="error" onClick={() => deactivate(p.row._id)}>
+          <Button size="small" color="error" onClick={() => setToDeactivate(p.row)}>
             Deactivate
           </Button>
         ) : null,
@@ -98,19 +107,24 @@ export default function UsersPage() {
   ];
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-        <Typography variant="h5" sx={{ flexGrow: 1 }}>
-          Users
-        </Typography>
+    <Box className="rise-in">
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2.5 }}>
+        <Box sx={{ flexGrow: 1 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>Users</Typography>
+          <Typography color="text.secondary" sx={{ mt: 0.25 }}>
+            {rows.length} team member{rows.length === 1 ? '' : 's'} · manage access and roles
+          </Typography>
+        </Box>
         {canCreate && (
-          <Button variant="contained" onClick={() => setOpen(true)}>
+          <Button variant="contained" onClick={() => setOpen(true)} startIcon={<PersonAddRounded />}>
             New user
           </Button>
         )}
       </Box>
 
-      <DataTable rows={rows} columns={columns} getRowId={(r) => r._id} loading={isLoading} />
+      <Paper sx={{ p: { xs: 1, md: 1.5 } }}>
+        <DataTable rows={rows} columns={columns} getRowId={(r) => r._id} loading={isLoading} />
+      </Paper>
 
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>New user</DialogTitle>
@@ -133,6 +147,22 @@ export default function UsersPage() {
           </SubmitButton>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(toDeactivate)}
+        title="Deactivate this user?"
+        description={
+          <>
+            {toDeactivate?.name} will lose access right away and any active sessions end.
+            You can reactivate them later. Users are never deleted.
+          </>
+        }
+        confirmLabel="Deactivate"
+        confirmColor="error"
+        loading={deactivating}
+        onConfirm={confirmDeactivate}
+        onClose={() => setToDeactivate(null)}
+      />
     </Box>
   );
 }

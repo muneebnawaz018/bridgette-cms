@@ -9,7 +9,7 @@ function shell(title: string, body: string): string {
     <div style="padding:28px">
       <h1 style="margin:0 0 12px;font-size:20px;color:${colors.brand.black}">${title}</h1>
       ${body}
-      <p style="margin-top:28px;font-size:12px;color:#888">Bridgette Enterprises LLC — Management Portal</p>
+      <p style="margin-top:28px;font-size:12px;color:#888">Bridgette Enterprises LLC, Management Portal</p>
     </div>
   </div></body></html>`;
 }

@@ -4,7 +4,81 @@
 
 :root {
   --brand-red: #ec222a;
+  --brand-red-dark: #c11119;
   --brand-black: #050707;
   --brand-white: #ffffff;
   --brand-muted: #ededed;
+  --surface-canvas: #f6f7f9;
+  --rail-bg: #0c0e10;
+  /* RGB channels — mirror lib/colors.ts so rgba() washes stay in sync. */
+  --brand-red-rgb: 236, 34, 42;
+  --ink-rgb: 12, 14, 16;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+/* Layered app canvas — soft brand-tinted radial washes over a neutral base instead of a
+   dead flat gray. Fixed so it doesn't scroll with content. */
+body {
+  background-color: var(--surface-canvas);
+  background-image:
+    radial-gradient(1100px 620px at 100% -8%, rgba(var(--brand-red-rgb), 0.06), transparent 60%),
+    radial-gradient(900px 560px at -6% 4%, rgba(var(--ink-rgb), 0.05), transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Tabular figures for money/metric columns — prevents digit jitter and reads premium. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Refined scrollbars (WebKit + Firefox). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c7ccd4 transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #c7ccd4;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #aab1bb;
+  background-clip: padding-box;
+}
+
+/* Subtle rise-in used by cards/sections. Respects reduced-motion. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .rise-in {
+    animation: none;
+  }
 }

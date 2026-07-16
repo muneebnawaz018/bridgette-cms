@@ -13,6 +13,13 @@ export interface SessionUser {
   email: string;
 }
 
+// Guards against stale/legacy tokens whose `role` claim predates the current enum (which
+// would make ROLE_PERMISSIONS[role] undefined and crash downstream consumers).
+const VALID_ROLES = new Set<string>(Object.values(Role));
+function isValidRole(role: unknown): role is Role {
+  return typeof role === 'string' && VALID_ROLES.has(role);
+}
+
 /**
  * Current session. Prefers the short-lived access token; if it's missing/expired, falls
  * back to the refresh token (verify + load the user) so a valid 7-day session isn't
@@ -24,7 +31,11 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
   if (access) {
     try {
       const payload = await verifyAccessToken(access);
-      return { userId: payload.sub, role: payload.role, email: payload.email };
+      // Only trust the token's role if it's a known role; otherwise fall through to the
+      // refresh path, which reloads the authoritative role from the database.
+      if (isValidRole(payload.role)) {
+        return { userId: payload.sub, role: payload.role, email: payload.email };
+      }
     } catch {
       /* expired/invalid — try refresh below */
     }
@@ -41,7 +52,7 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
         email: string;
         status: string;
       }>();
-      if (user && user.status === UserStatus.Active) {
+      if (user && user.status === UserStatus.Active && isValidRole(user.role)) {
         return { userId: String(user._id), role: user.role, email: user.email };
       }
     } catch {

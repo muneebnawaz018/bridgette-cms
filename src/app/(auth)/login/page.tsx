@@ -33,7 +33,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title="Sign in" subtitle="Bridgette Enterprises — Management Portal">
+    <AuthCard title="Welcome back" subtitle="Sign in to your account to continue.">
       <form onSubmit={submit}>
         <Stack spacing={2}>
           <TextField

@@ -16,6 +16,7 @@ import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
 import { useSnackbar } from 'notistack';
 import { useSession } from '@/components/auth/SessionProvider';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { apiPost } from '@/lib/api/client';
 
 export function ProfileMenu() {
@@ -23,9 +24,11 @@ export function ProfileMenu() {
   const { enqueueSnackbar } = useSnackbar();
   const { email, role } = useSession();
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   async function signOut() {
-    setAnchor(null);
+    setSigningOut(true);
     await apiPost('/api/auth/logout', {});
     enqueueSnackbar('Signed out', { variant: 'success' });
     router.replace('/login');
@@ -63,13 +66,28 @@ export function ProfileMenu() {
           My profile
         </MenuItem>
         <Divider />
-        <MenuItem onClick={signOut}>
+        <MenuItem
+          onClick={() => {
+            setAnchor(null);
+            setConfirmOpen(true);
+          }}
+        >
           <ListItemIcon>
             <Logout fontSize="small" />
           </ListItemIcon>
           Sign out
         </MenuItem>
       </Menu>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Sign out?"
+        description="You will need to sign in again to get back into the portal."
+        confirmLabel="Sign out"
+        loading={signingOut}
+        onConfirm={signOut}
+        onClose={() => setConfirmOpen(false)}
+      />
     </>
   );
 }

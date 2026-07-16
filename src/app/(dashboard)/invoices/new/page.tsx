@@ -102,10 +102,10 @@ export default function NewInvoicePage() {
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField label="Bill to — name" value={billName} onChange={(e) => setBillName(e.target.value)} fullWidth required />
+            <TextField label="Bill to (name)" value={billName} onChange={(e) => setBillName(e.target.value)} fullWidth required />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField label="Bill to — email" value={billEmail} onChange={(e) => setBillEmail(e.target.value)} fullWidth />
+            <TextField label="Bill to (email)" value={billEmail} onChange={(e) => setBillEmail(e.target.value)} fullWidth />
           </Grid>
         </Grid>
 
