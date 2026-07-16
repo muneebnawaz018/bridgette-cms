@@ -136,7 +136,7 @@ export default function SettingsPage() {
               Update your password or email address, or send yourself a reset link.
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5 }} useFlexGap>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, '& > .MuiButton-root': { flex: { sm: 1 } } }}>
               <Button variant="contained" startIcon={<LockResetRounded />} onClick={() => setPwOpen(true)}>
                 Change password
               </Button>
@@ -146,7 +146,7 @@ export default function SettingsPage() {
               <Button variant="outlined" startIcon={<MailRounded />} onClick={sendResetLink} disabled={sendingReset}>
                 {sendingReset ? 'Sending…' : 'Forgot password'}
               </Button>
-            </Stack>
+            </Box>
           </Paper>
         </Grid>
 

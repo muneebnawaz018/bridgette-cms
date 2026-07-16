@@ -91,15 +91,22 @@ function StateChip({ state }: { state: string }) {
   );
 }
 
-/** Per-invoice-type card: outstanding (hero number) + invoiced + a paid-progress bar. */
-function TypeStatCard({ label, currency, icon, totals }: { label: string; currency: string; icon: ReactNode; totals?: TypeTotals }) {
+/** Per-invoice-type card: outstanding (hero number) + invoiced + a paid-progress bar.
+ *  Clicking navigates to the invoices list with this type preselected. */
+function TypeStatCard({ label, currency, icon, totals, href }: { label: string; currency: string; icon: ReactNode; totals?: TypeTotals; href: string }) {
   const t = totals ?? { count: 0, invoiced: 0, outstanding: 0 };
   const paid = Math.max(0, t.invoiced - t.outstanding);
   const ratio = t.invoiced > 0 ? Math.min(100, Math.round((paid / t.invoiced) * 100)) : 0;
 
   return (
     <Paper
+      component={Link}
+      href={href}
       sx={{
+        display: 'block',
+        textDecoration: 'none',
+        color: 'inherit',
+        cursor: 'pointer',
         p: 3,
         height: '100%',
         position: 'relative',
@@ -179,7 +186,7 @@ export default function DashboardPage() {
       <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
         {TYPES.map((t) => (
           <Grid size={{ xs: 12, md: 4 }} key={t.key}>
-            <TypeStatCard label={t.label} currency={t.currency} icon={t.icon} totals={stats?.byType[t.key]} />
+            <TypeStatCard label={t.label} currency={t.currency} icon={t.icon} totals={stats?.byType[t.key]} href={`/invoices?type=${t.key}`} />
           </Grid>
         ))}
       </Grid>

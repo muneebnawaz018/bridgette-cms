@@ -167,6 +167,7 @@ export const theme = createTheme({
           fontSize: '0.875rem',
         },
         columnHeaders: { backgroundColor: colors.surface.subtle },
+        columnHeaderTitleContainer: { justifyContent: 'center' },
         columnHeaderTitle: {
           fontWeight: 700,
           color: colors.ink[500],
@@ -174,7 +175,7 @@ export const theme = createTheme({
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
         },
-        cell: { borderColor: colors.surface.border, outline: 'none !important' },
+        cell: { borderColor: colors.surface.border, outline: 'none !important', justifyContent: 'center' },
         row: { '&:hover': { backgroundColor: colors.surface.subtle } },
         footerContainer: { borderTop: `1px solid ${colors.surface.border}` },
         columnSeparator: { color: 'transparent' },

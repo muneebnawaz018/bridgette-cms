@@ -3,10 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
-import ButtonBase from '@mui/material/ButtonBase';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
@@ -35,7 +33,6 @@ import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { apiPost, apiDelete } from '@/lib/api/client';
-import { redA } from '@/lib/colors';
 
 interface InvoiceRow {
   _id: string;
@@ -118,6 +115,12 @@ export default function InvoicesPage() {
   const [type, setType] = useState<'' | InvoiceType>('');
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
 
+  // Preselect the type filter from ?type=tax|cash|pk (e.g. clicked from a dashboard card).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('type');
+    if (t === InvoiceType.Tax || t === InvoiceType.Cash || t === InvoiceType.PK) setType(t);
+  }, []);
+
   // Back to the first page whenever a filter changes.
   useEffect(() => {
     setPaginationModel((m) => (m.page === 0 ? m : { ...m, page: 0 }));
@@ -139,13 +142,11 @@ export default function InvoicesPage() {
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
 
-  // Per-type counts for the filter cells (active invoices, role-scoped).
-  const { data: stats } = useApi<{ total: number; byType: Record<string, { count: number }> }>('/api/dashboard/stats');
-  const typeCells: { value: '' | InvoiceType; label: string; count?: number }[] = [
-    { value: '', label: 'All invoices', count: stats?.total },
-    { value: InvoiceType.Tax, label: 'Tax', count: stats?.byType?.tax?.count },
-    { value: InvoiceType.Cash, label: 'Cash', count: stats?.byType?.cash?.count },
-    { value: InvoiceType.PK, label: 'PK', count: stats?.byType?.pk?.count },
+  const typeOptions: { value: '' | InvoiceType; label: string }[] = [
+    { value: '', label: 'All' },
+    { value: InvoiceType.Tax, label: 'Tax' },
+    { value: InvoiceType.Cash, label: 'Cash' },
+    { value: InvoiceType.PK, label: 'PK' },
   ];
 
   // Details modal (row click)
@@ -260,52 +261,29 @@ export default function InvoicesPage() {
         )}
       </Box>
 
-      {/* Type filter cells — one per invoice type plus an "All invoices" cell */}
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
-        {typeCells.map((c) => {
-          const active = type === c.value;
-          return (
-            <Grid key={c.label} size={{ xs: 6, sm: 3 }}>
-              <ButtonBase
-                onClick={() => setType(c.value)}
-                sx={{
-                  width: '100%',
-                  justifyContent: 'flex-start',
-                  textAlign: 'left',
-                  p: 1.75,
-                  borderRadius: 2.5,
-                  border: '1px solid',
-                  borderColor: active ? 'primary.main' : 'divider',
-                  bgcolor: active ? redA(0.06) : 'background.paper',
-                  transition: 'border-color .16s ease, background-color .16s ease',
-                  '&:hover': { borderColor: 'primary.main', bgcolor: active ? redA(0.08) : 'action.hover' },
-                }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="caption" sx={{ color: active ? 'primary.main' : 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }} noWrap>
-                    {c.label}
-                  </Typography>
-                  <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', lineHeight: 1.1, color: active ? 'primary.main' : 'text.primary' }}>
-                    {c.count ?? '—'}
-                  </Typography>
-                </Box>
-              </ButtonBase>
-            </Grid>
-          );
-        })}
-      </Grid>
-
       <Stack spacing={1.5} sx={{ mb: 2 }}>
+        {/* Type selectors: All + the three invoice types */}
         <Box sx={{ overflowX: 'auto', pb: 0.5, mx: -0.5, px: 0.5 }}>
-          <ToggleButtonGroup value={view} exclusive size="small" onChange={(_e, v) => v && setView(v as InvoiceView)}>
-            {views.map((v) => (
-              <ToggleButton key={v} value={v} sx={{ px: 2, textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                {VIEW_META[v].label}
+          <ToggleButtonGroup value={type} exclusive size="small" onChange={(_e, v) => v !== null && setType(v as '' | InvoiceType)}>
+            {typeOptions.map((t) => (
+              <ToggleButton key={t.label} value={t.value} sx={{ px: 2.5, textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {t.label}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
         </Box>
-        <SearchBar value={searchInput} onChange={setSearchInput} placeholder="Search by number or customer" />
+        {/* Search + a fused view dropdown, same pattern as user management */}
+        <SearchBar
+          value={searchInput}
+          onChange={setSearchInput}
+          placeholder="Search by number or customer"
+          filter={{
+            label: VIEW_META.active.label,
+            value: view,
+            onChange: (v) => setView(v as InvoiceView),
+            options: views.map((v) => ({ value: v, label: VIEW_META[v].label })),
+          }}
+        />
       </Stack>
 
       <Paper sx={{ p: { xs: 1, md: 1.5 } }}>

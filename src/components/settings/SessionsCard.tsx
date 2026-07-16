@@ -134,7 +134,17 @@ export function SessionsCard() {
     <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
         <Typography variant="h6">Active sessions</Typography>
-        <Button size="small" startIcon={<LogoutRounded />} disabled={others === 0} onClick={() => setScopeOpen(true)}>
+        <Button
+          size="small"
+          startIcon={<LogoutRounded />}
+          onClick={() => {
+            if (others === 0) {
+              enqueueSnackbar('No other sessions to sign out', { variant: 'info' });
+              return;
+            }
+            setScopeOpen(true);
+          }}
+        >
           Sign out other devices
         </Button>
       </Box>
