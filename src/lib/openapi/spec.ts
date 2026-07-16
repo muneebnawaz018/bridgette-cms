@@ -181,7 +181,31 @@ export const openApiSpec = {
       },
     },
     '/api/dashboard/stats': {
-      get: { tags: ['Invoices'], summary: 'Aggregated, role-scoped invoice metrics (InvoiceView)', responses: { 200: { description: 'OK' }, 403: { description: 'Forbidden' } } },
+      get: {
+        tags: ['Invoices'],
+        summary: 'Aggregated, role-scoped invoice metrics (InvoiceView)',
+        description:
+          'byType totals are lifetime-to-date; byState is the pipeline for the current calendar month only, and pipelineMonth is the ISO start of that month.',
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    total: { type: 'integer' },
+                    pipelineMonth: { type: 'string', format: 'date-time', description: 'ISO start of the month byState covers' },
+                    byState: { type: 'object', additionalProperties: { type: 'integer' }, description: 'Current month only' },
+                    byType: { type: 'object', additionalProperties: { type: 'object' } },
+                  },
+                },
+              },
+            },
+          },
+          403: { description: 'Forbidden' },
+        },
+      },
     },
     '/api/auth/users': {
       get: {

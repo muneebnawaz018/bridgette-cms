@@ -15,6 +15,13 @@ export function formatDate(value?: string | Date | null, fallback = '—'): stri
   return `${d.getDate()} ${d.toLocaleString('en-US', { month: 'long' })}, ${d.getFullYear()}`;
 }
 
+/** "July 2026" — for period labels (e.g. the dashboard pipeline). */
+export function formatMonth(value?: string | Date | null, fallback = '—'): string {
+  const d = parse(value);
+  if (!d) return fallback;
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
 /** "12 July, 2026, 11:55 AM" — for timestamps where the time of day matters. */
 export function formatDateTime(value?: string | Date | null, fallback = '—'): string {
   const d = parse(value);

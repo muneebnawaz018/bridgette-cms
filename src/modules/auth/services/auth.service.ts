@@ -11,7 +11,7 @@ import { otpEmail, resetPasswordEmail, changeEmailOtpEmail } from '@/lib/email/t
 import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { UserStatus, OtpPurpose } from '../enums';
-import { Role, Permission, assertCan } from '../rbac';
+import { Role, Permission, assertCan, ACTIVE_ROLES } from '../rbac';
 import { hashPassword, verifyPassword } from '../password';
 import { issueOtp, verifyOtp, generateUrlToken } from '../otp';
 import {
@@ -41,6 +41,8 @@ export async function createUser(
   await connectDb();
   // The Super Admin is a single seeded fixture — it can never be handed out.
   if (input.role === Role.SuperAdmin) throw new Error('There can only be one Super Admin');
+  // Sales / Read only are defined but not built yet — reject them from the API too.
+  if (!ACTIVE_ROLES.includes(input.role)) throw new Error('That role is not available yet');
   // Creating an Admin requires the elevated permission.
   assertCan(
     actor.role,
@@ -384,6 +386,10 @@ export async function updateUser(actor: SessionUser, id: string, input: UpdateUs
 
   // There is exactly one Super Admin and it stays that way — the role is never assignable.
   if (input.role === Role.SuperAdmin) throw new Error('There can only be one Super Admin');
+  // Sales / Read only are defined but not built yet — reject them from the API too.
+  if (input.role !== undefined && !ACTIVE_ROLES.includes(input.role)) {
+    throw new Error('That role is not available yet');
+  }
   // Only the Super Admin may assign admin-level roles.
   if (input.role && ADMIN_ROLES.includes(input.role)) {
     assertCan(actor.role, Permission.UserCreateAdmin);

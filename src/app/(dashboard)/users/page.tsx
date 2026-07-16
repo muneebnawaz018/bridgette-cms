@@ -14,7 +14,7 @@ import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
-import { Permission, Role } from '@/modules/auth/rbac';
+import { Permission, Role, ACTIVE_ROLES } from '@/modules/auth/rbac';
 import { UserStatus } from '@/modules/auth/enums';
 import { useCan, useSession } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -291,7 +291,8 @@ export default function UsersPage() {
             onChange: (v) => setRoleFilter(v as '' | Role),
             options: [
               { value: '', label: 'All roles' },
-              ...Object.values(Role).map((r) => ({ value: r, label: ROLE_LABEL[r] ?? r })),
+              // ACTIVE_ROLES only — Sales/Read only are future scope and have no users.
+              ...ACTIVE_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] ?? r })),
             ],
           }}
         />

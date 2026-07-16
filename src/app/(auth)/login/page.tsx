@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MuiLink from '@mui/material/Link';
@@ -61,7 +61,7 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </SubmitButton>
           <MuiLink
-            component={Link}
+            component={AppLink}
             href="/forgot-password"
             variant="body2"
             align="center"

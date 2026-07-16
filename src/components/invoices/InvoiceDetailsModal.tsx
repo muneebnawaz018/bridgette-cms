@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
@@ -9,9 +9,9 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
-import CircularProgress from '@mui/material/CircularProgress';
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
 import { Modal } from '@/components/ui/Modal';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
 import { useRetainedWhileClosing } from '@/lib/api/useRetained';
@@ -90,7 +90,7 @@ export function InvoiceDetailsModal({ id, onClose }: { id: string | null; onClos
         <>
           <Button onClick={onClose} variant="outlined" color="inherit">Close</Button>
           {invoice && (
-            <Button component={Link} href={`/invoices/${invoice._id}`} variant="contained" startIcon={<OpenInNewRounded />}>
+            <Button component={AppLink} href={`/invoices/${invoice._id}`} variant="contained" startIcon={<OpenInNewRounded />}>
               Open full invoice
             </Button>
           )}
@@ -98,9 +98,7 @@ export function InvoiceDetailsModal({ id, onClose }: { id: string | null; onClos
       }
     >
       {isLoading && !invoice ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 5 }}>
-          <CircularProgress size={26} />
-        </Box>
+        <BrandLoader minHeight={200} label={null} size={64} />
       ) : !invoice ? (
         <Typography color="error">Could not load this invoice.</Typography>
       ) : (

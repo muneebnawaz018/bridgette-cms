@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Alert from '@mui/material/Alert';
@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
           <Alert severity="success">
             If an account exists for {email}, a reset link is on its way.
           </Alert>
-          <MuiLink component={Link} href="/login" variant="body2" align="center">
+          <MuiLink component={AppLink} href="/login" variant="body2" align="center">
             Back to sign in
           </MuiLink>
         </Stack>
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
             <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
               {loading ? 'Sending…' : 'Send reset link'}
             </SubmitButton>
-            <MuiLink component={Link} href="/login" variant="body2" align="center">
+            <MuiLink component={AppLink} href="/login" variant="body2" align="center">
               Back to sign in
             </MuiLink>
           </Stack>

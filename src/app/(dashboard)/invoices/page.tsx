@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
@@ -283,7 +283,7 @@ export default function InvoicesPage() {
           /* Phones: full width. Tablet: normal width pinned right (the header is a column
              there, so alignSelf is the horizontal axis). Desktop: the row handles it. */
           <Button
-            component={Link}
+            component={AppLink}
             href="/invoices/new"
             variant="contained"
             startIcon={<AddRounded />}

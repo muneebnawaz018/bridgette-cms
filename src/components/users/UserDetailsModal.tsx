@@ -8,11 +8,11 @@ import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
 import EditRounded from '@mui/icons-material/EditRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import { StatusChip, type Tone } from '@/components/ui/StatusChip';
 import { useSession } from '@/components/auth/SessionProvider';
@@ -124,9 +124,7 @@ export function UserDetailsModal({
       }
     >
       {isLoading && !user ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 6 }}>
-          <CircularProgress size={26} />
-        </Box>
+        <BrandLoader minHeight={200} label={null} size={64} />
       ) : !user ? (
         <Typography color="error">Could not load this user.</Typography>
       ) : (

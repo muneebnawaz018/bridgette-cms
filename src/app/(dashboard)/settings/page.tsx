@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
-import Chip from '@mui/material/Chip';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Select from '@mui/material/Select';
@@ -41,6 +40,11 @@ const ROLE_LABEL: Record<string, string> = {
   sales: 'Sales',
   readOnly: 'Read only',
 };
+
+/** Shared header height for the two top cards, so their first divider lines up exactly
+ *  regardless of how tall each header's own content happens to be. Sized to the tallest
+ *  header (the 56px avatar) — anything more just adds dead space above the divider. */
+const CARD_HEADER_MIN_H = 60;
 
 function InfoField({ label, value }: { label: string; value: string }) {
   return (
@@ -105,42 +109,57 @@ export default function SettingsPage() {
 
       <Grid container spacing={2.5}>
         {/* Identity */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ minHeight: CARD_HEADER_MIN_H }}>
               <Avatar src={me?.avatarUrl ?? undefined} sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontWeight: 700, fontSize: 24, flexShrink: 0 }}>
                 {displayName.charAt(0).toUpperCase()}
               </Avatar>
-              <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                 <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }} noWrap>{displayName}</Typography>
-                <Typography color="text.secondary" noWrap>{email}</Typography>
-                <Chip label={ROLE_LABEL[role] ?? role} color="primary" variant="outlined" size="small" sx={{ mt: 0.75, fontWeight: 700 }} />
+                {/* No role badge here — Role is already one of the fields below. */}
+                <Typography color="text.secondary" noWrap sx={{ mt: 0.25 }}>{email}</Typography>
               </Box>
             </Stack>
 
             <Divider sx={{ my: 2 }} />
-            <Button
-              component={Link}
-              href="/profile"
-              startIcon={<PersonRounded />}
-              variant="outlined"
-              sx={{ width: { xs: '100%', sm: 'auto' } }}
-            >
-              View full profile
-            </Button>
+            <Grid container spacing={2}>
+              <Grid size={6}><InfoField label="Role" value={ROLE_LABEL[role] ?? role} /></Grid>
+              <Grid size={6}><InfoField label="Status" value={me?.status ?? 'Unknown'} /></Grid>
+              <Grid size={6}><InfoField label="Member since" value={formatDate(me?.createdAt)} /></Grid>
+              <Grid size={6}><InfoField label="Last login" value={formatDateTime(me?.lastLoginAt, 'Never')} /></Grid>
+            </Grid>
+
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
+              <Button
+                component={AppLink}
+                href="/profile"
+                startIcon={<PersonRounded />}
+                variant="outlined"
+                sx={{ width: { xs: '100%', sm: 'auto' } }}
+              >
+                View full profile
+              </Button>
+            </Box>
           </Paper>
         </Grid>
 
         {/* Navigation shortcuts */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Go to</Typography>
-            <Divider sx={{ mb: 1.5 }} />
+            <Box sx={{ minHeight: CARD_HEADER_MIN_H }}>
+              <Typography variant="h6">Go to</Typography>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Jump straight to any part of the portal.
+              </Typography>
+            </Box>
+            <Divider sx={{ my: 2 }} />
             <Stack spacing={1}>
               {links.map((l) => (
                 <Button
                   key={l.href}
-                  component={Link}
+                  component={AppLink}
                   href={l.href}
                   startIcon={l.icon}
                   color="inherit"
@@ -154,7 +173,7 @@ export default function SettingsPage() {
         </Grid>
 
         {/* Security */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Security</Typography>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
@@ -185,7 +204,7 @@ export default function SettingsPage() {
         </Grid>
 
         {/* Preferences */}
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Preferences</Typography>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
@@ -205,23 +224,6 @@ export default function SettingsPage() {
                 </FormControl>
               </Box>
             </Box>
-          </Paper>
-        </Grid>
-
-        {/* Account details — kept out of the identity card so it stays level with "Go to" */}
-        <Grid size={{ xs: 12 }}>
-          <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
-            <Typography variant="h6" gutterBottom>Account details</Typography>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
-              Your role and account activity at a glance.
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Role" value={ROLE_LABEL[role] ?? role} /></Grid>
-              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Status" value={me?.status ?? 'Unknown'} /></Grid>
-              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Member since" value={formatDate(me?.createdAt)} /></Grid>
-              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Last login" value={formatDateTime(me?.lastLoginAt, 'Never')} /></Grid>
-            </Grid>
           </Paper>
         </Grid>
 

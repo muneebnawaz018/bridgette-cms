@@ -8,6 +8,7 @@ import { colors, redA, shadowA, whiteA } from '@/lib/colors';
 
 /**
  * The single app loader: a red progress ring around the E3 mark, with a soft pulsing halo.
+ * Nothing else should spin — every "loading" state in the app renders this, sized to fit.
  *
  * - `overlay` pins it over the whole viewport with a translucent, blurred scrim and sits
  *   above everything — for route/page transitions so it's centered in the view, not in a
@@ -15,21 +16,30 @@ import { colors, redA, shadowA, whiteA } from '@/lib/colors';
  * - `fullscreen` fills the viewport as a solid page (root loading.tsx, first paint).
  * - Otherwise it fills its parent, falling back to `minHeight` (default 60vh). Pass
  *   `minHeight={0}` inside a fixed-height container (e.g. a table) to just center there.
+ * - `size` shrinks the mark for tight spots (an avatar overlay, a small card). The wordmark
+ *   hides itself below 48px, or pass `label={null}` to drop it explicitly.
  */
 export function BrandLoader({
   fullscreen = false,
   overlay = false,
   label,
   minHeight = '60vh',
+  size = 78,
 }: {
   fullscreen?: boolean;
   overlay?: boolean;
-  label?: string;
+  /** `null` hides the wordmark — for compact/inline use. */
+  label?: string | null;
   minHeight?: number | string;
+  size?: number;
 }) {
+  const showLabel = label !== null && size >= 48;
+  const markSize = size * 0.59;
+  const iconSize = size * 0.385;
+
   const art = (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <Box sx={{ position: 'relative', width: 78, height: 78, display: 'grid', placeItems: 'center' }}>
+      <Box sx={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center' }}>
         {/* Pulsing red halo */}
         <Box
           data-loader-halo
@@ -41,12 +51,12 @@ export function BrandLoader({
             animation: 'loader-halo 2.2s ease-in-out infinite',
           }}
         />
-        <CircularProgress size={78} thickness={2.6} sx={{ color: 'primary.main', position: 'absolute' }} />
+        <CircularProgress size={size} thickness={2.6} sx={{ color: 'primary.main', position: 'absolute' }} />
         <Box
           data-loader-breathe
           sx={{
-            width: 46,
-            height: 46,
+            width: markSize,
+            height: markSize,
             borderRadius: 2.5,
             bgcolor: colors.brand.white,
             display: 'grid',
@@ -56,12 +66,14 @@ export function BrandLoader({
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/icon-512.png" alt="" style={{ width: 30, height: 30 }} />
+          <img src="/brand/icon-512.png" alt="" style={{ width: iconSize, height: iconSize }} />
         </Box>
       </Box>
-      <Typography sx={{ fontFamily: displayFont, fontWeight: 600, letterSpacing: 3, color: 'text.secondary', fontSize: '0.9rem' }}>
-        {label ?? 'BRIDGETTE'}
-      </Typography>
+      {showLabel && (
+        <Typography sx={{ fontFamily: displayFont, fontWeight: 600, letterSpacing: 3, color: 'text.secondary', fontSize: '0.9rem' }}>
+          {label ?? 'BRIDGETTE'}
+        </Typography>
+      )}
     </Box>
   );
 

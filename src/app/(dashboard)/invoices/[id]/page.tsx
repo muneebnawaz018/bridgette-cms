@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import { useParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
@@ -214,7 +214,7 @@ export default function InvoiceDetailPage() {
     <Box className="rise-in">
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2.5 }}>
-        <IconButton component={Link} href="/invoices" aria-label="Back to invoices" sx={{ mr: 0.5 }}>
+        <IconButton component={AppLink} href="/invoices" aria-label="Back to invoices" sx={{ mr: 0.5 }}>
           <ArrowBackRounded />
         </IconButton>
         <Box sx={{ flexGrow: 1, minWidth: 200 }}>

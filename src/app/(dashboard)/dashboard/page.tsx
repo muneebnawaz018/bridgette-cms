@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { AppLink } from '@/components/ui/AppLink';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
@@ -24,6 +24,7 @@ import { useSession, useCan } from '@/components/auth/SessionProvider';
 import { useApi } from '@/lib/api/useApi';
 import { colors, gradients, redA } from '@/lib/colors';
 import { displayFont } from '@/lib/theme';
+import { formatMonth } from '@/lib/format/date';
 
 // Outline button styling for use on the dark gradient quick-actions panel.
 const onDarkButtonSx = {
@@ -41,8 +42,18 @@ interface TypeTotals {
 interface Stats {
   total: number;
   byState: Record<string, number>;
+  /** ISO start of the month the pipeline covers (server-decided). */
+  pipelineMonth: string;
   byType: Record<string, TypeTotals>;
 }
+
+const ROLE_LABEL: Record<string, string> = {
+  superAdmin: 'Super Admin',
+  admin: 'Administrator',
+  accountant: 'Accountant / Manager',
+  sales: 'Sales',
+  readOnly: 'Read only',
+};
 
 // The 3 invoice types + their fixed currency (Tax/Cash = USD, PK = PKR).
 const TYPES = [
@@ -100,7 +111,7 @@ function TypeStatCard({ label, currency, icon, totals, href }: { label: string; 
 
   return (
     <Paper
-      component={Link}
+      component={AppLink}
       href={href}
       sx={{
         display: 'block',
@@ -166,7 +177,18 @@ export default function DashboardPage() {
         <Typography variant="h4" sx={{ fontWeight: 800 }}>Welcome back, {name}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           A snapshot of your invoices across all types.
-          <Chip component="span" size="small" label={role} color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
+          <Chip
+            component="span"
+            size="small"
+            label={ROLE_LABEL[role] ?? role}
+            sx={{
+              fontWeight: 700,
+              color: colors.onDark.text,
+              background: gradients.brand,
+              border: 'none',
+              boxShadow: `0 2px 8px ${redA(0.3)}`,
+            }}
+          />
         </Typography>
       </Box>
 
@@ -181,7 +203,9 @@ export default function DashboardPage() {
 
       {/* Pipeline — 5 states as colored mini-stats in one card */}
       <Paper sx={{ p: { xs: 2.5, md: 3 }, mb: 2.5 }}>
-        <Typography variant="overline" color="text.secondary">Invoice pipeline</Typography>
+        <Typography variant="overline" color="text.secondary">
+          Invoice pipeline · {formatMonth(stats?.pipelineMonth, 'this month')}
+        </Typography>
         <Grid container spacing={2} sx={{ mt: 0.25 }}>
           {STATES.map((st) => (
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }} key={st.k}>
@@ -203,7 +227,7 @@ export default function DashboardPage() {
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
               <Typography variant="h6" sx={{ flexGrow: 1 }}>Recent invoices</Typography>
-              <Button component={Link} href="/invoices" size="small" endIcon={<ArrowForwardRounded fontSize="small" />}>
+              <Button component={AppLink} href="/invoices" size="small" endIcon={<ArrowForwardRounded fontSize="small" />}>
                 View all
               </Button>
             </Box>
@@ -242,15 +266,15 @@ export default function DashboardPage() {
             <Typography variant="body2" sx={{ color: colors.onDark.textDim, mb: 2.5, position: 'relative' }}>Jump straight to what you need.</Typography>
             <Stack spacing={1.5} sx={{ position: 'relative' }}>
               {canCreateInvoice && (
-                <Button component={Link} href="/invoices/new" variant="contained" fullWidth startIcon={<AddRounded />}>
+                <Button component={AppLink} href="/invoices/new" variant="contained" fullWidth startIcon={<AddRounded />}>
                   Create invoice
                 </Button>
               )}
-              <Button component={Link} href="/invoices" fullWidth startIcon={<ReceiptLongRounded />} variant="outlined" sx={onDarkButtonSx}>
+              <Button component={AppLink} href="/invoices" fullWidth startIcon={<ReceiptLongRounded />} variant="outlined" sx={onDarkButtonSx}>
                 View invoices
               </Button>
               {canCreateUser && (
-                <Button component={Link} href="/users" fullWidth startIcon={<GroupRounded />} variant="outlined" sx={onDarkButtonSx}>
+                <Button component={AppLink} href="/users" fullWidth startIcon={<GroupRounded />} variant="outlined" sx={onDarkButtonSx}>
                   Manage users
                 </Button>
               )}

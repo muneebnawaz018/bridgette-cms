@@ -43,13 +43,15 @@ interface Profile {
   permissions: string[];
 }
 
+// Spacing comes from the grid that lays these out, so every row keeps the same rhythm.
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ py: 1 }}>
+    <Box>
       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {label}
       </Typography>
-      <Typography variant="body1">{value}</Typography>
+      {/* Long unbroken values (an email) must wrap, not spill into the next column. */}
+      <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>{value}</Typography>
     </Box>
   );
 }
@@ -125,18 +127,16 @@ export default function ProfilePage() {
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Account details</Typography>
             <Divider sx={{ mb: 1, mt: 1 }} />
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Field label="Name" value={me.name ?? 'Not set'} />
-                <Field label="Email" value={me.email} />
-                <Field label="Phone" value={me.phone ?? 'Not set'} />
-                <Field label="Role" value={ROLE_LABEL[me.role] ?? me.role} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Field label="Status" value={me.status ?? 'Unknown'} />
-                <Field label="Member since" value={formatDate(me.createdAt)} />
-                <Field label="Last login" value={formatDateTime(me.lastLoginAt, 'Never')} />
-              </Grid>
+            {/* One cell per field so the two columns share row lines — Email then spans the
+                full width as just another row, not a detached block after both stacks. */}
+            <Grid container spacing={2.5}>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Name" value={me.name ?? 'Not set'} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Status" value={me.status ?? 'Unknown'} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Role" value={ROLE_LABEL[me.role] ?? me.role} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Member since" value={formatDate(me.createdAt)} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Phone" value={me.phone ?? 'Not set'} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Last login" value={formatDateTime(me.lastLoginAt, 'Never')} /></Grid>
+              <Grid size={{ xs: 12 }}><Field label="Email" value={me.email} /></Grid>
             </Grid>
           </Paper>
         </Grid>

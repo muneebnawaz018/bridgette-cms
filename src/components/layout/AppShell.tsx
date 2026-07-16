@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
@@ -16,14 +15,29 @@ import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
 import GroupRounded from '@mui/icons-material/GroupRounded';
 import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import MenuRounded from '@mui/icons-material/MenuRounded';
+import LogoutRounded from '@mui/icons-material/LogoutRounded';
+import { AppLink } from '@/components/ui/AppLink';
 import { BrandLockup } from '@/components/layout/BrandLockup';
 import { ProfileMenu } from '@/components/layout/ProfileMenu';
+import { useSignOut } from '@/components/auth/useSignOut';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { colors, gradients } from '@/lib/colors';
 import { displayFont } from '@/lib/theme';
 
 const RAIL = 268;
 // Rail shows from tablet up; below this the hamburger + drawer take over.
 const RAIL_QUERY = '@media (min-width:768px)';
+
+/** One shape for every rail row — nav links and Sign out alike. */
+const railItemSx = {
+  position: 'relative',
+  mx: 1.5,
+  my: 0.35,
+  py: 1.05,
+  px: 1.75,
+  borderRadius: '12px',
+  transition: 'background-color .16s ease, color .16s ease',
+} as const;
 
 interface NavItem {
   href: string;
@@ -45,10 +59,12 @@ function RailContent({
   items,
   isActive,
   onNavigate,
+  onSignOut,
 }: {
   items: NavItem[];
   isActive: (href: string) => boolean;
   onNavigate?: () => void;
+  onSignOut: () => void;
 }) {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', color: colors.rail.text }}>
@@ -69,56 +85,70 @@ function RailContent({
         MENU
       </Typography>
 
-      <List sx={{ px: 0, flexGrow: 1, overflowY: 'auto' }}>
-        {items.map((it) => {
-          const active = isActive(it.href);
-          return (
-            <ListItemButton
-              key={it.href}
-              component={Link}
-              href={it.href}
-              onClick={onNavigate}
-              sx={{
-                position: 'relative',
-                mx: 1.5,
-                my: 0.35,
-                py: 1.05,
-                px: 1.75,
-                borderRadius: 2.5,
-                color: active ? colors.rail.textActive : colors.rail.text,
-                bgcolor: active ? colors.rail.activeBg : 'transparent',
-                transition: 'background-color .16s ease, color .16s ease',
-                '&:hover': {
-                  bgcolor: active ? colors.rail.activeBgHover : colors.rail.hover,
-                  color: colors.rail.textActive,
-                },
-                '&::before': active
-                  ? {
-                      content: '""',
-                      position: 'absolute',
-                      left: -2,
-                      top: '24%',
-                      bottom: '24%',
-                      width: 3,
-                      borderRadius: 4,
-                      bgcolor: 'primary.main',
-                    }
-                  : undefined,
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 38, color: active ? 'primary.light' : 'inherit' }}>
-                {it.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={it.label}
-                primaryTypographyProps={{ fontWeight: 600, fontSize: '0.925rem' }}
-              />
-            </ListItemButton>
-          );
-        })}
-      </List>
+      {/* Scrolls as one list so Sign out stays with the nav rows it belongs to. */}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+        <List sx={{ px: 0, py: 0 }}>
+          {items.map((it) => {
+            const active = isActive(it.href);
+            return (
+              <ListItemButton
+                key={it.href}
+                component={AppLink}
+                href={it.href}
+                onClick={onNavigate}
+                sx={{
+                  ...railItemSx,
+                  color: active ? colors.rail.textActive : colors.rail.text,
+                  bgcolor: active ? colors.rail.activeBg : 'transparent',
+                  '&:hover': {
+                    bgcolor: active ? colors.rail.activeBgHover : colors.rail.hover,
+                    color: colors.rail.textActive,
+                  },
+                  // Sits inside the pill, hugging its left edge — not floating outside it.
+                  '&::before': active
+                    ? {
+                        content: '""',
+                        position: 'absolute',
+                        left: 6,
+                        top: '24%',
+                        bottom: '24%',
+                        width: 3,
+                        borderRadius: 4,
+                        bgcolor: 'primary.main',
+                      }
+                    : undefined,
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 38, color: active ? 'primary.light' : 'inherit' }}>
+                  {it.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={it.label}
+                  primaryTypographyProps={{ fontWeight: 600, fontSize: '0.925rem' }}
+                />
+              </ListItemButton>
+            );
+          })}
 
-      <Box sx={{ p: 2 }}>
+          {/* Sign out — reachable without opening the profile menu, and the only way out on
+              mobile once the drawer is open. */}
+          <ListItemButton
+            onClick={onSignOut}
+            sx={{
+              ...railItemSx,
+              color: colors.rail.text,
+              '&:hover': { bgcolor: colors.rail.hover, color: colors.rail.textActive },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 38, color: 'inherit' }}>
+              <LogoutRounded fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Sign out" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.925rem' }} />
+          </ListItemButton>
+        </List>
+      </Box>
+
+      <Box sx={{ p: 2, pt: 1 }}>
         <Box
           sx={{
             borderRadius: 3,
@@ -157,6 +187,8 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const { signOut, signingOut } = useSignOut();
 
   const items: NavItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: <SpaceDashboardRounded fontSize="small" /> },
@@ -185,7 +217,7 @@ export function AppShell({
             borderRight: `1px solid ${colors.rail.border}`,
           }}
         >
-          <RailContent items={items} isActive={isActive} />
+          <RailContent items={items} isActive={isActive} onSignOut={() => setSignOutOpen(true)} />
         </Box>
       </Box>
 
@@ -206,8 +238,26 @@ export function AppShell({
           },
         }}
       >
-        <RailContent items={items} isActive={isActive} onNavigate={() => setOpen(false)} />
+        <RailContent
+          items={items}
+          isActive={isActive}
+          onNavigate={() => setOpen(false)}
+          onSignOut={() => {
+            setOpen(false);
+            setSignOutOpen(true);
+          }}
+        />
       </Drawer>
+
+      <ConfirmDialog
+        open={signOutOpen}
+        title="Sign out?"
+        description="You will need to sign in again to get back into the portal."
+        confirmLabel="Sign out"
+        loading={signingOut}
+        onConfirm={signOut}
+        onClose={() => setSignOutOpen(false)}
+      />
 
       {/* Content column */}
       <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -227,11 +277,8 @@ export function AppShell({
             borderBottom: `1px solid ${colors.surface.border}`,
           }}
         >
-          {/* p:0 + a 40px glyph so the icon itself is the same size as the profile avatar,
-              not a small glyph floating in a 40px button. */}
           <IconButton
             onClick={() => setOpen(true)}
-            edge="start"
             aria-label="Open navigation"
             sx={{ width: 40, height: 40, p: 0, flexShrink: 0, [RAIL_QUERY]: { display: 'none' } }}
           >

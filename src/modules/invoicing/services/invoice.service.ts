@@ -131,7 +131,11 @@ export interface TypeTotals {
 }
 export interface InvoiceStats {
   total: number;
+  /** Pipeline counts for the current calendar month only — see `pipelineMonth`. */
   byState: Record<string, number>;
+  /** ISO start of the month `byState` covers, so the UI can label the period truthfully
+   *  instead of assuming the client clock agrees with the server. */
+  pipelineMonth: string;
   byType: Record<string, TypeTotals>; // { tax: {...}, cash: {...}, pk: {...} }
 }
 
@@ -141,6 +145,11 @@ const round2 = (n: number) => Math.round((n ?? 0) * 100) / 100;
 export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats> {
   assertCan(actor.role, Permission.InvoiceView);
   await connectDb();
+
+  // The pipeline reports the current calendar month; the type totals stay lifetime-to-date.
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const [row] = await Invoice.aggregate([
     // Stats cover the active set only (archived + deleted excluded).
@@ -157,7 +166,10 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
             },
           },
         ],
-        state: [{ $group: { _id: '$state', count: { $sum: 1 } } }],
+        state: [
+          { $match: { createdAt: { $gte: monthStart, $lt: nextMonthStart } } },
+          { $group: { _id: '$state', count: { $sum: 1 } } },
+        ],
         total: [{ $count: 'n' }],
       },
     },
@@ -175,7 +187,7 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
     };
   }
 
-  return { total: row?.total?.[0]?.n ?? 0, byState, byType };
+  return { total: row?.total?.[0]?.n ?? 0, byState, pipelineMonth: monthStart.toISOString(), byType };
 }
 
 /** Fetch one invoice, enforcing archive visibility. */

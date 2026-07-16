@@ -6,6 +6,17 @@ import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRound
 import type {} from '@mui/x-data-grid/themeAugmentation';
 import { colors, redA, shadowA } from '@/lib/colors';
 
+/**
+ * `wide` (1024px) is the point where a half-width card stops feeling cramped, so two-up
+ * card grids switch to a single column below it. MUI ships no 1024 stop (md=900, lg=1200),
+ * hence the custom one — declared here so `size={{ xs: 12, wide: 6 }}` type-checks.
+ */
+declare module '@mui/material/styles' {
+  interface BreakpointOverrides {
+    wide: true;
+  }
+}
+
 const bodyFont = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 /** Condensed display font — reserved for the wordmark + large metric numerals only. */
 export const displayFont = 'var(--font-oswald), "Arial Narrow", sans-serif';
@@ -25,6 +36,9 @@ const softShadows = [
 
 /** Bridgette brand theme — refined red/black SaaS. Clean type, soft depth, crisp accents. */
 export const theme = createTheme({
+  breakpoints: {
+    values: { xs: 0, sm: 600, md: 900, wide: 1024, lg: 1200, xl: 1536 },
+  },
   palette: {
     primary: { main: colors.brand.red, dark: colors.brand.redDark, light: colors.brand.redSoft, contrastText: colors.brand.white },
     secondary: { main: colors.brand.black },

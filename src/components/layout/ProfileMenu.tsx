@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { AppLink } from '@/components/ui/AppLink';
 import Avatar from '@mui/material/Avatar';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
@@ -14,26 +13,15 @@ import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
-import { useSnackbar } from 'notistack';
 import { useSession } from '@/components/auth/SessionProvider';
+import { useSignOut } from '@/components/auth/useSignOut';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { apiPost } from '@/lib/api/client';
 
 export function ProfileMenu() {
-  const router = useRouter();
-  const { enqueueSnackbar } = useSnackbar();
   const { email, role } = useSession();
+  const { signOut, signingOut } = useSignOut();
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-
-  async function signOut() {
-    setSigningOut(true);
-    await apiPost('/api/auth/logout', {});
-    enqueueSnackbar('Signed out', { variant: 'success' });
-    router.replace('/login');
-    router.refresh();
-  }
 
   const initial = email.charAt(0).toUpperCase();
 
@@ -60,7 +48,7 @@ export function ProfileMenu() {
           <Chip label={role} size="small" color="primary" sx={{ mt: 0.5 }} />
         </Box>
         <Divider />
-        <MenuItem component={Link} href="/profile" onClick={() => setAnchor(null)}>
+        <MenuItem component={AppLink} href="/profile" onClick={() => setAnchor(null)}>
           <ListItemIcon>
             <Person fontSize="small" />
           </ListItemIcon>
