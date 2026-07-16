@@ -126,11 +126,12 @@ export const theme = createTheme({
     },
     MuiInputLabel: { styleOverrides: { root: { fontWeight: 500 } } },
     MuiSelect: {
-      // Chevron instead of the default filled triangle; sits off the border and rotates
-      // (MUI adds `.MuiSelect-iconOpen` → 180deg) with a smooth transition.
+      // Chevron instead of the default filled triangle; rotates on open
+      // (MUI adds `.MuiSelect-iconOpen` → 180deg) with a smooth transition. Position is
+      // left at MUI's per-variant default so it never overlaps the value or the border.
       defaultProps: { IconComponent: KeyboardArrowDownRounded },
       styleOverrides: {
-        icon: { right: 10, color: colors.ink[400], transition: 'transform .22s ease' },
+        icon: { color: colors.ink[400], transition: 'transform .22s ease' },
       },
     },
     MuiMenu: {

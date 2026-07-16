@@ -21,6 +21,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Modal } from '@/components/ui/Modal';
+import { UserDetailsModal } from '@/components/users/UserDetailsModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, type Tone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -121,6 +122,9 @@ export default function UsersPage() {
   const { data, isLoading, mutate } = useApi<{ items: UserRow[]; total: number }>(`/api/auth/users?${params.toString()}`);
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
+
+  // Details modal (row click)
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   // Create
   const [open, setOpen] = useState(false);
@@ -278,8 +282,22 @@ export default function UsersPage() {
           rowCount={rowCount}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
+          onRowClick={setDetailId}
         />
       </Paper>
+
+      <UserDetailsModal
+        id={detailId}
+        onClose={() => setDetailId(null)}
+        canManage={canManage}
+        onEdit={(uid) => {
+          const row = rows.find((r) => r._id === uid);
+          if (row) {
+            setDetailId(null);
+            openEdit(row);
+          }
+        }}
+      />
 
       {/* Create */}
       <Modal

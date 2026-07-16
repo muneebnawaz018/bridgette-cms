@@ -83,12 +83,15 @@ export function SearchBar({
             renderValue={(v) => filter.options.find((o) => o.value === v)?.label ?? filter.label}
             startAdornment={<FilterListRounded fontSize="small" sx={{ color: 'text.secondary', mr: 1 }} />}
             sx={{
-              minWidth: { xs: '100%', sm: 176 },
-              px: 1.75,
+              minWidth: { xs: '100%', sm: 184 },
+              pl: 1.75,
+              pr: 1,
+              '& .MuiSelect-icon': { right: 10 },
               '& .MuiSelect-select': {
                 display: 'flex',
                 alignItems: 'center',
                 py: 1.5,
+                pr: '34px !important',
                 fontWeight: 600,
                 fontSize: '0.9rem',
               },

@@ -22,9 +22,6 @@ export interface ActiveSession {
 /** How many recently revoked sessions to keep visible in the audit list. */
 const REVOKED_HISTORY_LIMIT = 5;
 
-// Intentional revokes shown in the audit list — a normal "logout" is deliberately excluded.
-const INTENTIONAL_REVOKES = ['revoked', 'password', 'admin'];
-
 /** The jti of the refresh token on THIS request, or null if none/invalid. */
 export async function currentJti(): Promise<string | null> {
   const token = await readRefreshToken();
@@ -115,7 +112,14 @@ export async function listSessions(actor: SessionUser): Promise<ActiveSession[]>
     RefreshToken.find({ userId: actor.userId, revokedAt: null, expiresAt: { $gt: new Date() } })
       .sort({ createdAt: -1 })
       .lean<SessionLean[]>(),
-    RefreshToken.find({ userId: actor.userId, revokedReason: { $in: INTENTIONAL_REVOKES } })
+    // Intentionally-revoked sessions (per-device revoke, "sign out others", password
+    // reset, admin disable). A normal logout is tagged 'logout' and excluded; legacy
+    // revokes with no reason still surface so the audit list isn't empty.
+    RefreshToken.find({
+      userId: actor.userId,
+      revokedAt: { $ne: null },
+      revokedReason: { $nin: ['logout', 'rotate'] },
+    })
       .sort({ revokedAt: -1 })
       .limit(REVOKED_HISTORY_LIMIT)
       .lean<SessionLean[]>(),

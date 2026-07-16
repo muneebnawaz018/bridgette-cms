@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
-import MuiLink from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -29,6 +28,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Modal } from '@/components/ui/Modal';
+import { InvoiceDetailsModal } from '@/components/invoices/InvoiceDetailsModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -148,6 +148,9 @@ export default function InvoicesPage() {
     { value: InvoiceType.PK, label: 'PK', count: stats?.byType?.pk?.count },
   ];
 
+  // Details modal (row click)
+  const [detailId, setDetailId] = useState<string | null>(null);
+
   // Record-payment dialog
   const [payFor, setPayFor] = useState<InvoiceRow | null>(null);
   const [pay, setPay] = useState({ amount: '', method: PaymentMethod.BankTransfer });
@@ -209,9 +212,9 @@ export default function InvoicesPage() {
       flex: 1.1,
       minWidth: 140,
       renderCell: (p) => (
-        <MuiLink component={Link} href={`/invoices/${p.row._id}`} sx={{ fontWeight: 600, color: 'primary.main' }} underline="hover">
+        <Typography component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>
           {p.value}
-        </MuiLink>
+        </Typography>
       ),
     },
     { field: 'type', headerName: 'Type', width: 90 },
@@ -314,8 +317,11 @@ export default function InvoicesPage() {
           rowCount={rowCount}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
+          onRowClick={setDetailId}
         />
       </Paper>
+
+      <InvoiceDetailsModal id={detailId} onClose={() => setDetailId(null)} />
 
       {/* Record payment */}
       <Modal

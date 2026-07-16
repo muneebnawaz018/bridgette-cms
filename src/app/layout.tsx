@@ -6,6 +6,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from '@/lib/theme';
 import { ToastProvider } from '@/components/ToastProvider';
+import { GlobalRequestLoader } from '@/components/providers/GlobalRequestLoader';
 import { BRAND_RED } from '@/lib/colors';
 import './globals.css';
 
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <ThemeProvider theme={theme}>
             <CssBaseline />
             <ToastProvider>{children}</ToastProvider>
+            <GlobalRequestLoader />
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>

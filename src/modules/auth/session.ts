@@ -4,6 +4,7 @@ import { readAccessToken, readRefreshToken } from './cookies';
 import { verifyAccessToken, verifyRefreshToken } from './jwt';
 import { connectDb } from '@/lib/db/connection';
 import { User } from './models/user.model';
+import { RefreshToken } from './models/refresh-token.model';
 import { UserStatus } from './enums';
 import { Role, Permission, assertCan } from './rbac';
 
@@ -46,6 +47,11 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
     try {
       const payload = await verifyRefreshToken(refresh);
       await connectDb();
+      // Enforce revocation: a revoked refresh token (sign out others/everywhere/admin) is
+      // no longer a valid session, even though its JWT is still cryptographically valid.
+      const stored = await RefreshToken.findOne({ jti: payload.jti, revokedAt: null }).select('_id').lean();
+      if (!stored) return null;
+
       const user = await User.findById(payload.sub).lean<{
         _id: unknown;
         role: Role;

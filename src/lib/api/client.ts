@@ -1,5 +1,7 @@
 'use client';
 
+import { loadingBus } from '@/lib/api/loadingBus';
+
 export interface ApiResult<T> {
   ok: boolean;
   data?: T;
@@ -7,8 +9,12 @@ export interface ApiResult<T> {
   details?: unknown;
 }
 
-/** Send JSON to an internal API route. Never throws — returns a typed result. */
+/**
+ * Send JSON to an internal API route. Never throws — returns a typed result. Every call
+ * (all mutating: POST/PATCH/DELETE) drives the global loading overlay via the loadingBus.
+ */
 async function send<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
+  loadingBus.begin();
   try {
     const res = await fetch(path, {
       method,
@@ -18,6 +24,8 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<Ap
     return (await res.json()) as ApiResult<T>;
   } catch {
     return { ok: false, error: 'Network error' };
+  } finally {
+    loadingBus.end();
   }
 }
 

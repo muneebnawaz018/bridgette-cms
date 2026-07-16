@@ -6,7 +6,7 @@ import { connectDb } from '@/lib/db/connection';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
-import { resolveOrigin } from '@/lib/geo/ipLocation';
+import { normalizeIp } from '@/lib/geo/ipLocation';
 import { otpEmail, resetPasswordEmail, changeEmailOtpEmail } from '@/lib/email/templates';
 import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
@@ -127,15 +127,15 @@ async function issueTokens(session: SessionUser, ctx: RequestContext): Promise<v
     role: session.role,
     email: session.email,
   });
-  const origin = await resolveOrigin(ctx.ip);
+  // Store the raw IP only — no blocking geo lookup on the hot login path. Location (and
+  // the loopback→public upgrade) is resolved lazily by listSessions' backfill.
   await RefreshToken.create({
     userId: session.userId,
     jti,
     tokenHash: await bcrypt.hash(refreshToken, 10),
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     userAgent: ctx.userAgent,
-    ip: origin.ip ?? undefined,
-    location: origin.location ?? undefined,
+    ip: normalizeIp(ctx.ip) ?? undefined,
   });
   await setAuthCookies(accessToken, refreshToken);
 }
@@ -156,8 +156,10 @@ export async function refreshSession(ctx: RequestContext = {}): Promise<SessionU
   const user = await User.findById(payload.sub);
   if (!user || user.status !== UserStatus.Active) throw new Error('User inactive');
 
-  // Rotate: revoke old, issue new.
+  // Rotate: revoke old, issue new. Tagged 'rotate' so routine rotation never shows up in
+  // the "recently revoked" audit list.
   stored.revokedAt = new Date();
+  stored.revokedReason = 'rotate';
   await stored.save();
 
   const session: SessionUser = {

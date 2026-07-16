@@ -37,6 +37,13 @@ export async function middleware(req: NextRequest) {
   if (refresh) {
     try {
       const p = await verifyRefreshToken(refresh);
+      // Edge can't reach Mongo, so confirm the refresh token hasn't been revoked (sign out
+      // other devices / everywhere / admin disable) via a Node probe before minting.
+      const check = await fetch(new URL('/api/auth/session-check', req.url), {
+        headers: { cookie: req.headers.get('cookie') ?? '' },
+      });
+      if (!check.ok) throw new Error('Session revoked');
+
       const newAccess = await signAccessToken({ sub: p.sub, role: p.role, email: p.email });
       const res = NextResponse.next();
       res.cookies.set(ACCESS_COOKIE, newAccess, {
@@ -48,7 +55,7 @@ export async function middleware(req: NextRequest) {
       });
       return res;
     } catch {
-      /* invalid/expired refresh — fall through */
+      /* invalid/expired/revoked refresh — fall through */
     }
   }
 

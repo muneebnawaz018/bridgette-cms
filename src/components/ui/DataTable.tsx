@@ -22,6 +22,8 @@ interface DataTableProps<T extends GridValidRowModel> {
   rowCount?: number;
   paginationModel?: GridPaginationModel;
   onPaginationModelChange?: (model: GridPaginationModel) => void;
+  /** Row click (opens a details modal). The `actions` column is excluded so its buttons work. */
+  onRowClick?: (id: string) => void;
 }
 
 export function DataTable<T extends GridValidRowModel>({
@@ -33,6 +35,7 @@ export function DataTable<T extends GridValidRowModel>({
   rowCount,
   paginationModel,
   onPaginationModelChange,
+  onRowClick,
 }: DataTableProps<T>) {
   const server = Boolean(paginationModel && onPaginationModelChange);
 
@@ -48,10 +51,19 @@ export function DataTable<T extends GridValidRowModel>({
         rowCount={server ? (rowCount ?? 0) : undefined}
         paginationModel={paginationModel}
         onPaginationModelChange={onPaginationModelChange}
+        onCellClick={
+          onRowClick
+            ? (params) => {
+                // Skip the actions column so its overflow menu / buttons keep working.
+                if (params.field !== 'actions') onRowClick(String(params.id));
+              }
+            : undefined
+        }
         initialState={
           server ? undefined : { pagination: { paginationModel: { pageSize: DEFAULT_PAGE_SIZE, page: 0 } } }
         }
         disableRowSelectionOnClick
+        sx={onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : undefined}
       />
     </Box>
   );

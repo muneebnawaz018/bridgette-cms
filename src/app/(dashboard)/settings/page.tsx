@@ -87,7 +87,7 @@ export default function SettingsPage() {
 
       <Grid container spacing={2.5}>
         {/* Identity */}
-        <Grid size={{ xs: 12, md: 7 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Stack direction="row" spacing={2} alignItems="center">
               <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontWeight: 700, fontSize: 24, flexShrink: 0 }}>
@@ -107,7 +107,7 @@ export default function SettingsPage() {
         </Grid>
 
         {/* Navigation shortcuts */}
-        <Grid size={{ xs: 12, md: 5 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Go to</Typography>
             <Divider sx={{ mb: 1.5 }} />
@@ -129,7 +129,7 @@ export default function SettingsPage() {
         </Grid>
 
         {/* Security */}
-        <Grid size={{ xs: 12, md: 7 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Security</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -151,7 +151,7 @@ export default function SettingsPage() {
         </Grid>
 
         {/* Preferences */}
-        <Grid size={{ xs: 12, md: 5 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Preferences</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
