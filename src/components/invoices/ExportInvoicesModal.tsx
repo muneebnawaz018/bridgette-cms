@@ -158,7 +158,7 @@ export function ExportInvoicesModal({
       open={open}
       onClose={onClose}
       title="Export invoices"
-      description="Pick a format, choose a date range, then review before downloading."
+      description="Pick a format and date range, then review."
       icon={<FileDownloadRounded />}
       maxWidth="md"
       busy={downloading}
@@ -189,7 +189,17 @@ export function ExportInvoicesModal({
         </>
       }
     >
-      <Stepper activeStep={step} sx={{ mb: 3 }}>
+      {/* alternativeLabel stacks each label under its circle. Side-by-side labels need about
+          280px and overflowed the dialog on a 320px screen, scrollbar and all. */}
+      <Stepper
+        activeStep={step}
+        alternativeLabel
+        sx={{
+          mb: 3,
+          '& .MuiStepLabel-label': { fontSize: '0.78rem', mt: 0.5 },
+          '& .MuiStepConnector-root': { top: 12 },
+        }}
+      >
         {STEPS.map((s) => (
           <Step key={s}>
             <StepLabel>{s}</StepLabel>
@@ -310,15 +320,18 @@ export function ExportInvoicesModal({
             {total === 1 ? '' : 's'}. The file contains all {total}.
           </Typography>
 
+          {/* Five columns don't fit a phone: scroll the table inside its own box rather than
+              letting it push the dialog wider than the screen. */}
           <Box
             sx={{
               maxHeight: 320,
               overflowY: 'auto',
+              overflowX: 'auto',
               border: `1px solid ${colors.surface.border}`,
               borderRadius: '12px',
             }}
           >
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={{ minWidth: 460 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700 }}>Number</TableCell>

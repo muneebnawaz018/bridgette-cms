@@ -17,7 +17,8 @@ declare module '@mui/material/styles' {
   }
 }
 
-const bodyFont = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const bodyFont =
+  'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 /** Condensed display font — reserved for the wordmark + large metric numerals only. */
 export const displayFont = 'var(--font-oswald), "Arial Narrow", sans-serif';
 
@@ -31,7 +32,9 @@ const softShadows = [
   s(`0 4px 12px ${shadowA(0.07)}`, `0 2px 4px ${shadowA(0.04)}`),
   s(`0 8px 20px ${shadowA(0.08)}`, `0 2px 6px ${shadowA(0.05)}`),
   s(`0 12px 28px ${shadowA(0.1)}`, `0 4px 8px ${shadowA(0.05)}`),
-  ...Array.from({ length: 19 }, () => s(`0 18px 40px ${shadowA(0.12)}`, `0 6px 12px ${shadowA(0.06)}`)),
+  ...Array.from({ length: 19 }, () =>
+    s(`0 18px 40px ${shadowA(0.12)}`, `0 6px 12px ${shadowA(0.06)}`),
+  ),
 ] as Shadows;
 
 /** Bridgette brand theme — refined red/black SaaS. Clean type, soft depth, crisp accents. */
@@ -40,7 +43,12 @@ export const theme = createTheme({
     values: { xs: 0, sm: 600, md: 900, wide: 1024, lg: 1200, xl: 1536 },
   },
   palette: {
-    primary: { main: colors.brand.red, dark: colors.brand.redDark, light: colors.brand.redSoft, contrastText: colors.brand.white },
+    primary: {
+      main: colors.brand.red,
+      dark: colors.brand.redDark,
+      light: colors.brand.redSoft,
+      contrastText: colors.brand.white,
+    },
     secondary: { main: colors.brand.black },
     background: { default: colors.surface.canvas, paper: colors.surface.paper },
     text: { primary: colors.text.primary, secondary: colors.text.secondary },
@@ -94,12 +102,22 @@ export const theme = createTheme({
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { borderRadius: 10, paddingInline: 18, paddingBlock: 8, transition: 'all .18s ease' },
+        root: {
+          borderRadius: 10,
+          paddingInline: 18,
+          paddingBlock: 8,
+          transition:
+            'background-color .18s ease, box-shadow .18s ease, border-color .18s ease, color .18s ease',
+          '&.Mui-disabled': { transition: 'none' },
+        },
         sizeLarge: { paddingBlock: 11, fontSize: '0.975rem' },
         contained: { boxShadow: softShadows[1] },
         containedPrimary: {
           boxShadow: `0 2px 8px ${redA(0.3)}`,
-          '&:hover': { backgroundColor: colors.brand.redDark, boxShadow: `0 4px 14px ${redA(0.38)}` },
+          '&:hover': {
+            backgroundColor: colors.brand.redDark,
+            boxShadow: `0 4px 14px ${redA(0.38)}`,
+          },
         },
         outlined: {
           borderColor: colors.surface.borderStrong,
@@ -150,14 +168,24 @@ export const theme = createTheme({
     },
     MuiMenu: {
       styleOverrides: {
-        paper: { borderRadius: 14, boxShadow: softShadows[4], border: `1px solid ${colors.surface.border}` },
+        paper: {
+          borderRadius: 14,
+          boxShadow: softShadows[4],
+          border: `1px solid ${colors.surface.border}`,
+        },
       },
     },
     MuiPopover: { styleOverrides: { paper: { borderRadius: 14, boxShadow: softShadows[4] } } },
     MuiDialog: { styleOverrides: { paper: { borderRadius: 20, boxShadow: softShadows[5] } } },
     MuiTooltip: {
       styleOverrides: {
-        tooltip: { backgroundColor: colors.ink[900], borderRadius: 8, fontWeight: 500, fontSize: '0.75rem', padding: '6px 10px' },
+        tooltip: {
+          backgroundColor: colors.ink[900],
+          borderRadius: 8,
+          fontWeight: 500,
+          fontSize: '0.75rem',
+          padding: '6px 10px',
+        },
       },
     },
     MuiListItemButton: {
@@ -167,7 +195,13 @@ export const theme = createTheme({
     MuiTableCell: {
       styleOverrides: {
         root: { borderColor: colors.surface.border },
-        head: { fontWeight: 700, color: colors.ink[500], fontSize: '0.75rem', letterSpacing: '0.04em', textTransform: 'uppercase' },
+        head: {
+          fontWeight: 700,
+          color: colors.ink[500],
+          fontSize: '0.75rem',
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+        },
       },
     },
     MuiDataGrid: {
