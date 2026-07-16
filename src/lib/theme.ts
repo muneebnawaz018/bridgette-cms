@@ -167,7 +167,9 @@ export const theme = createTheme({
           fontSize: '0.875rem',
         },
         columnHeaders: { backgroundColor: colors.surface.subtle },
-        columnHeaderTitleContainer: { justifyContent: 'center' },
+        // No square focus/hover outline on headers — it draws outside the box and pokes past
+        // the grid's rounded top corners.
+        columnHeader: { '&:focus, &:focus-within': { outline: 'none' } },
         columnHeaderTitle: {
           fontWeight: 700,
           color: colors.ink[500],
@@ -175,7 +177,7 @@ export const theme = createTheme({
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
         },
-        cell: { borderColor: colors.surface.border, outline: 'none !important', justifyContent: 'center' },
+        cell: { borderColor: colors.surface.border, outline: 'none !important' },
         row: { '&:hover': { backgroundColor: colors.surface.subtle } },
         footerContainer: { borderTop: `1px solid ${colors.surface.border}` },
         columnSeparator: { color: 'transparent' },

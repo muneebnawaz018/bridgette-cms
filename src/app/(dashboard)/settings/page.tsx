@@ -100,7 +100,13 @@ export default function SettingsPage() {
               </Box>
             </Stack>
             <Divider sx={{ my: 2 }} />
-            <Button component={Link} href="/profile" startIcon={<PersonRounded />} variant="outlined">
+            <Button
+              component={Link}
+              href="/profile"
+              startIcon={<PersonRounded />}
+              variant="outlined"
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
+            >
               View full profile
             </Button>
           </Paper>

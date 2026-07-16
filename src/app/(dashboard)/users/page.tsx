@@ -200,14 +200,16 @@ export default function UsersPage() {
   }
 
   const columns: GridColDef<UserRow>[] = [
-    { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150 },
-    { field: 'email', headerName: 'Email', flex: 1.8, minWidth: 200 },
-    { field: 'role', headerName: 'Role', flex: 1.1, minWidth: 150, valueGetter: (_v, r) => ROLE_LABEL[r.role] ?? r.role },
+    { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150, headerAlign: 'center', align: 'center' },
+    { field: 'email', headerName: 'Email', flex: 1.8, minWidth: 200, headerAlign: 'center', align: 'center' },
+    { field: 'role', headerName: 'Role', flex: 1.1, minWidth: 150, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => ROLE_LABEL[r.role] ?? r.role },
     {
       field: 'status',
       headerName: 'Status',
       flex: 0.9,
       minWidth: 120,
+      headerAlign: 'center',
+      align: 'center',
       renderCell: (p) => <StatusChip label={p.value} tone={statusTone[p.value] ?? 'neutral'} />,
     },
     {
@@ -215,6 +217,7 @@ export default function UsersPage() {
       headerName: '',
       width: 64,
       sortable: false,
+      headerAlign: 'center',
       align: 'center',
       renderCell: (p) => (
         <UserRowActions row={p.row} canManage={canManage} isSelf={p.row._id === currentUserId} onEdit={openEdit} onDeactivate={setToDeactivate} />
@@ -245,12 +248,17 @@ export default function UsersPage() {
 
   return (
     <Box className="rise-in">
-      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-        <Typography color="text.secondary" sx={{ flexGrow: 1 }}>
-          {rowCount} team member{rowCount === 1 ? '' : 's'} · manage access and roles
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            Team members
+          </Typography>
+          <Typography color="text.secondary" variant="body2" sx={{ mt: 0.25 }}>
+            {rowCount} {rowCount === 1 ? 'member' : 'members'} · manage access and roles
+          </Typography>
+        </Box>
         {canCreate && (
-          <Button variant="contained" onClick={() => setOpen(true)} startIcon={<PersonAddRounded />}>
+          <Button variant="contained" onClick={() => setOpen(true)} startIcon={<PersonAddRounded />} sx={{ flexShrink: 0 }}>
             New user
           </Button>
         )}
@@ -273,7 +281,7 @@ export default function UsersPage() {
         />
       </Box>
 
-      <Paper sx={{ p: { xs: 1, md: 1.5 } }}>
+      <Paper sx={{ p: 0, overflow: 'hidden' }}>
         <DataTable
           rows={rows}
           columns={columns}

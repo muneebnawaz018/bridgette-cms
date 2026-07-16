@@ -11,8 +11,6 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import AddRounded from '@mui/icons-material/AddRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
 import PaymentsRounded from '@mui/icons-material/PaymentsRounded';
@@ -142,8 +140,8 @@ export default function InvoicesPage() {
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
 
-  const typeOptions: { value: '' | InvoiceType; label: string }[] = [
-    { value: '', label: 'All' },
+  const typeOptions: { value: string; label: string }[] = [
+    { value: '', label: 'All types' },
     { value: InvoiceType.Tax, label: 'Tax' },
     { value: InvoiceType.Cash, label: 'Cash' },
     { value: InvoiceType.PK, label: 'PK' },
@@ -212,28 +210,33 @@ export default function InvoicesPage() {
       headerName: 'Number',
       flex: 1.1,
       minWidth: 140,
+      headerAlign: 'center',
+      align: 'center',
       renderCell: (p) => (
         <Typography component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>
           {p.value}
         </Typography>
       ),
     },
-    { field: 'type', headerName: 'Type', width: 90 },
+    { field: 'type', headerName: 'Type', width: 90, headerAlign: 'center', align: 'center' },
     {
       field: 'state',
       headerName: 'State',
       flex: 0.9,
       minWidth: 130,
+      headerAlign: 'center',
+      align: 'center',
       renderCell: (p) => <StatusChip label={p.value} tone={invoiceStateTone[p.value] ?? 'neutral'} />,
     },
-    { field: 'billTo', headerName: 'Bill to', flex: 1.4, minWidth: 150, valueGetter: (_v, r) => r.billTo?.name ?? 'No customer' },
-    { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, valueGetter: (_v, r) => `${r.currency} ${Number(r.grandTotal).toFixed(2)}` },
-    { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, valueGetter: (_v, r) => `${r.currency} ${Number(r.balanceDue).toFixed(2)}` },
+    { field: 'billTo', headerName: 'Bill to', flex: 1.4, minWidth: 150, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => r.billTo?.name ?? 'No customer' },
+    { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => `${r.currency} ${Number(r.grandTotal).toFixed(2)}` },
+    { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => `${r.currency} ${Number(r.balanceDue).toFixed(2)}` },
     {
       field: 'actions',
       headerName: '',
       width: 64,
       sortable: false,
+      headerAlign: 'center',
       align: 'center',
       renderCell: (p) => (
         <RowActions
@@ -250,43 +253,46 @@ export default function InvoicesPage() {
 
   return (
     <Box className="rise-in">
-      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-        <Typography color="text.secondary" sx={{ flexGrow: 1 }}>
-          {rowCount} invoice{rowCount === 1 ? '' : 's'} · {VIEW_META[view].blurb}
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            {VIEW_META[view].label} invoices
+          </Typography>
+          <Typography color="text.secondary" variant="body2" sx={{ mt: 0.25 }}>
+            {rowCount} invoice{rowCount === 1 ? '' : 's'} · {VIEW_META[view].blurb}
+          </Typography>
+        </Box>
         {canCreate && (
-          <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddRounded />}>
+          <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddRounded />} sx={{ flexShrink: 0 }}>
             New invoice
           </Button>
         )}
       </Box>
 
-      <Stack spacing={1.5} sx={{ mb: 2 }}>
-        {/* Type selectors: All + the three invoice types */}
-        <Box sx={{ overflowX: 'auto', pb: 0.5, mx: -0.5, px: 0.5 }}>
-          <ToggleButtonGroup value={type} exclusive size="small" onChange={(_e, v) => v !== null && setType(v as '' | InvoiceType)}>
-            {typeOptions.map((t) => (
-              <ToggleButton key={t.label} value={t.value} sx={{ px: 2.5, textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                {t.label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        </Box>
-        {/* Search + a fused view dropdown, same pattern as user management */}
+      {/* Search + two fused filter dropdowns (type + view), same pattern as user management */}
+      <Box sx={{ mb: 2 }}>
         <SearchBar
           value={searchInput}
           onChange={setSearchInput}
           placeholder="Search by number or customer"
-          filter={{
-            label: VIEW_META.active.label,
-            value: view,
-            onChange: (v) => setView(v as InvoiceView),
-            options: views.map((v) => ({ value: v, label: VIEW_META[v].label })),
-          }}
+          filters={[
+            {
+              label: 'All types',
+              value: type,
+              onChange: (v) => setType(v as '' | InvoiceType),
+              options: typeOptions,
+            },
+            {
+              label: VIEW_META.active.label,
+              value: view,
+              onChange: (v) => setView(v as InvoiceView),
+              options: views.map((v) => ({ value: v, label: VIEW_META[v].label })),
+            },
+          ]}
         />
-      </Stack>
+      </Box>
 
-      <Paper sx={{ p: { xs: 1, md: 1.5 } }}>
+      <Paper sx={{ p: 0, overflow: 'hidden' }}>
         <DataTable
           rows={rows}
           columns={columns}

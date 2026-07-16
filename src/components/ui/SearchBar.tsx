@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import InputBase from '@mui/material/InputBase';
@@ -30,14 +31,19 @@ export function SearchBar({
   onChange,
   placeholder = 'Search',
   filter,
+  filters,
   autoFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /** A single fused filter dropdown. */
   filter?: FilterConfig;
+  /** Several fused filter dropdowns, rendered left-to-right (right edge on desktop). */
+  filters?: FilterConfig[];
   autoFocus?: boolean;
 }) {
+  const filterList = filters ?? (filter ? [filter] : []);
   return (
     <Paper
       variant="outlined"
@@ -46,7 +52,7 @@ export function SearchBar({
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: 'stretch',
         width: '100%',
-        borderRadius: 2.5,
+        borderRadius: 2,
         overflow: 'hidden',
         transition: 'border-color .16s ease, box-shadow .16s ease',
         '&:focus-within': { borderColor: 'primary.main', boxShadow: `0 0 0 3px ${redA(0.14)}` },
@@ -70,20 +76,20 @@ export function SearchBar({
         )}
       </Box>
 
-      {filter && (
-        <>
+      {filterList.map((f, i) => (
+        <Fragment key={i}>
           <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
           <Divider sx={{ display: { xs: 'block', sm: 'none' } }} />
           <Select
-            value={filter.value}
-            onChange={(e) => filter.onChange(String(e.target.value))}
+            value={f.value}
+            onChange={(e) => f.onChange(String(e.target.value))}
             displayEmpty
             variant="standard"
             disableUnderline
-            renderValue={(v) => filter.options.find((o) => o.value === v)?.label ?? filter.label}
+            renderValue={(v) => f.options.find((o) => o.value === v)?.label ?? f.label}
             startAdornment={<FilterListRounded fontSize="small" sx={{ color: 'text.secondary', mr: 1 }} />}
             sx={{
-              minWidth: { xs: '100%', sm: 184 },
+              minWidth: { xs: '100%', sm: 176 },
               pl: 1.75,
               pr: 1,
               '& .MuiSelect-icon': { right: 10 },
@@ -97,14 +103,14 @@ export function SearchBar({
               },
             }}
           >
-            {filter.options.map((o) => (
+            {f.options.map((o) => (
               <MenuItem key={o.value || '__all'} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
           </Select>
-        </>
-      )}
+        </Fragment>
+      ))}
     </Paper>
   );
 }

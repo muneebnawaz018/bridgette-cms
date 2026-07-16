@@ -128,7 +128,7 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
         onClose={() => setOpen(false)}
         sx={{ [RAIL_QUERY]: { display: 'none' } }}
         ModalProps={{ keepMounted: true }}
-        PaperProps={{ sx: { width: RAIL, bgcolor: colors.rail.bg, backgroundImage: 'none', border: 'none' } }}
+        PaperProps={{ sx: { width: RAIL, bgcolor: colors.rail.bg, backgroundImage: 'none', border: 'none', borderRadius: 0 } }}
       >
         <RailContent items={items} isActive={isActive} onNavigate={() => setOpen(false)} />
       </Drawer>
