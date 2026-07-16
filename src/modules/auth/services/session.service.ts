@@ -1,5 +1,7 @@
 import 'server-only';
+import { UAParser } from 'ua-parser-js';
 import { connectDb } from '@/lib/db/connection';
+import { normalizeIp, isLocalIp, resolveOrigin, type Origin } from '@/lib/geo/ipLocation';
 import { RefreshToken } from '../models/refresh-token.model';
 import { verifyRefreshToken } from '../jwt';
 import { readRefreshToken, clearAuthCookies } from '../cookies';
@@ -8,11 +10,17 @@ import type { SessionUser } from '../session';
 export interface ActiveSession {
   id: string; // the token's jti
   current: boolean;
+  status: 'active' | 'revoked';
   device: string; // humanized user-agent
-  ip: string | null;
+  ip: string | null; // display-friendly (loopback/private shown as "Localhost")
+  location: string | null; // "City, Region, Country" or null
   createdAt: string; // ISO
   expiresAt: string; // ISO
+  revokedAt: string | null; // ISO, set once signed out
 }
+
+/** How many recently signed-out sessions to keep visible in the audit list. */
+const REVOKED_HISTORY_LIMIT = 5;
 
 /** The jti of the refresh token on THIS request, or null if none/invalid. */
 export async function currentJti(): Promise<string | null> {
@@ -25,48 +33,106 @@ export async function currentJti(): Promise<string | null> {
   }
 }
 
-/** Turn a raw user-agent string into something readable, e.g. "Chrome on macOS". */
+/**
+ * Human-readable device label from a user-agent, via the ua-parser-js library (not
+ * hand-rolled regex). Prefers a real device model when the UA exposes one
+ * (e.g. "Apple iPhone", "Samsung SM-G991B"), and falls back to "Chrome on macOS".
+ */
 function describeDevice(ua?: string | null): string {
   if (!ua) return 'Unknown device';
-  const browser =
-    /Edg\//.test(ua) ? 'Edge'
-    : /OPR\/|Opera/.test(ua) ? 'Opera'
-    : /Chrome\//.test(ua) ? 'Chrome'
-    : /Firefox\//.test(ua) ? 'Firefox'
-    : /Safari\//.test(ua) ? 'Safari'
-    : 'Browser';
-  const os =
-    /Windows/.test(ua) ? 'Windows'
-    : /Mac OS X|Macintosh/.test(ua) ? 'macOS'
-    : /Android/.test(ua) ? 'Android'
-    : /iPhone|iPad|iOS/.test(ua) ? 'iOS'
-    : /Linux/.test(ua) ? 'Linux'
-    : 'Unknown OS';
-  return `${browser} on ${os}`;
+  const { browser, os, device } = new UAParser(ua).getResult();
+
+  if (device.model) {
+    const vendor = device.vendor && !device.model.startsWith(device.vendor) ? `${device.vendor} ` : '';
+    return `${vendor}${device.model}`.trim();
+  }
+
+  const browserName = browser.name ?? 'Browser';
+  return `${browserName} on ${os.name ?? 'unknown OS'}`;
 }
 
-/** Active (non-revoked, unexpired) sessions for the current user, newest first. */
+/** Show a real IP, or "Localhost" for loopback/private addresses (never the raw "::1"). */
+function displayIp(ip?: string | null): string | null {
+  const norm = normalizeIp(ip);
+  if (!norm) return null;
+  return isLocalIp(norm) ? 'Localhost' : norm;
+}
+
+type SessionLean = {
+  jti: string;
+  userAgent?: string;
+  ip?: string;
+  location?: string;
+  createdAt: Date;
+  expiresAt: Date;
+  revokedAt?: Date | null;
+};
+
+/**
+ * Backfill IP + location for sessions saved before geolocation existed, or that stored a
+ * loopback address (upgraded to the machine's public IP). Best-effort, deduped, persisted
+ * so it only runs once per session.
+ */
+async function backfillLocations(docs: SessionLean[]): Promise<void> {
+  const cache = new Map<string, Origin>();
+  for (const d of docs) {
+    const norm = normalizeIp(d.ip);
+    const local = !norm || isLocalIp(norm);
+    // Already has a public IP and a location — nothing to do.
+    if (d.location && norm && !local) continue;
+
+    const key = local ? '__self' : norm;
+    let origin = cache.get(key);
+    if (!origin) {
+      origin = await resolveOrigin(d.ip);
+      cache.set(key, origin);
+    }
+    if (!origin.ip) continue;
+
+    const update: { ip?: string; location?: string } = {};
+    if (local) update.ip = origin.ip; // replace "::1" with the real public IP
+    if (origin.location && !d.location) update.location = origin.location;
+    if (Object.keys(update).length === 0) continue;
+
+    Object.assign(d, update);
+    await RefreshToken.updateOne({ jti: d.jti }, { $set: update });
+  }
+}
+
+/**
+ * Active sessions (newest first) plus the last few that were signed out, so the user has
+ * an audit trail. Revoked rows are kept in the database (never deleted) until the TTL
+ * index purges them once they expire.
+ */
 export async function listSessions(actor: SessionUser): Promise<ActiveSession[]> {
   await connectDb();
   const jti = await currentJti();
-  const docs = await RefreshToken.find({
-    userId: actor.userId,
-    revokedAt: null,
-    expiresAt: { $gt: new Date() },
-  })
-    .sort({ createdAt: -1 })
-    .lean<
-      { jti: string; userAgent?: string; ip?: string; createdAt: Date; expiresAt: Date }[]
-    >();
 
-  return docs.map((d) => ({
+  const [active, revoked] = await Promise.all([
+    RefreshToken.find({ userId: actor.userId, revokedAt: null, expiresAt: { $gt: new Date() } })
+      .sort({ createdAt: -1 })
+      .lean<SessionLean[]>(),
+    RefreshToken.find({ userId: actor.userId, revokedAt: { $ne: null } })
+      .sort({ revokedAt: -1 })
+      .limit(REVOKED_HISTORY_LIMIT)
+      .lean<SessionLean[]>(),
+  ]);
+
+  await backfillLocations([...active, ...revoked]);
+
+  const toDto = (d: SessionLean, status: 'active' | 'revoked'): ActiveSession => ({
     id: d.jti,
-    current: d.jti === jti,
+    current: status === 'active' && d.jti === jti,
+    status,
     device: describeDevice(d.userAgent),
-    ip: d.ip ?? null,
+    ip: displayIp(d.ip),
+    location: d.location ?? null,
     createdAt: d.createdAt.toISOString(),
     expiresAt: d.expiresAt.toISOString(),
-  }));
+    revokedAt: d.revokedAt ? d.revokedAt.toISOString() : null,
+  });
+
+  return [...active.map((d) => toDto(d, 'active')), ...revoked.map((d) => toDto(d, 'revoked'))];
 }
 
 /** Revoke one specific session by jti (must belong to the actor). */

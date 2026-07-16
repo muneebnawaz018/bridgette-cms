@@ -13,26 +13,88 @@ import Tooltip from '@mui/material/Tooltip';
 import CircularProgress from '@mui/material/CircularProgress';
 import DevicesRounded from '@mui/icons-material/DevicesRounded';
 import LogoutRounded from '@mui/icons-material/LogoutRounded';
+import HistoryRounded from '@mui/icons-material/HistoryRounded';
 import { useSnackbar } from 'notistack';
 import { useApi } from '@/lib/api/useApi';
 import { apiDelete } from '@/lib/api/client';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 import { SessionScopeDialog } from '@/components/settings/SessionScopeDialog';
 
 interface ActiveSession {
   id: string;
   current: boolean;
+  status: 'active' | 'revoked';
   device: string;
   ip: string | null;
+  location: string | null;
   createdAt: string;
-  expiresAt: string;
+  revokedAt: string | null;
 }
 
-function since(iso: string): string {
+function fmt(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return (
+    d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) +
+    ', ' +
+    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  );
 }
 
-/** Lists the user's active sign-ins and lets them revoke any one, or all others at once. */
+function SessionRow({
+  s,
+  onRevoke,
+  revoking,
+}: {
+  s: ActiveSession;
+  onRevoke?: (id: string) => void;
+  revoking?: boolean;
+}) {
+  const revoked = s.status === 'revoked';
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.5, opacity: revoked ? 0.72 : 1 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          placeItems: 'center',
+          width: 40,
+          height: 40,
+          borderRadius: 2,
+          color: revoked ? 'text.disabled' : 'primary.main',
+          bgcolor: 'action.hover',
+          flexShrink: 0,
+        }}
+      >
+        <DevicesRounded fontSize="small" />
+      </Box>
+      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontWeight: 600 }} noWrap>
+            {s.device}
+          </Typography>
+          {s.current && <Chip label="This device" size="small" color="primary" variant="outlined" />}
+          {revoked && <Chip label="Signed out" size="small" color="default" variant="outlined" />}
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {[s.ip, s.location].filter(Boolean).join(' · ') || 'Unknown location'}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {revoked && s.revokedAt ? `Signed out ${fmt(s.revokedAt)}` : `Signed in ${fmt(s.createdAt)}`}
+        </Typography>
+      </Box>
+      {!revoked && !s.current && onRevoke && (
+        <Tooltip title="Sign out this device">
+          <span>
+            <IconButton size="small" onClick={() => onRevoke(s.id)} disabled={revoking}>
+              {revoking ? <CircularProgress size={18} /> : <LogoutRounded fontSize="small" />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+    </Box>
+  );
+}
+
+/** Lists active sign-ins (revoke any one, or all others) plus a short signed-out history. */
 export function SessionsCard() {
   const { enqueueSnackbar } = useSnackbar();
   const { data, isLoading, mutate } = useApi<{ sessions: ActiveSession[] }>('/api/auth/sessions');
@@ -40,7 +102,9 @@ export function SessionsCard() {
   const [scopeOpen, setScopeOpen] = useState(false);
 
   const sessions = data?.sessions ?? [];
-  const others = sessions.filter((s) => !s.current).length;
+  const active = sessions.filter((s) => s.status === 'active');
+  const revoked = sessions.filter((s) => s.status === 'revoked');
+  const others = active.filter((s) => !s.current).length;
 
   async function revokeOne(id: string) {
     setRevoking(id);
@@ -56,14 +120,9 @@ export function SessionsCard() {
 
   return (
     <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
         <Typography variant="h6">Active sessions</Typography>
-        <Button
-          size="small"
-          startIcon={<LogoutRounded />}
-          disabled={others === 0}
-          onClick={() => setScopeOpen(true)}
-        >
+        <Button size="small" startIcon={<LogoutRounded />} disabled={others === 0} onClick={() => setScopeOpen(true)}>
           Sign out other devices
         </Button>
       </Box>
@@ -73,42 +132,35 @@ export function SessionsCard() {
       <Divider sx={{ mb: 1 }} />
 
       {isLoading && sessions.length === 0 ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 4 }}>
-          <CircularProgress size={24} />
-        </Box>
+        <BrandLoader label="Loading sessions…" minHeight={160} />
       ) : (
         <Stack divider={<Divider flexItem />}>
-          {sessions.map((s) => (
-            <Box key={s.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.5 }}>
-              <Box sx={{ display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 2, color: 'primary.main', bgcolor: 'action.hover', flexShrink: 0 }}>
-                <DevicesRounded fontSize="small" />
-              </Box>
-              <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography sx={{ fontWeight: 600 }} noWrap>{s.device}</Typography>
-                  {s.current && <Chip label="This device" size="small" color="primary" variant="outlined" />}
-                </Box>
-                <Typography variant="caption" color="text.secondary">
-                  {s.ip ? `${s.ip} · ` : ''}Signed in {since(s.createdAt)}
-                </Typography>
-              </Box>
-              {!s.current && (
-                <Tooltip title="Sign out this device">
-                  <span>
-                    <IconButton size="small" onClick={() => revokeOne(s.id)} disabled={revoking === s.id}>
-                      {revoking === s.id ? <CircularProgress size={18} /> : <LogoutRounded fontSize="small" />}
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              )}
-            </Box>
+          {active.map((s) => (
+            <SessionRow key={s.id} s={s} onRevoke={revokeOne} revoking={revoking === s.id} />
           ))}
-          {sessions.length === 0 && (
+          {active.length === 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
               No active sessions found.
             </Typography>
           )}
         </Stack>
+      )}
+
+      {revoked.length > 0 && (
+        <Box sx={{ mt: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, color: 'text.secondary' }}>
+            <HistoryRounded fontSize="small" />
+            <Typography variant="subtitle2" color="text.secondary">
+              Recently signed out
+            </Typography>
+          </Box>
+          <Divider sx={{ mb: 1 }} />
+          <Stack divider={<Divider flexItem />}>
+            {revoked.map((s) => (
+              <SessionRow key={s.id} s={s} />
+            ))}
+          </Stack>
+        </Box>
       )}
 
       <SessionScopeDialog

@@ -11,6 +11,7 @@ const refreshTokenSchema = new Schema(
     revokedAt: { type: Date, default: null },
     userAgent: { type: String },
     ip: { type: String },
+    location: { type: String }, // "City, Region, Country" resolved from ip (best-effort)
   },
   { timestamps: true },
 );

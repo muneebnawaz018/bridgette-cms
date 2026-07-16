@@ -7,7 +7,6 @@ import MuiLink from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
 import Typography from '@mui/material/Typography';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -21,7 +20,6 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import AddRounded from '@mui/icons-material/AddRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
-import SearchRounded from '@mui/icons-material/SearchRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
@@ -30,6 +28,7 @@ import type { InvoiceView } from '@/modules/invoicing/schemas';
 import { useCan } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
+import { SearchBar } from '@/components/ui/SearchBar';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -246,30 +245,33 @@ export default function InvoicesPage() {
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
-        <ToggleButtonGroup value={view} exclusive size="small" onChange={(_e, v) => v && setView(v as InvoiceView)}>
-          {views.map((v) => (
-            <ToggleButton key={v} value={v} sx={{ px: 2, textTransform: 'none', fontWeight: 600 }}>
-              {VIEW_META[v].label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-        <Box sx={{ flexGrow: 1 }} />
-        <TextField
-          size="small"
-          placeholder="Search number or customer"
+      <Stack spacing={1.5} sx={{ mb: 2 }}>
+        <Box sx={{ overflowX: 'auto', pb: 0.5, mx: -0.5, px: 0.5 }}>
+          <ToggleButtonGroup value={view} exclusive size="small" onChange={(_e, v) => v && setView(v as InvoiceView)}>
+            {views.map((v) => (
+              <ToggleButton key={v} value={v} sx={{ px: 2, textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {VIEW_META[v].label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </Box>
+        <SearchBar
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> }}
-          sx={{ minWidth: { xs: '100%', sm: 260 } }}
+          onChange={setSearchInput}
+          placeholder="Search by number or customer"
+          filter={{
+            label: 'All types',
+            value: type,
+            onChange: (v) => setType(v as '' | InvoiceType),
+            options: [
+              { value: '', label: 'All types' },
+              { value: InvoiceType.Tax, label: 'Tax' },
+              { value: InvoiceType.Cash, label: 'Cash' },
+              { value: InvoiceType.PK, label: 'PK' },
+            ],
+          }}
         />
-        <TextField select size="small" label="Type" value={type} onChange={(e) => setType(e.target.value as '' | InvoiceType)} sx={{ minWidth: 130 }}>
-          <MenuItem value="">All types</MenuItem>
-          <MenuItem value={InvoiceType.Tax}>Tax</MenuItem>
-          <MenuItem value={InvoiceType.Cash}>Cash</MenuItem>
-          <MenuItem value={InvoiceType.PK}>PK</MenuItem>
-        </TextField>
-      </Box>
+      </Stack>
 
       <Paper sx={{ p: { xs: 1, md: 1.5 } }}>
         <DataTable

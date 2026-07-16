@@ -5,7 +5,6 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
 import Typography from '@mui/material/Typography';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -17,7 +16,6 @@ import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
-import SearchRounded from '@mui/icons-material/SearchRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission, Role } from '@/modules/auth/rbac';
@@ -25,6 +23,7 @@ import { UserStatus } from '@/modules/auth/enums';
 import { useCan } from '@/components/auth/SessionProvider';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
+import { SearchBar } from '@/components/ui/SearchBar';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, type Tone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -239,22 +238,21 @@ export default function UsersPage() {
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
-        <TextField
-          size="small"
-          placeholder="Search name or email"
+      <Box sx={{ mb: 2 }}>
+        <SearchBar
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> }}
-          sx={{ minWidth: { xs: '100%', sm: 280 }, flexGrow: { xs: 1, sm: 0 } }}
+          onChange={setSearchInput}
+          placeholder="Search by name or email"
+          filter={{
+            label: 'All roles',
+            value: roleFilter,
+            onChange: (v) => setRoleFilter(v as '' | Role),
+            options: [
+              { value: '', label: 'All roles' },
+              ...Object.values(Role).map((r) => ({ value: r, label: ROLE_LABEL[r] ?? r })),
+            ],
+          }}
         />
-        <Box sx={{ flexGrow: 1, display: { xs: 'none', sm: 'block' } }} />
-        <TextField select size="small" label="Role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as '' | Role)} sx={{ minWidth: 180 }}>
-          <MenuItem value="">All roles</MenuItem>
-          {Object.values(Role).map((r) => (
-            <MenuItem key={r} value={r}>{ROLE_LABEL[r] ?? r}</MenuItem>
-          ))}
-        </TextField>
       </Box>
 
       <Paper sx={{ p: { xs: 1, md: 1.5 } }}>

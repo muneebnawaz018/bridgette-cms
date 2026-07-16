@@ -6,6 +6,7 @@ import { connectDb } from '@/lib/db/connection';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
+import { resolveOrigin } from '@/lib/geo/ipLocation';
 import { otpEmail, resetPasswordEmail } from '@/lib/email/templates';
 import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
@@ -126,13 +127,15 @@ async function issueTokens(session: SessionUser, ctx: RequestContext): Promise<v
     role: session.role,
     email: session.email,
   });
+  const origin = await resolveOrigin(ctx.ip);
   await RefreshToken.create({
     userId: session.userId,
     jti,
     tokenHash: await bcrypt.hash(refreshToken, 10),
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     userAgent: ctx.userAgent,
-    ip: ctx.ip,
+    ip: origin.ip ?? undefined,
+    location: origin.location ?? undefined,
   });
   await setAuthCookies(accessToken, refreshToken);
 }
