@@ -76,6 +76,31 @@ export const openApiSpec = {
         },
       },
       Reason: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } },
+      ChangePassword: {
+        type: 'object',
+        required: ['currentPassword', 'newPassword'],
+        properties: { currentPassword: { type: 'string' }, newPassword: { type: 'string', minLength: 8 } },
+      },
+      UpdateProfile: {
+        type: 'object',
+        description: 'At least one field required.',
+        properties: { name: { type: 'string' }, phone: { type: 'string' } },
+      },
+      RevokeSessions: {
+        type: 'object',
+        required: ['scope'],
+        properties: { scope: { type: 'string', enum: ['others', 'all'], description: 'others = keep this device; all = sign out everywhere' } },
+      },
+      RequestEmailChange: {
+        type: 'object',
+        required: ['newEmail', 'currentPassword'],
+        properties: { newEmail: { type: 'string', format: 'email' }, currentPassword: { type: 'string' } },
+      },
+      ConfirmEmailChange: {
+        type: 'object',
+        required: ['code'],
+        properties: { code: { type: 'string', description: 'Code emailed to the new address' } },
+      },
     },
   },
   paths: {
@@ -103,7 +128,59 @@ export const openApiSpec = {
       post: { tags: ['Auth'], summary: 'Complete password reset', responses: { 200: { description: 'OK' } } },
     },
     '/api/auth/me': {
-      get: { tags: ['Auth'], summary: 'Current session + permissions', responses: { 200: { description: 'OK' }, 401: { description: 'Unauthorized' } } },
+      get: { tags: ['Auth'], summary: 'Current session + profile + permissions', responses: { 200: { description: 'OK' }, 401: { description: 'Unauthorized' } } },
+      patch: {
+        tags: ['Auth'],
+        summary: 'Update your own profile (name/phone) — requires session',
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateProfile' } } } },
+        responses: { 200: { description: 'OK' }, 401: { description: 'Unauthorized' } },
+      },
+    },
+    '/api/auth/password': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Change your own password — verifies the current one (requires session)',
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/ChangePassword' } } } },
+        responses: { 200: { description: 'OK' }, 400: { description: 'Wrong current password' }, 401: { description: 'Unauthorized' } },
+      },
+    },
+    '/api/auth/email/request': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Start an email change — verifies password, emails a code to the new address (requires session)',
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/RequestEmailChange' } } } },
+        responses: { 200: { description: 'Code sent' }, 400: { description: 'Wrong password / email taken' }, 401: { description: 'Unauthorized' } },
+      },
+    },
+    '/api/auth/email/confirm': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Confirm the code and switch to the new email (requires session; rotates tokens)',
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/ConfirmEmailChange' } } } },
+        responses: { 200: { description: 'Email updated' }, 400: { description: 'Invalid/expired code' }, 401: { description: 'Unauthorized' } },
+      },
+    },
+    '/api/auth/sessions': {
+      get: { tags: ['Auth'], summary: 'Your active sessions + recent revokes (requires session)', responses: { 200: { description: 'OK' }, 401: { description: 'Unauthorized' } } },
+    },
+    '/api/auth/sessions/revoke': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Sign out other devices, or all (requires session)',
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/RevokeSessions' } } } },
+        responses: { 200: { description: 'OK' }, 401: { description: 'Unauthorized' } },
+      },
+    },
+    '/api/auth/sessions/{jti}': {
+      delete: {
+        tags: ['Auth'],
+        summary: 'Revoke one specific device by session id (requires session)',
+        parameters: [{ name: 'jti', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'OK' }, 401: { description: 'Unauthorized' } },
+      },
+    },
+    '/api/dashboard/stats': {
+      get: { tags: ['Invoices'], summary: 'Aggregated, role-scoped invoice metrics (InvoiceView)', responses: { 200: { description: 'OK' }, 403: { description: 'Forbidden' } } },
     },
     '/api/auth/users': {
       get: {
@@ -143,9 +220,10 @@ export const openApiSpec = {
           { name: 'page', in: 'query', schema: { type: 'integer' } },
           { name: 'limit', in: 'query', schema: { type: 'integer' } },
           { name: 'type', in: 'query', schema: { type: 'string', enum: ['tax', 'cash', 'pk'] } },
+          { name: 'view', in: 'query', schema: { type: 'string', enum: ['active', 'archived', 'deleted'], default: 'active' }, description: 'archived = Admin+ or creator; deleted = admins only' },
           { name: 'search', in: 'query', schema: { type: 'string' } },
         ],
-        responses: { 200: { description: 'Paginated invoices' } },
+        responses: { 200: { description: 'Paginated invoices' }, 403: { description: 'Forbidden' } },
       },
       post: {
         tags: ['Invoices'],
@@ -157,6 +235,13 @@ export const openApiSpec = {
     '/api/invoices/{id}': {
       get: { tags: ['Invoices'], summary: 'Get invoice (InvoiceView)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'OK' } } },
       patch: { tags: ['Invoices'], summary: 'Update invoice (InvoiceEdit)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'OK' } } },
+      delete: {
+        tags: ['Invoices'],
+        summary: 'Soft-delete invoice (InvoiceDelete) — hidden from all but admins, never removed',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Reason' } } } },
+        responses: { 200: { description: 'OK' }, 403: { description: 'Forbidden' } },
+      },
     },
     '/api/invoices/{id}/payments': {
       get: {

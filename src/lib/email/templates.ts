@@ -43,6 +43,19 @@ export function resetPasswordEmail(
   };
 }
 
+export function changeEmailOtpEmail(name: string, code: string): { subject: string; html: string; text: string } {
+  return {
+    subject: 'Confirm your new Bridgette Portal email',
+    html: shell(
+      'Confirm your new email',
+      `<p>Hi ${name},</p><p>Use this code to confirm this address as your new sign-in email:</p>
+       <p style="font-size:28px;font-weight:bold;letter-spacing:4px;color:${BRAND}">${code}</p>
+       <p style="font-size:13px;color:#666">This code expires in 15 minutes. If you didn't request this, ignore this email.</p>`,
+    ),
+    text: `Hi ${name}, your Bridgette Portal email-change code is ${code} (expires in 15 minutes).`,
+  };
+}
+
 export function reminderEmail(
   invoiceNumber: string,
   link: string,

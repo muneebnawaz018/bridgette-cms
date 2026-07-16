@@ -19,8 +19,11 @@ export interface ActiveSession {
   revokedAt: string | null; // ISO, set once signed out
 }
 
-/** How many recently signed-out sessions to keep visible in the audit list. */
+/** How many recently revoked sessions to keep visible in the audit list. */
 const REVOKED_HISTORY_LIMIT = 5;
+
+// Intentional revokes shown in the audit list — a normal "logout" is deliberately excluded.
+const INTENTIONAL_REVOKES = ['revoked', 'password', 'admin'];
 
 /** The jti of the refresh token on THIS request, or null if none/invalid. */
 export async function currentJti(): Promise<string | null> {
@@ -112,7 +115,7 @@ export async function listSessions(actor: SessionUser): Promise<ActiveSession[]>
     RefreshToken.find({ userId: actor.userId, revokedAt: null, expiresAt: { $gt: new Date() } })
       .sort({ createdAt: -1 })
       .lean<SessionLean[]>(),
-    RefreshToken.find({ userId: actor.userId, revokedAt: { $ne: null } })
+    RefreshToken.find({ userId: actor.userId, revokedReason: { $in: INTENTIONAL_REVOKES } })
       .sort({ revokedAt: -1 })
       .limit(REVOKED_HISTORY_LIMIT)
       .lean<SessionLean[]>(),
@@ -140,7 +143,7 @@ export async function revokeSession(actor: SessionUser, jti: string): Promise<vo
   await connectDb();
   await RefreshToken.updateOne(
     { userId: actor.userId, jti, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
+    { $set: { revokedAt: new Date(), revokedReason: 'revoked' } },
   );
   // If the user just revoked their own current session, drop the cookies too.
   if (jti === (await currentJti())) await clearAuthCookies();
@@ -152,7 +155,7 @@ export async function revokeOtherSessions(actor: SessionUser): Promise<number> {
   const jti = await currentJti();
   const res = await RefreshToken.updateMany(
     { userId: actor.userId, revokedAt: null, ...(jti ? { jti: { $ne: jti } } : {}) },
-    { $set: { revokedAt: new Date() } },
+    { $set: { revokedAt: new Date(), revokedReason: 'revoked' } },
   );
   return res.modifiedCount ?? 0;
 }
@@ -162,7 +165,7 @@ export async function revokeAllSessions(actor: SessionUser): Promise<void> {
   await connectDb();
   await RefreshToken.updateMany(
     { userId: actor.userId, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
+    { $set: { revokedAt: new Date(), revokedReason: 'revoked' } },
   );
   await clearAuthCookies();
 }

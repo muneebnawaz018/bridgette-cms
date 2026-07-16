@@ -8,6 +8,7 @@ const userSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+    pendingEmail: { type: String, default: null, lowercase: true, trim: true }, // awaiting OTP verify
     phone: { type: String, trim: true },
     passwordHash: { type: String, default: null }, // null until the user sets a password
 

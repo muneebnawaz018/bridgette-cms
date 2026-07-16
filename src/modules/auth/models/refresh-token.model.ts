@@ -9,6 +9,9 @@ const refreshTokenSchema = new Schema(
     tokenHash: { type: String, required: true }, // hashed token value
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
+    // Why the token was revoked: 'logout' (normal sign-out) vs intentional 'revoked' /
+    // 'password' / 'admin'. Only the intentional ones surface in the sessions audit list.
+    revokedReason: { type: String, default: null },
     userAgent: { type: String },
     ip: { type: String },
     location: { type: String }, // "City, Region, Country" resolved from ip (best-effort)

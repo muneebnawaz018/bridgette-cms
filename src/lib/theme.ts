@@ -1,6 +1,7 @@
 'use client';
 
 import { createTheme, type Shadows } from '@mui/material/styles';
+import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRounded';
 // Registers the MuiDataGrid slot on the theme's `components` map for type-checking.
 import type {} from '@mui/x-data-grid/themeAugmentation';
 import { colors, redA, shadowA } from '@/lib/colors';
@@ -124,6 +125,14 @@ export const theme = createTheme({
       },
     },
     MuiInputLabel: { styleOverrides: { root: { fontWeight: 500 } } },
+    MuiSelect: {
+      // Chevron instead of the default filled triangle; sits off the border and rotates
+      // (MUI adds `.MuiSelect-iconOpen` → 180deg) with a smooth transition.
+      defaultProps: { IconComponent: KeyboardArrowDownRounded },
+      styleOverrides: {
+        icon: { right: 10, color: colors.ink[400], transition: 'transform .22s ease' },
+      },
+    },
     MuiMenu: {
       styleOverrides: {
         paper: { borderRadius: 14, boxShadow: softShadows[4], border: `1px solid ${colors.surface.border}` },
@@ -151,6 +160,7 @@ export const theme = createTheme({
         root: {
           border: 'none',
           borderRadius: 16,
+          overflow: 'hidden', // clip the grey header's square corners to the rounded grid (no white nub)
           backgroundColor: colors.surface.paper,
           '--DataGrid-rowBorderColor': colors.surface.border,
           fontSize: '0.875rem',

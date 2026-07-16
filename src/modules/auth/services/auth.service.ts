@@ -7,7 +7,7 @@ import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
 import { resolveOrigin } from '@/lib/geo/ipLocation';
-import { otpEmail, resetPasswordEmail } from '@/lib/email/templates';
+import { otpEmail, resetPasswordEmail, changeEmailOtpEmail } from '@/lib/email/templates';
 import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { UserStatus, OtpPurpose } from '../enums';
@@ -178,7 +178,7 @@ export async function logout(): Promise<void> {
       const payload = await verifyRefreshToken(token);
       await RefreshToken.updateOne(
         { jti: payload.jti, revokedAt: null },
-        { $set: { revokedAt: new Date() } },
+        { $set: { revokedAt: new Date(), revokedReason: 'logout' } },
       );
     } catch {
       // ignore malformed token on logout
@@ -220,7 +220,7 @@ export async function resetPassword(input: {
   // Revoke every active refresh token for this user.
   await RefreshToken.updateMany(
     { userId: input.userId, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
+    { $set: { revokedAt: new Date(), revokedReason: 'password' } },
   );
 }
 
@@ -257,6 +257,74 @@ export async function updateOwnProfile(
   return { name: user.name, phone: user.phone ?? null };
 }
 
+/**
+ * Step 1 of an email change: verify the current password, make sure the new address is
+ * free, stash it as `pendingEmail`, and email a verification code to the NEW address.
+ */
+export async function requestEmailChange(
+  actor: SessionUser,
+  input: { newEmail: string; currentPassword: string },
+): Promise<void> {
+  await connectDb();
+  const user = await User.findById(actor.userId);
+  if (!user || !user.passwordHash) throw new Error('Account not found');
+
+  const ok = await verifyPassword(input.currentPassword, user.passwordHash);
+  if (!ok) throw new Error('Current password is incorrect');
+
+  const newEmail = input.newEmail.toLowerCase().trim();
+  if (newEmail === user.email) throw new Error('That is already your email');
+
+  const taken = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
+  if (taken) throw new Error('That email is already in use');
+
+  user.pendingEmail = newEmail;
+  await user.save();
+
+  const code = await issueOtp(String(user._id), OtpPurpose.ChangeEmail, OTP_TTL_MIN);
+  await sendMail({ to: newEmail, ...changeEmailOtpEmail(user.name, code) });
+}
+
+/** Step 2: verify the code and switch the account over to the pending email. */
+export async function confirmEmailChange(
+  actor: SessionUser,
+  input: { code: string },
+): Promise<{ email: string }> {
+  await connectDb();
+  const user = await User.findById(actor.userId);
+  if (!user || !user.pendingEmail) throw new Error('No pending email change');
+
+  const ok = await verifyOtp(String(user._id), OtpPurpose.ChangeEmail, input.code);
+  if (!ok) throw new Error('Invalid or expired code');
+
+  // Re-check the address is still free (someone may have claimed it in the meantime).
+  const taken = await User.findOne({ email: user.pendingEmail, _id: { $ne: user._id } });
+  if (taken) throw new Error('That email is already in use');
+
+  user.email = user.pendingEmail;
+  user.pendingEmail = null;
+  user.emailVerified = true;
+  await user.save();
+
+  // The old tokens still carry the previous email in their claims. Rotate them so this
+  // device's session reflects the new address right away (no forced re-login).
+  const oldToken = await readRefreshToken();
+  if (oldToken) {
+    try {
+      const p = await verifyRefreshToken(oldToken);
+      await RefreshToken.updateOne(
+        { jti: p.jti, revokedAt: null },
+        { $set: { revokedAt: new Date(), revokedReason: 'logout' } },
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+  await issueTokens({ userId: String(user._id), role: user.role as Role, email: user.email }, {});
+
+  return { email: user.email };
+}
+
 /** Soft-delete: deactivate a user. Never hard-deletes; refuses protected users. */
 export async function deactivateUser(actor: SessionUser, targetId: string): Promise<void> {
   await connectDb();
@@ -270,7 +338,7 @@ export async function deactivateUser(actor: SessionUser, targetId: string): Prom
   await target.save();
   await RefreshToken.updateMany(
     { userId: targetId, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
+    { $set: { revokedAt: new Date(), revokedReason: 'admin' } },
   );
 }
 
@@ -326,7 +394,7 @@ export async function updateUser(actor: SessionUser, id: string, input: UpdateUs
     if (input.status === UserStatus.Disabled) {
       await RefreshToken.updateMany(
         { userId: id, revokedAt: null },
-        { $set: { revokedAt: new Date() } },
+        { $set: { revokedAt: new Date(), revokedReason: 'admin' } },
       );
     }
   }

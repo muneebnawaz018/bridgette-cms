@@ -72,13 +72,13 @@ function SessionRow({
             {s.device}
           </Typography>
           {s.current && <Chip label="This device" size="small" color="primary" variant="outlined" />}
-          {revoked && <Chip label="Signed out" size="small" color="default" variant="outlined" />}
+          {revoked && <Chip label="Revoked" size="small" color="default" variant="outlined" />}
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
           {[s.ip, s.location].filter(Boolean).join(' · ') || 'Unknown location'}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          {revoked && s.revokedAt ? `Signed out ${fmt(s.revokedAt)}` : `Signed in ${fmt(s.createdAt)}`}
+          {revoked && s.revokedAt ? `Revoked ${fmt(s.revokedAt)}` : `Signed in ${fmt(s.createdAt)}`}
         </Typography>
       </Box>
       {!revoked && !s.current && onRevoke && (
@@ -163,7 +163,7 @@ export function SessionsCard() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, color: 'text.secondary' }}>
             <HistoryRounded fontSize="small" />
             <Typography variant="subtitle2" color="text.secondary">
-              Recently signed out
+              Recently revoked
             </Typography>
           </Box>
           <Divider sx={{ mb: 1 }} />

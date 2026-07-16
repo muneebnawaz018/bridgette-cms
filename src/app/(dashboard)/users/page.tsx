@@ -95,6 +95,7 @@ function UserRowActions({
 export default function UsersPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { userId: currentUserId } = useSession();
+  const canView = useCan(Permission.UserView);
   const canCreate = useCan(Permission.UserCreate);
   const canCreateAdmin = useCan(Permission.UserCreateAdmin);
   const canManage = useCan(Permission.UserManage);
@@ -225,6 +226,17 @@ export default function UsersPage() {
   ];
   if (editForm.role && !roleOptions.some((o) => o.v === editForm.role)) {
     roleOptions.unshift({ v: editForm.role, label: ROLE_LABEL[editForm.role] ?? editForm.role });
+  }
+
+  if (!canView) {
+    return (
+      <Box className="rise-in">
+        <Paper sx={{ p: { xs: 4, md: 6 }, textAlign: 'center' }}>
+          <Typography variant="h6" gutterBottom>No access</Typography>
+          <Typography color="text.secondary">You do not have permission to view users.</Typography>
+        </Paper>
+      </Box>
+    );
   }
 
   return (

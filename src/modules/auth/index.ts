@@ -17,6 +17,8 @@ export {
   updateUser,
   changePassword,
   updateOwnProfile,
+  requestEmailChange,
+  confirmEmailChange,
 } from './services/auth.service';
 export {
   listSessions,
@@ -37,6 +39,8 @@ export {
   changePasswordSchema,
   updateProfileSchema,
   revokeSessionsSchema,
+  requestEmailChangeSchema,
+  confirmEmailChangeSchema,
   type LoginInput,
   type CreateUserInput,
   type SetPasswordInput,
@@ -47,5 +51,7 @@ export {
   type ChangePasswordInput,
   type UpdateProfileInput,
   type RevokeSessionsInput,
+  type RequestEmailChangeInput,
+  type ConfirmEmailChangeInput,
 } from './schemas';
 export { User } from './models/user.model';

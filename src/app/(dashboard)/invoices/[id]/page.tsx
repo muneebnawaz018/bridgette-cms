@@ -139,7 +139,7 @@ export default function InvoiceDetailPage() {
   const [pay, setPay] = useState({ amount: '', method: PaymentMethod.BankTransfer });
   const [recording, setRecording] = useState(false);
 
-  if (isLoading && !invoice) return <BrandLoader />;
+  if (isLoading && !invoice) return <BrandLoader overlay label="Loading invoice…" />;
   if (error || !invoice) return <Alert severity="error">This invoice could not be loaded.</Alert>;
 
   const locked = invoice.isArchived || invoice.isDeleted;

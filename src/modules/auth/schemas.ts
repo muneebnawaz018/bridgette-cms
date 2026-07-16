@@ -65,11 +65,24 @@ export const revokeSessionsSchema = z.object({
   scope: z.enum(['others', 'all']),
 });
 
+/** Step 1 of changing your email: prove identity + choose a new address. */
+export const requestEmailChangeSchema = z.object({
+  newEmail: z.string().email(),
+  currentPassword: z.string().min(1),
+});
+
+/** Step 2: confirm the code sent to the new address. */
+export const confirmEmailChangeSchema = z.object({
+  code: z.string().min(4),
+});
+
 export type ListUsersInput = z.infer<typeof listUsersSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type RevokeSessionsInput = z.infer<typeof revokeSessionsSchema>;
+export type RequestEmailChangeInput = z.infer<typeof requestEmailChangeSchema>;
+export type ConfirmEmailChangeInput = z.infer<typeof confirmEmailChangeSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type SetPasswordInput = z.infer<typeof setPasswordSchema>;

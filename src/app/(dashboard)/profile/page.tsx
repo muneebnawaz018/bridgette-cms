@@ -51,7 +51,7 @@ export default function ProfilePage() {
     })();
   }, []);
 
-  if (loading) return <BrandLoader label="Loading profile…" />;
+  if (loading) return <BrandLoader overlay label="Loading profile…" />;
   if (!me) return <Typography color="error">Could not load profile.</Typography>;
 
   const fmt = (d: string | null) => (d ? new Date(d).toLocaleString() : 'Never');

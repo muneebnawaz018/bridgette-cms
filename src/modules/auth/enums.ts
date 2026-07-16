@@ -9,5 +9,6 @@ export enum UserStatus {
 export enum OtpPurpose {
   VerifyEmail = 'verifyEmail', // onboarding
   ResetPassword = 'resetPassword', // forgot password
+  ChangeEmail = 'changeEmail', // verify a new email before switching to it
   Login2fa = 'login2fa', // optional 2FA (future)
 }
