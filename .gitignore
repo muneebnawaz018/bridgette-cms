@@ -1,5 +1,7 @@
 node_modules
 .next
+# Alternate build dirs via NEXT_DIST_DIR — see distDir in next.config.mjs
+.next-*
 out
 dist
 coverage

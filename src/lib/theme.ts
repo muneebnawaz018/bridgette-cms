@@ -106,15 +106,18 @@ export const theme = createTheme({
           borderRadius: 10,
           paddingInline: 18,
           paddingBlock: 8,
+          // Named properties, not `all`: `all` also animates the flip to disabled, so the
+          // button fades through a half-red state instead of just going grey.
           transition:
             'background-color .18s ease, box-shadow .18s ease, border-color .18s ease, color .18s ease',
+          // Becoming disabled should snap — mid-fade the button still reads as clickable.
           '&.Mui-disabled': { transition: 'none' },
         },
         sizeLarge: { paddingBlock: 11, fontSize: '0.975rem' },
         contained: { boxShadow: softShadows[1] },
         containedPrimary: {
           boxShadow: `0 2px 8px ${redA(0.3)}`,
-          '&:hover': {
+          '&:not(.Mui-disabled):hover': {
             backgroundColor: colors.brand.redDark,
             boxShadow: `0 4px 14px ${redA(0.38)}`,
           },
@@ -122,9 +125,12 @@ export const theme = createTheme({
         outlined: {
           borderColor: colors.surface.borderStrong,
           color: colors.ink[700],
-          '&:hover': { borderColor: colors.ink[400], backgroundColor: colors.surface.subtle },
+          '&:not(.Mui-disabled):hover': {
+            borderColor: colors.ink[400],
+            backgroundColor: colors.surface.subtle,
+          },
         },
-        text: { '&:hover': { backgroundColor: colors.surface.subtle } },
+        text: { '&:not(.Mui-disabled):hover': { backgroundColor: colors.surface.subtle } },
       },
     },
     MuiChip: {
