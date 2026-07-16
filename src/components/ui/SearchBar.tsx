@@ -13,6 +13,27 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import FilterListRounded from '@mui/icons-material/FilterListRounded';
 import { redA } from '@/lib/colors';
 
+/**
+ * Native date inputs, trimmed to sit inside the bar rather than look like form fields.
+ * Each input draws its own calendar button, which is the only reliable way to open the
+ * picker across browsers — so there is deliberately no separate leading date icon. Width is
+ * pinned to what DD/MM/YYYY actually needs; left to itself the control reserves far more.
+ */
+const dateInputSx = {
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  flexShrink: 0,
+  width: 112,
+  '& input': {
+    p: 0,
+    cursor: 'pointer',
+    colorScheme: 'light',
+    '&::-webkit-calendar-picker-indicator': { cursor: 'pointer', opacity: 0.5, p: 0, m: 0 },
+    // Chrome pads the empty-field placeholder; keep it flush with the filled state.
+    '&::-webkit-datetime-edit': { p: 0 },
+  },
+} as const;
+
 export interface FilterConfig {
   /** Shown when nothing narrower is selected, e.g. "All types". */
   label: string;
@@ -20,6 +41,13 @@ export interface FilterConfig {
   onChange: (v: string) => void;
   /** First entry is the "all" option (usually value ''). */
   options: { value: string; label: string }[];
+}
+
+/** A `from`/`to` pair of calendar days (YYYY-MM-DD). Empty string means "unbounded". */
+export interface DateRangeConfig {
+  from: string;
+  to: string;
+  onChange: (next: { from: string; to: string }) => void;
 }
 
 /**
@@ -32,6 +60,7 @@ export function SearchBar({
   placeholder = 'Search',
   filter,
   filters,
+  dateRange,
   autoFocus,
 }: {
   value: string;
@@ -41,9 +70,12 @@ export function SearchBar({
   filter?: FilterConfig;
   /** Several fused filter dropdowns, rendered left-to-right (right edge on desktop). */
   filters?: FilterConfig[];
+  /** A fused start/end date pair, rendered before the dropdowns. */
+  dateRange?: DateRangeConfig;
   autoFocus?: boolean;
 }) {
   const filterList = filters ?? (filter ? [filter] : []);
+  const hasRange = Boolean(dateRange?.from || dateRange?.to);
   return (
     <Paper
       variant="outlined"
@@ -79,6 +111,59 @@ export function SearchBar({
           </IconButton>
         )}
       </Box>
+
+      {dateRange && (
+        <>
+          <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+          <Divider sx={{ display: { xs: 'block', sm: 'none' } }} />
+          {/* min/max cross-bind the two inputs, so an end-before-start range can't be picked. */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.25,
+              pl: 1.25,
+              pr: 0.5,
+              flexShrink: 0,
+              minHeight: 48,
+            }}
+          >
+            <InputBase
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => dateRange.onChange({ from: e.target.value, to: dateRange.to })}
+              inputProps={{ 'aria-label': 'Start date', max: dateRange.to || undefined }}
+              sx={dateInputSx}
+            />
+            <Box
+              component="span"
+              sx={{ color: 'text.disabled', fontSize: '0.75rem', flexShrink: 0, px: 0.25 }}
+            >
+              to
+            </Box>
+            <InputBase
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => dateRange.onChange({ from: dateRange.from, to: e.target.value })}
+              inputProps={{ 'aria-label': 'End date', min: dateRange.from || undefined }}
+              sx={dateInputSx}
+            />
+            {/* Reserve the clear button's slot always, so picking a date doesn't shove the
+                whole bar sideways. */}
+            <Box sx={{ width: 28, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+              {hasRange && (
+                <IconButton
+                  size="small"
+                  aria-label="Clear dates"
+                  onClick={() => dateRange.onChange({ from: '', to: '' })}
+                >
+                  <CloseRounded fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+          </Box>
+        </>
+      )}
 
       {filterList.map((f, i) => (
         <Fragment key={i}>

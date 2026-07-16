@@ -247,6 +247,8 @@ export const openApiSpec = {
           { name: 'type', in: 'query', schema: { type: 'string', enum: ['tax', 'cash', 'pk'] } },
           { name: 'view', in: 'query', schema: { type: 'string', enum: ['active', 'archived', 'deleted', 'all'], default: 'active' }, description: 'archived = Admin+ or creator; deleted = admins only; all = everything the caller may see' },
           { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Filters createdAt from the start of this UTC day (inclusive)' },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Filters createdAt to the end of this UTC day (inclusive)' },
         ],
         responses: { 200: { description: 'Paginated invoices' }, 403: { description: 'Forbidden' } },
       },
@@ -255,6 +257,38 @@ export const openApiSpec = {
         summary: 'Create invoice (InvoiceCreate)',
         requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateInvoice' } } } },
         responses: { 201: { description: 'Created' } },
+      },
+    },
+    '/api/invoices/export': {
+      get: {
+        tags: ['Invoices'],
+        summary: 'Export invoices as a file (InvoiceView) — same filters as the list, no pagination',
+        description: 'Streams the matching invoices as a download. Capped at EXPORT_LIMIT (5000) rows; check the X-Export-Truncated header to detect a clipped file.',
+        parameters: [
+          { name: 'format', in: 'query', required: true, schema: { type: 'string', enum: ['csv', 'xlsx', 'json'] } },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['tax', 'cash', 'pk'] } },
+          { name: 'view', in: 'query', schema: { type: 'string', enum: ['active', 'archived', 'deleted', 'all'], default: 'active' } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: {
+          200: {
+            description: 'The export file, as an attachment',
+            headers: {
+              'X-Export-Count': { schema: { type: 'integer' }, description: 'Rows in the file' },
+              'X-Export-Total': { schema: { type: 'integer' }, description: 'Rows matching the filters' },
+              'X-Export-Truncated': { schema: { type: 'boolean' }, description: 'True when the cap clipped the file' },
+            },
+            content: {
+              'text/csv': { schema: { type: 'string' } },
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: { type: 'string', format: 'binary' } },
+              'application/json': { schema: { type: 'object' } },
+            },
+          },
+          403: { description: 'Forbidden' },
+          422: { description: 'Validation failed' },
+        },
       },
     },
     '/api/invoices/{id}': {

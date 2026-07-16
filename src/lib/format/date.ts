@@ -29,3 +29,26 @@ export function formatDateTime(value?: string | Date | null, fallback = '—'): 
   const time = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   return `${formatDate(d)}, ${time}`;
 }
+
+/**
+ * "2026-07-16" — the wire format for date filters and what <input type="date"> expects.
+ * Built from the local calendar fields on purpose: toISOString() would shift the day for
+ * anyone behind UTC, so "today" could render as yesterday.
+ */
+export function toDateInput(value: Date): string {
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${value.getFullYear()}-${month}-${day}`;
+}
+
+/** Today as YYYY-MM-DD. */
+export function today(): string {
+  return toDateInput(new Date());
+}
+
+/** `n` days before today as YYYY-MM-DD. Handles month/year rollover via the Date object. */
+export function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return toDateInput(d);
+}

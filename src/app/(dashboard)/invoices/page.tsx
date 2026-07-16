@@ -14,6 +14,7 @@ import Menu from '@mui/material/Menu';
 import AddRounded from '@mui/icons-material/AddRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
 import PaymentsRounded from '@mui/icons-material/PaymentsRounded';
+import FileDownloadRounded from '@mui/icons-material/FileDownloadRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
@@ -25,12 +26,14 @@ import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Modal } from '@/components/ui/Modal';
 import { InvoiceDetailsModal } from '@/components/invoices/InvoiceDetailsModal';
+import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { apiPost, apiDelete } from '@/lib/api/client';
+import { today, daysAgo } from '@/lib/format/date';
 
 interface InvoiceRow {
   _id: string;
@@ -112,6 +115,9 @@ export default function InvoicesPage() {
   const [searchInput, setSearchInput] = useState('');
   const search = useDebounced(searchInput);
   const [type, setType] = useState<'' | InvoiceType>('');
+  // Defaults to the last 7 days, per the agreed filter. Clearing both dates shows everything.
+  const [range, setRange] = useState({ from: daysAgo(7), to: today() });
+  const [exportOpen, setExportOpen] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
 
   // Preselect the type filter from ?type=tax|cash|pk (e.g. clicked from a dashboard card).
@@ -123,7 +129,7 @@ export default function InvoicesPage() {
   // Back to the first page whenever a filter changes.
   useEffect(() => {
     setPaginationModel((m) => (m.page === 0 ? m : { ...m, page: 0 }));
-  }, [search, type, view]);
+  }, [search, type, view, range.from, range.to]);
 
   // Follow the app-wide "rows per page" preference chosen in Settings.
   useEffect(() => {
@@ -137,6 +143,8 @@ export default function InvoicesPage() {
   });
   if (search) params.set('search', search);
   if (type) params.set('type', type);
+  if (range.from) params.set('from', range.from);
+  if (range.to) params.set('to', range.to);
   const { data, isLoading, mutate } = useApi<{ items: InvoiceRow[]; total: number }>(`/api/invoices?${params.toString()}`);
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
@@ -279,24 +287,39 @@ export default function InvoicesPage() {
             {rowCount} invoice{rowCount === 1 ? '' : 's'} · {VIEW_META[view].blurb}
           </Typography>
         </Box>
-        {canCreate && (
-          /* Phones: full width. Tablet: normal width pinned right (the header is a column
-             there, so alignSelf is the horizontal axis). Desktop: the row handles it. */
+        {/* Phones: full width, stacked. Tablet: normal width pinned right (the header is a
+            column there, so alignSelf is the horizontal axis). Desktop: the row handles it. */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 1.5,
+            flexShrink: 0,
+            width: { xs: '100%', sm: 'auto' },
+            alignSelf: { xs: 'stretch', sm: 'flex-end' },
+            '@media (min-width:768px)': { alignSelf: 'flex-start' },
+          }}
+        >
           <Button
-            component={AppLink}
-            href="/invoices/new"
-            variant="contained"
-            startIcon={<AddRounded />}
-            sx={{
-              flexShrink: 0,
-              width: { xs: '100%', sm: 'auto' },
-              alignSelf: { xs: 'stretch', sm: 'flex-end' },
-              '@media (min-width:768px)': { alignSelf: 'flex-start' },
-            }}
+            variant="outlined"
+            startIcon={<FileDownloadRounded />}
+            onClick={() => setExportOpen(true)}
+            sx={{ flexShrink: 0 }}
           >
-            New invoice
+            Export
           </Button>
-        )}
+          {canCreate && (
+            <Button
+              component={AppLink}
+              href="/invoices/new"
+              variant="contained"
+              startIcon={<AddRounded />}
+              sx={{ flexShrink: 0 }}
+            >
+              New invoice
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Search + two fused filter dropdowns (type + view), same pattern as user management */}
@@ -305,6 +328,7 @@ export default function InvoicesPage() {
           value={searchInput}
           onChange={setSearchInput}
           placeholder="Search by number or customer"
+          dateRange={{ from: range.from, to: range.to, onChange: setRange }}
           filters={[
             {
               label: 'All types',
@@ -336,6 +360,14 @@ export default function InvoicesPage() {
       </Paper>
 
       <InvoiceDetailsModal id={detailId} onClose={() => setDetailId(null)} />
+
+      <ExportInvoicesModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        view={view}
+        type={type}
+        search={search}
+      />
 
       {/* Record payment */}
       <Modal

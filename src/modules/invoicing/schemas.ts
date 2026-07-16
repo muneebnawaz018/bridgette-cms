@@ -45,13 +45,45 @@ export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
  *  everything the caller may see. */
 export const invoiceViewSchema = z.enum(['active', 'archived', 'deleted', 'all']);
 
-export const listInvoiceSchema = z.object({
-  page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional(),
-  type: z.nativeEnum(InvoiceType).optional(),
-  search: z.string().optional(),
-  view: invoiceViewSchema.optional(),
-});
+/** A calendar day as the browser's <input type="date"> emits it. */
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date')
+  .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), 'Not a real date');
+
+/** `from`/`to` filter on createdAt and are inclusive of both whole days. */
+export const listInvoiceSchema = z
+  .object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().optional(),
+    type: z.nativeEnum(InvoiceType).optional(),
+    search: z.string().optional(),
+    view: invoiceViewSchema.optional(),
+    from: dateOnly.optional(),
+    to: dateOnly.optional(),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'The start date must be on or before the end date',
+    path: ['from'],
+  });
+
+export const EXPORT_FORMATS = ['csv', 'xlsx', 'json'] as const;
+export const exportFormatSchema = z.enum(EXPORT_FORMATS);
+
+/** Export reuses every list filter, minus pagination, plus the file format. */
+export const exportInvoiceSchema = z
+  .object({
+    format: exportFormatSchema,
+    type: z.nativeEnum(InvoiceType).optional(),
+    search: z.string().optional(),
+    view: invoiceViewSchema.optional(),
+    from: dateOnly.optional(),
+    to: dateOnly.optional(),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'The start date must be on or before the end date',
+    path: ['from'],
+  });
 
 export const archiveInvoiceSchema = z.object({
   reason: z.string().min(1, 'A reason is required to archive'),
@@ -65,3 +97,5 @@ export type InvoiceView = z.infer<typeof invoiceViewSchema>;
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
 export type ListInvoiceInput = z.infer<typeof listInvoiceSchema>;
+export type ExportFormat = z.infer<typeof exportFormatSchema>;
+export type ExportInvoiceInput = z.infer<typeof exportInvoiceSchema>;

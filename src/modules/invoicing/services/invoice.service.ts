@@ -9,7 +9,12 @@ import { computePaymentState } from '../state';
 import { calcInvoice } from '../calc';
 import { issueInvoiceNumber } from '../numbering';
 import { invoiceVisibilityFilter, canViewInvoice } from '../visibility';
-import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoiceInput } from '../schemas';
+import type {
+  CreateInvoiceInput,
+  UpdateInvoiceInput,
+  ListInvoiceInput,
+  ExportInvoiceInput,
+} from '../schemas';
 
 /** Create an invoice. Number is assigned at creation (drafts included). */
 export async function createInvoice(actor: SessionUser, input: CreateInvoiceInput) {
@@ -83,6 +88,53 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
   return doc.toObject();
 }
 
+/** Regex-escape user input — otherwise a search for `a+b` throws, and `.*` scans everything. */
+function escapeRegex(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Shared filter for the list and the export, so what a user previews is exactly what they
+ * download. Dates are whole calendar days in UTC: `from` starts at 00:00:00.000Z and `to`
+ * runs to 23:59:59.999Z, both inclusive.
+ */
+function invoiceMatch(
+  actor: SessionUser,
+  query: Pick<ListInvoiceInput, 'view' | 'type' | 'search' | 'from' | 'to'>,
+): Record<string, unknown> {
+  const match: Record<string, unknown> = { ...invoiceVisibilityFilter(actor, query.view) };
+  if (query.type) match.type = query.type;
+
+  if (query.search?.trim()) {
+    const rx = new RegExp(escapeRegex(query.search.trim()), 'i');
+    match.$and = [{ $or: [{ number: rx }, { 'billTo.name': rx }, { 'billTo.email': rx }] }];
+  }
+
+  const createdAt: Record<string, Date> = {};
+  if (query.from) createdAt.$gte = new Date(`${query.from}T00:00:00.000Z`);
+  if (query.to) createdAt.$lte = new Date(`${query.to}T23:59:59.999Z`);
+  if (Object.keys(createdAt).length > 0) match.createdAt = createdAt;
+
+  return match;
+}
+
+/** The list payload — deliberately without the heavy items[] array. */
+const LIST_PROJECTION = {
+  number: 1,
+  type: 1,
+  state: 1,
+  currency: 1,
+  grandTotal: 1,
+  amountPaid: 1,
+  balanceDue: 1,
+  isArchived: 1,
+  isDeleted: 1,
+  createdBy: 1,
+  createdAt: 1,
+  'billTo.name': 1,
+  'billTo.email': 1,
+} as const;
+
 /** Paginated, role-scoped invoice list. */
 export async function listInvoices(
   actor: SessionUser,
@@ -91,37 +143,40 @@ export async function listInvoices(
   assertCan(actor.role, Permission.InvoiceView);
   await connectDb();
 
-  const match: Record<string, unknown> = { ...invoiceVisibilityFilter(actor, query.view) };
-  if (query.type) match.type = query.type;
-  if (query.search) {
-    const rx = new RegExp(query.search.trim(), 'i');
-    match.$and = [{ $or: [{ number: rx }, { 'billTo.name': rx }, { 'billTo.email': rx }] }];
-  }
-
-  // Project only what the list UI needs — drop the heavy items[] array from the payload.
   const stages: PipelineStage[] = [
-    { $match: match },
-    {
-      $project: {
-        number: 1,
-        type: 1,
-        state: 1,
-        currency: 1,
-        grandTotal: 1,
-        balanceDue: 1,
-        isArchived: 1,
-        isDeleted: 1,
-        createdBy: 1,
-        createdAt: 1,
-        'billTo.name': 1,
-        'billTo.email': 1,
-      },
-    },
+    { $match: invoiceMatch(actor, query) },
+    { $project: LIST_PROJECTION },
   ];
   return aggregatePaginate<InvoiceDoc>(Invoice, stages, {
     page: query.page,
     limit: query.limit,
   });
+}
+
+/** Hard ceiling on one export, so a stray "All" never tries to buffer the whole collection. */
+export const EXPORT_LIMIT = 5000;
+
+/**
+ * Every invoice matching the filters, newest first, for a file export. Capped at
+ * EXPORT_LIMIT; `truncated` tells the caller the file is short so it can say so rather than
+ * silently hand over a partial export.
+ */
+export async function exportInvoices(
+  actor: SessionUser,
+  query: ExportInvoiceInput,
+): Promise<{ rows: InvoiceDoc[]; total: number; truncated: boolean }> {
+  assertCan(actor.role, Permission.InvoiceView);
+  await connectDb();
+
+  const match = invoiceMatch(actor, query);
+  const total = await Invoice.countDocuments(match);
+  const rows = await Invoice.find(match)
+    .select(LIST_PROJECTION)
+    .sort({ createdAt: -1 })
+    .limit(EXPORT_LIMIT)
+    .lean<InvoiceDoc[]>();
+
+  return { rows, total, truncated: total > rows.length };
 }
 
 export interface TypeTotals {

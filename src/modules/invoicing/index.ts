@@ -15,11 +15,13 @@ export { issueInvoiceNumber } from './numbering';
 export {
   createInvoice,
   listInvoices,
+  exportInvoices,
   getInvoice,
   updateInvoice,
   archiveInvoice,
   deleteInvoice,
   getInvoiceStats,
+  EXPORT_LIMIT,
   type InvoiceStats,
   type TypeTotals,
 } from './services/invoice.service';
@@ -27,11 +29,15 @@ export {
   createInvoiceSchema,
   updateInvoiceSchema,
   listInvoiceSchema,
+  exportInvoiceSchema,
   archiveInvoiceSchema,
   deleteInvoiceSchema,
+  EXPORT_FORMATS,
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
   type ListInvoiceInput,
+  type ExportInvoiceInput,
+  type ExportFormat,
   type InvoiceView,
 } from './schemas';
 export { Invoice, type InvoiceDoc } from './models/invoice.model';
