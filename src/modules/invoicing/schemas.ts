@@ -41,8 +41,9 @@ export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
   type: z.nativeEnum(InvoiceType).optional(),
 });
 
-/** Which slice of invoices to list. Default `active` hides archived + deleted. */
-export const invoiceViewSchema = z.enum(['active', 'archived', 'deleted']);
+/** Which slice of invoices to list. Default `active` hides archived + deleted; `all` shows
+ *  everything the caller may see. */
+export const invoiceViewSchema = z.enum(['active', 'archived', 'deleted', 'all']);
 
 export const listInvoiceSchema = z.object({
   page: z.coerce.number().int().positive().optional(),

@@ -96,6 +96,7 @@ const VIEW_META: Record<InvoiceView, { label: string; blurb: string }> = {
   active: { label: 'Active', blurb: 'manage, track and record payments' },
   archived: { label: 'Archived', blurb: 'hidden from the main list, kept for your records' },
   deleted: { label: 'Deleted', blurb: 'soft-deleted invoices, visible to admins only' },
+  all: { label: 'All', blurb: 'every invoice you can access' },
 };
 
 export default function InvoicesPage() {
@@ -160,7 +161,7 @@ export default function InvoicesPage() {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const views: InvoiceView[] = ['active', 'archived', ...(canSeeDeleted ? (['deleted'] as const) : [])];
+  const views: InvoiceView[] = ['active', 'archived', ...(canSeeDeleted ? (['deleted'] as const) : []), 'all'];
 
   function openPay(row: InvoiceRow) {
     setPayFor(row);
@@ -232,6 +233,20 @@ export default function InvoicesPage() {
     { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => `${r.currency} ${Number(r.grandTotal).toFixed(2)}` },
     { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => `${r.currency} ${Number(r.balanceDue).toFixed(2)}` },
     {
+      field: 'status',
+      headerName: 'Status',
+      flex: 0.9,
+      minWidth: 120,
+      headerAlign: 'center',
+      align: 'center',
+      sortable: false,
+      renderCell: (p) => {
+        const label = p.row.isDeleted ? 'Deleted' : p.row.isArchived ? 'Archived' : 'Active';
+        const tone = p.row.isDeleted ? 'error' : p.row.isArchived ? 'warning' : 'success';
+        return <StatusChip label={label} tone={tone} />;
+      },
+    },
+    {
       field: 'actions',
       headerName: '',
       width: 64,
@@ -253,8 +268,10 @@ export default function InvoicesPage() {
 
   return (
     <Box className="rise-in">
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+      {/* Below 768px the sidebar is a drawer (mobile) — center the title + full-width button;
+          from 768px up switch to title-left / button-right. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, mb: 2.5, '@media (min-width:768px)': { flexDirection: 'row', alignItems: 'flex-start' } }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0, textAlign: 'center', '@media (min-width:768px)': { textAlign: 'left' } }}>
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
             {VIEW_META[view].label} invoices
           </Typography>
@@ -263,7 +280,7 @@ export default function InvoicesPage() {
           </Typography>
         </Box>
         {canCreate && (
-          <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddRounded />} sx={{ flexShrink: 0 }}>
+          <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddRounded />} sx={{ flexShrink: 0, width: '100%', '@media (min-width:768px)': { width: 'auto' } }}>
             New invoice
           </Button>
         )}

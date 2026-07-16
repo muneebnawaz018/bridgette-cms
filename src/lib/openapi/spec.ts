@@ -220,7 +220,7 @@ export const openApiSpec = {
           { name: 'page', in: 'query', schema: { type: 'integer' } },
           { name: 'limit', in: 'query', schema: { type: 'integer' } },
           { name: 'type', in: 'query', schema: { type: 'string', enum: ['tax', 'cash', 'pk'] } },
-          { name: 'view', in: 'query', schema: { type: 'string', enum: ['active', 'archived', 'deleted'], default: 'active' }, description: 'archived = Admin+ or creator; deleted = admins only' },
+          { name: 'view', in: 'query', schema: { type: 'string', enum: ['active', 'archived', 'deleted', 'all'], default: 'active' }, description: 'archived = Admin+ or creator; deleted = admins only; all = everything the caller may see' },
           { name: 'search', in: 'query', schema: { type: 'string' } },
         ],
         responses: { 200: { description: 'Paginated invoices' }, 403: { description: 'Forbidden' } },

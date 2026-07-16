@@ -248,8 +248,10 @@ export default function UsersPage() {
 
   return (
     <Box className="rise-in">
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2.5 }}>
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+      {/* Below 768px the sidebar is a drawer (mobile) — center the title + full-width button;
+          from 768px up switch to title-left / button-right. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, mb: 2.5, '@media (min-width:768px)': { flexDirection: 'row', alignItems: 'flex-start' } }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0, textAlign: 'center', '@media (min-width:768px)': { textAlign: 'left' } }}>
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
             Team members
           </Typography>
@@ -258,7 +260,7 @@ export default function UsersPage() {
           </Typography>
         </Box>
         {canCreate && (
-          <Button variant="contained" onClick={() => setOpen(true)} startIcon={<PersonAddRounded />} sx={{ flexShrink: 0 }}>
+          <Button variant="contained" onClick={() => setOpen(true)} startIcon={<PersonAddRounded />} sx={{ flexShrink: 0, width: '100%', '@media (min-width:768px)': { width: 'auto' } }}>
             New user
           </Button>
         )}

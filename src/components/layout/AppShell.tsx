@@ -89,10 +89,9 @@ function RailContent({ items, isActive, onNavigate }: {
       </List>
 
       <Box sx={{ p: 2 }}>
-        <Box sx={{ borderRadius: 3, p: 1.75, bgcolor: colors.rail.bgElevated, border: `1px solid ${colors.rail.border}` }}>
-          <Typography sx={{ color: colors.rail.textActive, fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.2 }}>Bridgette Portal</Typography>
-          <Typography sx={{ color: colors.rail.textDim, fontSize: '0.72rem', mt: 0.25 }}>
-            Invoicing &amp; management
+        <Box sx={{ borderRadius: 3, py: 1.5, px: 1.75, bgcolor: colors.rail.bgElevated, border: `1px solid ${colors.rail.border}`, textAlign: 'center' }}>
+          <Typography sx={{ fontFamily: displayFont, color: colors.rail.textActive, fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.2, letterSpacing: '0.01em' }}>
+            Bridgette Portal
           </Typography>
         </Box>
       </Box>
@@ -128,7 +127,7 @@ export function AppShell({ canViewUsers, children }: { canViewUsers: boolean; ch
         onClose={() => setOpen(false)}
         sx={{ [RAIL_QUERY]: { display: 'none' } }}
         ModalProps={{ keepMounted: true }}
-        PaperProps={{ sx: { width: RAIL, bgcolor: colors.rail.bg, backgroundImage: 'none', border: 'none', borderRadius: 0 } }}
+        PaperProps={{ sx: { width: RAIL, bgcolor: colors.rail.bg, backgroundImage: 'none', border: 'none', borderRadius: '0 16px 16px 0', overflow: 'hidden' } }}
       >
         <RailContent items={items} isActive={isActive} onNavigate={() => setOpen(false)} />
       </Drawer>

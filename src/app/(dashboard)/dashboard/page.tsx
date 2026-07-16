@@ -161,25 +161,13 @@ export default function DashboardPage() {
 
   return (
     <Box className="rise-in">
-      {/* Greeting + primary actions */}
-      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3.5 }}>
-        <Box sx={{ flexGrow: 1, minWidth: 240 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>Welcome back, {name}</Typography>
-          <Typography color="text.secondary" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            A snapshot of your invoices across all types.
-            <Chip component="span" size="small" label={role} color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1.25}>
-          {canCreateInvoice && (
-            <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddRounded />}>
-              New invoice
-            </Button>
-          )}
-          <Button component={Link} href="/invoices" variant="outlined" endIcon={<ArrowForwardRounded />}>
-            All invoices
-          </Button>
-        </Stack>
+      {/* Greeting */}
+      <Box sx={{ mb: 3.5 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>Welcome back, {name}</Typography>
+        <Typography color="text.secondary" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          A snapshot of your invoices across all types.
+          <Chip component="span" size="small" label={role} color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
+        </Typography>
       </Box>
 
       {/* One premium card per invoice type */}
