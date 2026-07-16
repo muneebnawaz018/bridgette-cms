@@ -1,4 +1,5 @@
 import { handle, ok } from '@/lib/api/respond';
+import { assertBodySize } from '@/lib/api/bodyLimit';
 import {
   getUser,
   updateUser,
@@ -20,6 +21,7 @@ export const GET = handle<Ctx>(async (_req, { params }) => {
 // PATCH /api/auth/users/:id — update profile/role/status.
 export const PATCH = handle<Ctx>(async (req, { params }) => {
   const actor = await requirePermission(Permission.UserManage);
+  assertBodySize(req); // avatar payloads make this the one route that can carry real weight
   const { id } = await params;
   const body = updateUserSchema.parse(await req.json());
   return ok(await updateUser(actor, id, body));

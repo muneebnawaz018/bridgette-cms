@@ -27,6 +27,7 @@ import { useSession, useCan } from '@/components/auth/SessionProvider';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { Permission } from '@/modules/auth/rbac';
 import { PAGE_SIZE_OPTIONS } from '@/lib/pagination';
+import { formatDate, formatDateTime } from '@/lib/format/date';
 import { useApi } from '@/lib/api/useApi';
 import { apiPost } from '@/lib/api/client';
 import { ChangePasswordDialog } from '@/components/settings/ChangePasswordDialog';
@@ -41,12 +42,29 @@ const ROLE_LABEL: Record<string, string> = {
   readOnly: 'Read only',
 };
 
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ py: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>{value}</Typography>
+    </Box>
+  );
+}
+
 export default function SettingsPage() {
   const { email, role } = useSession();
   const canViewUsers = useCan(Permission.UserView);
   const { enqueueSnackbar } = useSnackbar();
   const { pageSize, setPageSize } = usePreferences();
-  const { data: me } = useApi<{ name: string | null }>('/api/auth/me');
+  const { data: me } = useApi<{
+    name: string | null;
+    avatarUrl: string | null;
+    status: string | null;
+    createdAt: string | null;
+    lastLoginAt: string | null;
+  }>('/api/auth/me');
 
   const [pwOpen, setPwOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
@@ -81,7 +99,7 @@ export default function SettingsPage() {
 
   return (
     <Box className="rise-in">
-      <Typography color="text.secondary" sx={{ mb: 2.5 }}>
+      <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 2.5 }}>
         Manage your account, security, and how the app works for you.
       </Typography>
 
@@ -90,7 +108,7 @@ export default function SettingsPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontWeight: 700, fontSize: 24, flexShrink: 0 }}>
+              <Avatar src={me?.avatarUrl ?? undefined} sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontWeight: 700, fontSize: 24, flexShrink: 0 }}>
                 {displayName.charAt(0).toUpperCase()}
               </Avatar>
               <Box sx={{ minWidth: 0 }}>
@@ -99,6 +117,7 @@ export default function SettingsPage() {
                 <Chip label={ROLE_LABEL[role] ?? role} color="primary" variant="outlined" size="small" sx={{ mt: 0.75, fontWeight: 700 }} />
               </Box>
             </Stack>
+
             <Divider sx={{ my: 2 }} />
             <Button
               component={Link}
@@ -138,11 +157,20 @@ export default function SettingsPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Security</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
               Update your password or email address, or send yourself a reset link.
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, '& > .MuiButton-root': { flex: { sm: 1 } } }}>
+            {/* Labels must never break across lines — the buttons grow to share a row and
+                wrap onto the next one when they no longer fit. */}
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 1.5,
+                '& > .MuiButton-root': { flexGrow: 1, flexBasis: { xs: '100%', sm: 'auto' }, whiteSpace: 'nowrap' },
+              }}
+            >
               <Button variant="contained" startIcon={<LockResetRounded />} onClick={() => setPwOpen(true)}>
                 Change password
               </Button>
@@ -160,7 +188,7 @@ export default function SettingsPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Preferences</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
               Rows shown per page in every table across the app.
             </Typography>
             <Divider sx={{ mb: 2 }} />
@@ -177,6 +205,23 @@ export default function SettingsPage() {
                 </FormControl>
               </Box>
             </Box>
+          </Paper>
+        </Grid>
+
+        {/* Account details — kept out of the identity card so it stays level with "Go to" */}
+        <Grid size={{ xs: 12 }}>
+          <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
+            <Typography variant="h6" gutterBottom>Account details</Typography>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+              Your role and account activity at a glance.
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Role" value={ROLE_LABEL[role] ?? role} /></Grid>
+              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Status" value={me?.status ?? 'Unknown'} /></Grid>
+              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Member since" value={formatDate(me?.createdAt)} /></Grid>
+              <Grid size={{ xs: 6, md: 3 }}><InfoField label="Last login" value={formatDateTime(me?.lastLoginAt, 'Never')} /></Grid>
+            </Grid>
           </Paper>
         </Grid>
 

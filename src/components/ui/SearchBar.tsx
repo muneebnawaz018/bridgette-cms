@@ -52,7 +52,9 @@ export function SearchBar({
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: 'stretch',
         width: '100%',
-        borderRadius: 2,
+        // Match the table card exactly. Note a bare `2` here would mean 2 * shape.borderRadius
+        // (24px), not 16px — the Paper override uses raw px, so this must too.
+        borderRadius: '16px',
         overflow: 'hidden',
         transition: 'border-color .16s ease, box-shadow .16s ease',
         '&:focus-within': { borderColor: 'primary.main', boxShadow: `0 0 0 3px ${redA(0.14)}` },

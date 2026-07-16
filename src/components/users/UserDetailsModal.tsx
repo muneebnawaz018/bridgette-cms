@@ -1,18 +1,26 @@
 'use client';
 
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import Avatar from '@mui/material/Avatar';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import EditRounded from '@mui/icons-material/EditRounded';
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
+import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import { StatusChip, type Tone } from '@/components/ui/StatusChip';
+import { useSession } from '@/components/auth/SessionProvider';
 import { useApi } from '@/lib/api/useApi';
+import { useRetainedWhileClosing } from '@/lib/api/useRetained';
+import { apiPatch } from '@/lib/api/client';
+import { fileToAvatarDataUrl } from '@/lib/image/avatar';
+import { formatDate, formatDateTime } from '@/lib/format/date';
 
 const ROLE_LABEL: Record<string, string> = {
   superAdmin: 'Super Admin',
@@ -28,6 +36,7 @@ interface UserDetail {
   name: string;
   email: string;
   phone?: string;
+  avatarUrl?: string | null;
   role: string;
   status: string;
   isProtected?: boolean;
@@ -57,9 +66,43 @@ export function UserDetailsModal({
   onEdit?: (id: string) => void;
   canManage?: boolean;
 }) {
-  // keepPreviousData:false so a different user never briefly shows the last one's record.
-  const { data: user, isLoading } = useApi<UserDetail>(id ? `/api/auth/users/${id}` : null, { keepPreviousData: false });
-  const fmt = (d?: string) => (d ? new Date(d).toLocaleString() : 'Never');
+  const { enqueueSnackbar } = useSnackbar();
+  const { userId: currentUserId } = useSession();
+  // keepPreviousData:false so a different user never briefly shows the last one's record;
+  // useRetainedWhileClosing keeps this one on screen through the close animation instead of
+  // flashing the error state.
+  const { data: liveUser, isLoading, mutate } = useApi<UserDetail>(id ? `/api/auth/users/${id}` : null, { keepPreviousData: false });
+  const user = useRetainedWhileClosing(liveUser, Boolean(id));
+
+  const [uploading, setUploading] = useState(false);
+
+  // The protected Super Admin is locked: only the account holder may edit it. Everyone else
+  // with UserManage can edit any other user.
+  const isSelf = Boolean(user) && user!._id === currentUserId;
+  const canEditUser = canManage && Boolean(user) && (!user!.isProtected || isSelf);
+  const hasPhoto = Boolean(user?.avatarUrl);
+
+  async function saveAvatar(next: string | null) {
+    if (!id) return;
+    setUploading(true);
+    const res = await apiPatch(`/api/auth/users/${id}`, { avatarUrl: next });
+    setUploading(false);
+    if (res.ok) {
+      enqueueSnackbar(next ? 'Photo updated' : 'Photo removed', { variant: 'success' });
+      void mutate();
+    } else {
+      enqueueSnackbar(res.error ?? 'Could not update the photo', { variant: 'error' });
+    }
+  }
+
+  async function pickAvatar(file: File) {
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file, 256);
+      await saveAvatar(dataUrl);
+    } catch (err) {
+      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', { variant: 'error' });
+    }
+  }
 
   return (
     <Modal
@@ -67,11 +110,12 @@ export function UserDetailsModal({
       onClose={onClose}
       title={user ? user.name : 'User'}
       description={user ? user.email : undefined}
-      maxWidth="sm"
+      maxWidth="md"
+      busy={uploading}
       actions={
         <>
-          <Button onClick={onClose} color="inherit">Close</Button>
-          {canManage && onEdit && user && !user.isProtected && (
+          <Button onClick={onClose} variant="outlined" color="inherit">Close</Button>
+          {canEditUser && onEdit && user && (
             <Button variant="contained" startIcon={<EditRounded />} onClick={() => onEdit(user._id)}>
               Edit
             </Button>
@@ -80,34 +124,55 @@ export function UserDetailsModal({
       }
     >
       {isLoading && !user ? (
-        <Box sx={{ display: 'grid', placeItems: 'center', py: 5 }}>
+        <Box sx={{ display: 'grid', placeItems: 'center', py: 6 }}>
           <CircularProgress size={26} />
         </Box>
       ) : !user ? (
         <Typography color="error">Could not load this user.</Typography>
       ) : (
-        <Stack spacing={2}>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontWeight: 700, fontSize: 24 }}>
-              {(user.name || user.email).charAt(0).toUpperCase()}
-            </Avatar>
+        <Stack spacing={2.5}>
+          <Stack direction="row" spacing={2.5} alignItems="center">
+            <AvatarPicker
+              src={user.avatarUrl}
+              fallback={(user.name || user.email).charAt(0).toUpperCase()}
+              title={user.name}
+              size={96}
+              canEdit={canEditUser}
+              uploading={uploading}
+              onPick={pickAvatar}
+            />
+
             <Box sx={{ minWidth: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Chip label={ROLE_LABEL[user.role] ?? user.role} color="primary" variant="outlined" size="small" sx={{ fontWeight: 700 }} />
                 <StatusChip label={user.status} tone={STATUS_TONE[user.status] ?? 'neutral'} />
                 {user.isProtected && <Chip label="Protected" size="small" variant="outlined" />}
               </Box>
+              {canEditUser && hasPhoto && (
+                <Button
+                  onClick={() => void saveAvatar(null)}
+                  disabled={uploading}
+                  size="small"
+                  color="inherit"
+                  startIcon={<DeleteOutlineRounded fontSize="small" />}
+                  sx={{ mt: 1 }}
+                >
+                  Remove photo
+                </Button>
+              )}
             </Box>
           </Stack>
+
           <Divider />
+
           <Grid container spacing={1}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <Field label="Phone" value={user.phone || 'Not set'} />
               <Field label="Email verified" value={user.emailVerified ? 'Yes' : 'No'} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Field label="Member since" value={fmt(user.createdAt)} />
-              <Field label="Last login" value={fmt(user.lastLoginAt)} />
+              <Field label="Member since" value={formatDate(user.createdAt)} />
+              <Field label="Last login" value={formatDateTime(user.lastLoginAt, 'Never')} />
             </Grid>
           </Grid>
         </Stack>

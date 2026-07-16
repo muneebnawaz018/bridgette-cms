@@ -275,12 +275,25 @@ export default function InvoicesPage() {
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
             {VIEW_META[view].label} invoices
           </Typography>
-          <Typography color="text.secondary" variant="body2" sx={{ mt: 0.25 }}>
+          <Typography color="text.secondary" variant="subtitle2" sx={{ mt: 0.25 }}>
             {rowCount} invoice{rowCount === 1 ? '' : 's'} · {VIEW_META[view].blurb}
           </Typography>
         </Box>
         {canCreate && (
-          <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddRounded />} sx={{ flexShrink: 0, width: '100%', '@media (min-width:768px)': { width: 'auto' } }}>
+          /* Phones: full width. Tablet: normal width pinned right (the header is a column
+             there, so alignSelf is the horizontal axis). Desktop: the row handles it. */
+          <Button
+            component={Link}
+            href="/invoices/new"
+            variant="contained"
+            startIcon={<AddRounded />}
+            sx={{
+              flexShrink: 0,
+              width: { xs: '100%', sm: 'auto' },
+              alignSelf: { xs: 'stretch', sm: 'flex-end' },
+              '@media (min-width:768px)': { alignSelf: 'flex-start' },
+            }}
+          >
             New invoice
           </Button>
         )}
@@ -334,7 +347,7 @@ export default function InvoicesPage() {
         busy={saving}
         actions={
           <>
-            <Button onClick={() => setPayFor(null)} disabled={saving} color="inherit">
+            <Button onClick={() => setPayFor(null)} disabled={saving} variant="outlined" color="inherit">
               Cancel
             </Button>
             <SubmitButton variant="contained" loading={saving} onClick={submitPayment} disabled={!pay.amount || Number(pay.amount) <= 0}>

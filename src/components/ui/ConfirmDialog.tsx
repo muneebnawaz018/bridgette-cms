@@ -46,7 +46,7 @@ export function ConfirmDialog({
       maxWidth="xs"
       actions={
         <>
-          <Button onClick={onClose} disabled={loading} color="inherit">
+          <Button onClick={onClose} disabled={loading} variant="outlined" color="inherit">
             {cancelLabel}
           </Button>
           <SubmitButton onClick={onConfirm} loading={loading} disabled={confirmDisabled} variant="contained" color={confirmColor}>

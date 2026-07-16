@@ -49,6 +49,7 @@ export const openApiSpec = {
           phone: { type: 'string' },
           role: { type: 'string', enum: ['superAdmin', 'admin', 'accountant', 'sales', 'readOnly'] },
           status: { type: 'string', enum: ['invited', 'active', 'disabled'] },
+          avatarUrl: { type: 'string', nullable: true, description: 'base64 image data URL (≤~500KB), or null to clear' },
         },
       },
       InvoiceItem: {
@@ -84,7 +85,7 @@ export const openApiSpec = {
       UpdateProfile: {
         type: 'object',
         description: 'At least one field required.',
-        properties: { name: { type: 'string' }, phone: { type: 'string' } },
+        properties: { name: { type: 'string' }, phone: { type: 'string' }, avatarUrl: { type: 'string', nullable: true, description: 'base64 image data URL (≤~500KB), or null to clear' } },
       },
       RevokeSessions: {
         type: 'object',

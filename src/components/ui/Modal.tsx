@@ -57,7 +57,16 @@ export function Modal({
         onClick={close}
         disabled={busy}
         size="small"
-        sx={{ position: 'absolute', top: 10, right: 10, zIndex: 2, color: 'text.secondary' }}
+        sx={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 2,
+          color: 'text.secondary',
+          bgcolor: 'action.hover',
+          transition: 'background-color .16s ease, color .16s ease',
+          '&:hover': { bgcolor: 'action.selected', color: 'text.primary' },
+        }}
       >
         <CloseRounded fontSize="small" />
       </IconButton>

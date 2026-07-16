@@ -96,15 +96,15 @@ export function ChangeEmailDialog({
       actions={
         <>
           {step === 'verify' && (
-            <Button onClick={() => setStep('request')} disabled={busy} color="inherit">
+            <Button onClick={() => setStep('request')} disabled={busy} variant="outlined" color="inherit">
               Back
             </Button>
           )}
-          <Button onClick={close} disabled={busy} color="inherit">
+          <Button onClick={close} disabled={busy} variant="outlined" color="inherit">
             Cancel
           </Button>
           <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={busy} disabled={!canSubmit}>
-            {step === 'request' ? 'Send code' : 'Confirm email'}
+            {step === 'request' ? 'Send' : 'Confirm'}
           </SubmitButton>
         </>
       }

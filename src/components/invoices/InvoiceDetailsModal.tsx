@@ -14,6 +14,7 @@ import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
 import { Modal } from '@/components/ui/Modal';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
+import { useRetainedWhileClosing } from '@/lib/api/useRetained';
 
 interface Party {
   name?: string;
@@ -69,9 +70,12 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 
 export function InvoiceDetailsModal({ id, onClose }: { id: string | null; onClose: () => void }) {
   // keepPreviousData:false so opening a different invoice never flashes the last one's data
-  // (and a failed fetch shows the error state instead of stale data).
-  const { data: invoice, isLoading } = useApi<Invoice>(id ? `/api/invoices/${id}` : null, { keepPreviousData: false });
-  const { data: payments } = useApi<Payment[]>(id ? `/api/invoices/${id}/payments` : null, { keepPreviousData: false });
+  // (and a failed fetch shows the error state instead of stale data). useRetainedWhileClosing
+  // keeps the current one on screen through the close animation instead of flashing the error.
+  const { data: liveInvoice, isLoading } = useApi<Invoice>(id ? `/api/invoices/${id}` : null, { keepPreviousData: false });
+  const { data: livePayments } = useApi<Payment[]>(id ? `/api/invoices/${id}/payments` : null, { keepPreviousData: false });
+  const invoice = useRetainedWhileClosing(liveInvoice, Boolean(id));
+  const payments = useRetainedWhileClosing(livePayments, Boolean(id));
 
   const cur = invoice?.currency ?? '';
 
@@ -84,7 +88,7 @@ export function InvoiceDetailsModal({ id, onClose }: { id: string | null; onClos
       maxWidth="md"
       actions={
         <>
-          <Button onClick={onClose} color="inherit">Close</Button>
+          <Button onClick={onClose} variant="outlined" color="inherit">Close</Button>
           {invoice && (
             <Button component={Link} href={`/invoices/${invoice._id}`} variant="contained" startIcon={<OpenInNewRounded />}>
               Open full invoice

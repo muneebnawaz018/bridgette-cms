@@ -70,11 +70,11 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
         busy={saving}
         actions={
           <>
-            <Button onClick={close} disabled={saving} color="inherit">
+            <Button onClick={close} disabled={saving} variant="outlined" color="inherit">
               Cancel
             </Button>
             <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving} disabled={!filled}>
-              Update password
+              Save
             </SubmitButton>
           </>
         }

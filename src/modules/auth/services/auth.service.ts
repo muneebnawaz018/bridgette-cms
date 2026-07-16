@@ -39,7 +39,9 @@ export async function createUser(
   input: { name: string; email: string; role: Role; phone?: string },
 ): Promise<{ userId: string }> {
   await connectDb();
-  // Creating an Admin/Super Admin requires the elevated permission.
+  // The Super Admin is a single seeded fixture — it can never be handed out.
+  if (input.role === Role.SuperAdmin) throw new Error('There can only be one Super Admin');
+  // Creating an Admin requires the elevated permission.
   assertCan(
     actor.role,
     ADMIN_ROLES.includes(input.role) ? Permission.UserCreateAdmin : Permission.UserCreate,
@@ -248,15 +250,16 @@ export async function changePassword(
 /** Update your OWN profile — name/phone only. Never touches role, status, or email. */
 export async function updateOwnProfile(
   actor: SessionUser,
-  input: { name?: string; phone?: string },
-): Promise<{ name: string; phone: string | null }> {
+  input: { name?: string; phone?: string; avatarUrl?: string | null },
+): Promise<{ name: string; phone: string | null; avatarUrl: string | null }> {
   await connectDb();
   const user = await User.findById(actor.userId);
   if (!user) throw new Error('Account not found');
   if (input.name !== undefined) user.name = input.name;
   if (input.phone !== undefined) user.phone = input.phone;
+  if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
   await user.save();
-  return { name: user.name, phone: user.phone ?? null };
+  return { name: user.name, phone: user.phone ?? null, avatarUrl: user.avatarUrl ?? null };
 }
 
 /**
@@ -379,17 +382,27 @@ export async function updateUser(actor: SessionUser, id: string, input: UpdateUs
   const user = await User.findById(id);
   if (!user) throw new Error('User not found');
 
-  // Only the Super Admin may create/assign admin-level roles.
+  // There is exactly one Super Admin and it stays that way — the role is never assignable.
+  if (input.role === Role.SuperAdmin) throw new Error('There can only be one Super Admin');
+  // Only the Super Admin may assign admin-level roles.
   if (input.role && ADMIN_ROLES.includes(input.role)) {
     assertCan(actor.role, Permission.UserCreateAdmin);
   }
-  // Protected (seeded Super Admin) cannot have role/status changed or be disabled.
-  if (user.isProtected && (input.role || input.status)) {
-    throw new Error('This user is protected and cannot be modified');
+  // The protected (seeded) Super Admin is locked: its role and status can never change, and
+  // nobody else may touch its profile. Only the account holder can change their own photo,
+  // name and phone.
+  if (user.isProtected) {
+    if (input.role !== undefined || input.status !== undefined) {
+      throw new Error('The Super Admin role and status cannot be changed');
+    }
+    if (String(user._id) !== actor.userId) {
+      throw new Error('Only the Super Admin can edit their own profile');
+    }
   }
 
   if (input.name !== undefined) user.name = input.name;
   if (input.phone !== undefined) user.phone = input.phone;
+  if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
   if (input.role !== undefined) user.role = input.role;
   if (input.status !== undefined) {
     user.status = input.status;

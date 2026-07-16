@@ -71,9 +71,11 @@ function UserRowActions({
   onDeactivate: (row: UserRow) => void;
 }) {
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  // The protected Super Admin is locked — only the account holder can edit it.
+  const editable = canManage && (!row.isProtected || isSelf);
   // Cannot deactivate a disabled user, a protected user, or your own account.
   const deactivatable = canManage && row.status !== 'disabled' && !row.isProtected && !isSelf;
-  if (!canManage) return null;
+  if (!editable && !deactivatable) return null;
 
   const close = () => setAnchor(null);
   return (
@@ -82,7 +84,7 @@ function UserRowActions({
         <MoreVertRounded fontSize="small" />
       </IconButton>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={close}>
-        <MenuItem onClick={() => { close(); onEdit(row); }}>Edit</MenuItem>
+        {editable && <MenuItem onClick={() => { close(); onEdit(row); }}>Edit</MenuItem>}
         {deactivatable && (
           <MenuItem sx={{ color: 'error.main' }} onClick={() => { close(); onDeactivate(row); }}>
             Deactivate
@@ -255,12 +257,24 @@ export default function UsersPage() {
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
             Team members
           </Typography>
-          <Typography color="text.secondary" variant="body2" sx={{ mt: 0.25 }}>
+          <Typography color="text.secondary" variant="subtitle2" sx={{ mt: 0.25 }}>
             {rowCount} {rowCount === 1 ? 'member' : 'members'} · manage access and roles
           </Typography>
         </Box>
         {canCreate && (
-          <Button variant="contained" onClick={() => setOpen(true)} startIcon={<PersonAddRounded />} sx={{ flexShrink: 0, width: '100%', '@media (min-width:768px)': { width: 'auto' } }}>
+          /* Phones: full width. Tablet: normal width pinned right (the header is a column
+             there, so alignSelf is the horizontal axis). Desktop: the row handles it. */
+          <Button
+            variant="contained"
+            onClick={() => setOpen(true)}
+            startIcon={<PersonAddRounded />}
+            sx={{
+              flexShrink: 0,
+              width: { xs: '100%', sm: 'auto' },
+              alignSelf: { xs: 'stretch', sm: 'flex-end' },
+              '@media (min-width:768px)': { alignSelf: 'flex-start' },
+            }}
+          >
             New user
           </Button>
         )}
@@ -319,7 +333,7 @@ export default function UsersPage() {
         busy={saving}
         actions={
           <>
-            <Button onClick={() => setOpen(false)} disabled={saving} color="inherit">Cancel</Button>
+            <Button onClick={() => setOpen(false)} disabled={saving} variant="outlined" color="inherit">Cancel</Button>
             <SubmitButton variant="contained" loading={saving} onClick={createUser} disabled={!form.name || !form.email}>
               Create
             </SubmitButton>
@@ -341,7 +355,7 @@ export default function UsersPage() {
         open={Boolean(editUser)}
         title={`Edit ${editUser?.name ?? 'user'}`}
         description="Changes take effect immediately."
-        confirmLabel="Save changes"
+        confirmLabel="Save"
         confirmDisabled={!editForm.name.trim()}
         loading={savingEdit}
         onConfirm={saveEdit}

@@ -4,6 +4,14 @@ import { UserStatus } from './enums';
 
 const password = z.string().min(8, 'Password must be at least 8 characters');
 
+/** A profile photo as a small base64 data URL, or null to clear it. Kept well under ~500KB
+ *  of binary — the client downsizes to ~256px before upload (see lib/image/avatar). */
+const avatarUrl = z
+  .string()
+  .regex(/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/, 'Unsupported image format')
+  .max(700_000, 'Image is too large — pick a smaller photo')
+  .nullable();
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -44,6 +52,7 @@ export const updateUserSchema = z.object({
   phone: z.string().optional(),
   role: z.nativeEnum(Role).optional(),
   status: z.nativeEnum(UserStatus).optional(),
+  avatarUrl: avatarUrl.optional(),
 });
 
 export const changePasswordSchema = z.object({
@@ -55,8 +64,9 @@ export const updateProfileSchema = z
   .object({
     name: z.string().min(1, 'Name is required').optional(),
     phone: z.string().trim().max(40).optional(),
+    avatarUrl: avatarUrl.optional(),
   })
-  .refine((v) => v.name !== undefined || v.phone !== undefined, {
+  .refine((v) => v.name !== undefined || v.phone !== undefined || v.avatarUrl !== undefined, {
     message: 'Nothing to update',
   });
 

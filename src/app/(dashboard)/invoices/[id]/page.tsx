@@ -388,7 +388,7 @@ export default function InvoiceDetailPage() {
         open={confirmSave}
         title="Save changes?"
         description="Totals and the invoice state are recalculated from the new line items and tax."
-        confirmLabel="Save changes"
+        confirmLabel="Save"
         loading={saving}
         onConfirm={doSave}
         onClose={() => setConfirmSave(false)}
