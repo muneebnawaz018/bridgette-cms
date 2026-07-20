@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
@@ -15,25 +13,25 @@ import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission, Role, ACTIVE_ROLES } from '@/modules/auth/rbac';
-import { UserStatus } from '@/modules/auth/enums';
 import { useCan, useSession } from '@/components/auth/SessionProvider';
-import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { Modal } from '@/components/ui/Modal';
 import { UserDetailsModal } from '@/components/users/UserDetailsModal';
+import { UserFormDialog } from '@/components/users/UserFormDialog';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, type Tone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
-import { apiPost, apiPatch, apiDelete } from '@/lib/api/client';
+import { apiDelete } from '@/lib/api/client';
 
 interface UserRow {
   _id: string;
   name: string;
   email: string;
   phone?: string;
+  jobTitle?: string;
+  notes?: string;
   role: string;
   status: string;
   isProtected?: boolean;
@@ -53,8 +51,6 @@ const ROLE_LABEL: Record<string, string> = {
   sales: 'Sales',
   readOnly: 'Read only',
 };
-
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Per-row overflow menu (Edit / Deactivate). Owns its own anchor state. */
 function UserRowActions({
@@ -128,64 +124,24 @@ export default function UsersPage() {
   // Details modal (row click)
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  // Create
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', role: Role.Accountant as Role });
-  const [saving, setSaving] = useState(false);
+  // One dialog handles create and edit; `formUser` null means create. It owns its own state
+  // so typing never re-renders this page (and with it the DataGrid), which was the lag.
+  const [formOpen, setFormOpen] = useState(false);
+  const [formUser, setFormUser] = useState<UserRow | null>(null);
 
-  // Edit
-  const [editUser, setEditUser] = useState<UserRow | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', role: Role.Accountant as Role, status: UserStatus.Active as UserStatus });
-  const [savingEdit, setSavingEdit] = useState(false);
+  const openCreate = useCallback(() => {
+    setFormUser(null);
+    setFormOpen(true);
+  }, []);
+
+  const openEdit = useCallback((row: UserRow) => {
+    setFormUser(row);
+    setFormOpen(true);
+  }, []);
 
   // Deactivate
   const [toDeactivate, setToDeactivate] = useState<UserRow | null>(null);
   const [deactivating, setDeactivating] = useState(false);
-
-  async function createUser() {
-    setSaving(true);
-    const res = await apiPost('/api/auth/users', form);
-    setSaving(false);
-    if (res.ok) {
-      enqueueSnackbar('User created. Invite email sent.', { variant: 'success' });
-      setOpen(false);
-      setForm({ name: '', email: '', role: Role.Accountant });
-      void mutate();
-    } else {
-      enqueueSnackbar(res.error ?? 'Failed to create user', { variant: 'error' });
-    }
-  }
-
-  function openEdit(row: UserRow) {
-    setEditUser(row);
-    setEditForm({
-      name: row.name,
-      phone: row.phone ?? '',
-      role: (row.role as Role) ?? Role.Accountant,
-      status: (row.status as UserStatus) ?? UserStatus.Active,
-    });
-  }
-
-  async function saveEdit() {
-    if (!editUser) return;
-    setSavingEdit(true);
-    // Protected users (seeded Super Admin) can change name/phone only; the server rejects
-    // role/status changes, so we don't send them.
-    const payload = {
-      name: editForm.name,
-      phone: editForm.phone || undefined,
-      ...(editUser.isProtected ? {} : { role: editForm.role, status: editForm.status }),
-    };
-    const res = await apiPatch(`/api/auth/users/${editUser._id}`, payload);
-    setSavingEdit(false);
-    if (res.ok) {
-      enqueueSnackbar('User updated', { variant: 'success' });
-      setEditUser(null);
-      void mutate();
-    } else {
-      enqueueSnackbar(res.error ?? 'Could not update user', { variant: 'error' });
-    }
-  }
 
   async function confirmDeactivate() {
     if (!toDeactivate) return;
@@ -201,41 +157,58 @@ export default function UsersPage() {
     }
   }
 
-  const columns: GridColDef<UserRow>[] = [
-    { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150, headerAlign: 'center', align: 'center' },
-    { field: 'email', headerName: 'Email', flex: 1.8, minWidth: 200, headerAlign: 'center', align: 'center' },
-    { field: 'role', headerName: 'Role', flex: 1.1, minWidth: 150, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => ROLE_LABEL[r.role] ?? r.role },
-    {
-      field: 'status',
-      headerName: 'Status',
-      flex: 0.9,
-      minWidth: 120,
-      headerAlign: 'center',
-      align: 'center',
-      renderCell: (p) => <StatusChip label={p.value} tone={statusTone[p.value] ?? 'neutral'} />,
-    },
-    {
-      field: 'actions',
-      headerName: '',
-      width: 64,
-      sortable: false,
-      headerAlign: 'center',
-      align: 'center',
-      renderCell: (p) => (
-        <UserRowActions row={p.row} canManage={canManage} isSelf={p.row._id === currentUserId} onEdit={openEdit} onDeactivate={setToDeactivate} />
-      ),
-    },
-  ];
-
-  // Role options for the edit form: Accountant always; Admin only for Super Admin; plus the
-  // user's current role so the select is never empty.
-  const roleOptions: { v: Role; label: string }[] = [
-    { v: Role.Accountant, label: ROLE_LABEL.accountant },
-    ...(canCreateAdmin ? [{ v: Role.Admin, label: ROLE_LABEL.admin }] : []),
-  ];
-  if (editForm.role && !roleOptions.some((o) => o.v === editForm.role)) {
-    roleOptions.unshift({ v: editForm.role, label: ROLE_LABEL[editForm.role] ?? editForm.role });
-  }
+  // Memoized so the grid isn't handed a brand-new column array on every render.
+  const columns: GridColDef<UserRow>[] = useMemo(
+    () => [
+      { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150, headerAlign: 'center', align: 'center' },
+      {
+        field: 'jobTitle',
+        headerName: 'Job title',
+        flex: 1,
+        minWidth: 140,
+        headerAlign: 'center',
+        align: 'center',
+        valueGetter: (_v, r) => r.jobTitle || '—',
+      },
+      { field: 'email', headerName: 'Email', flex: 1.8, minWidth: 200, headerAlign: 'center', align: 'center' },
+      {
+        field: 'role',
+        headerName: 'Role',
+        flex: 1.1,
+        minWidth: 150,
+        headerAlign: 'center',
+        align: 'center',
+        valueGetter: (_v, r) => ROLE_LABEL[r.role] ?? r.role,
+      },
+      {
+        field: 'status',
+        headerName: 'Status',
+        flex: 0.9,
+        minWidth: 120,
+        headerAlign: 'center',
+        align: 'center',
+        renderCell: (p) => <StatusChip label={p.value} tone={statusTone[p.value] ?? 'neutral'} />,
+      },
+      {
+        field: 'actions',
+        headerName: '',
+        width: 64,
+        sortable: false,
+        headerAlign: 'center',
+        align: 'center',
+        renderCell: (p) => (
+          <UserRowActions
+            row={p.row}
+            canManage={canManage}
+            isSelf={p.row._id === currentUserId}
+            onEdit={openEdit}
+            onDeactivate={setToDeactivate}
+          />
+        ),
+      },
+    ],
+    [canManage, currentUserId, openEdit],
+  );
 
   if (!canView) {
     return (
@@ -266,7 +239,7 @@ export default function UsersPage() {
              there, so alignSelf is the horizontal axis). Desktop: the row handles it. */
           <Button
             variant="contained"
-            onClick={() => setOpen(true)}
+            onClick={openCreate}
             startIcon={<PersonAddRounded />}
             sx={{
               flexShrink: 0,
@@ -324,75 +297,13 @@ export default function UsersPage() {
         }}
       />
 
-      {/* Create */}
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="New user"
-        icon={<PersonAddRounded />}
-        maxWidth="xs"
-        busy={saving}
-        actions={
-          <>
-            <Button onClick={() => setOpen(false)} disabled={saving} variant="outlined" color="inherit">Cancel</Button>
-            <SubmitButton variant="contained" loading={saving} onClick={createUser} disabled={!form.name || !form.email}>
-              Create
-            </SubmitButton>
-          </>
-        }
-      >
-        <Stack spacing={2}>
-          <TextField label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth required autoFocus />
-          <TextField label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth required />
-          <TextField select label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })} fullWidth>
-            <MenuItem value={Role.Accountant}>Accountant / Manager</MenuItem>
-            {canCreateAdmin && <MenuItem value={Role.Admin}>Administrator</MenuItem>}
-          </TextField>
-        </Stack>
-      </Modal>
-
-      {/* Edit (modify) */}
-      <ConfirmDialog
-        open={Boolean(editUser)}
-        title={`Edit ${editUser?.name ?? 'user'}`}
-        description="Changes take effect immediately."
-        confirmLabel="Save"
-        confirmDisabled={!editForm.name.trim()}
-        loading={savingEdit}
-        onConfirm={saveEdit}
-        onClose={() => setEditUser(null)}
-      >
-        <Stack spacing={2}>
-          <TextField label="Email" value={editUser?.email ?? ''} fullWidth disabled helperText="Email is the account identity and cannot be changed." />
-          <TextField label="Name" value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} fullWidth required disabled={savingEdit} />
-          <TextField label="Phone" value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} fullWidth disabled={savingEdit} />
-          <TextField
-            select
-            label="Role"
-            value={editForm.role}
-            onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as Role }))}
-            fullWidth
-            disabled={savingEdit || Boolean(editUser?.isProtected)}
-            helperText={editUser?.isProtected ? 'Protected user role cannot be changed.' : undefined}
-          >
-            {roleOptions.map((o) => (
-              <MenuItem key={o.v} value={o.v}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Status"
-            value={editForm.status}
-            onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as UserStatus }))}
-            fullWidth
-            disabled={savingEdit || Boolean(editUser?.isProtected)}
-          >
-            {Object.values(UserStatus).map((s) => (
-              <MenuItem key={s} value={s}>{cap(s)}</MenuItem>
-            ))}
-          </TextField>
-        </Stack>
-      </ConfirmDialog>
+      <UserFormDialog
+        open={formOpen}
+        user={formUser}
+        onClose={() => setFormOpen(false)}
+        canCreateAdmin={canCreateAdmin}
+        onSaved={() => void mutate()}
+      />
 
       {/* Deactivate */}
       <ConfirmDialog

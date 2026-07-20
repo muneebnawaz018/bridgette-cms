@@ -10,6 +10,8 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     pendingEmail: { type: String, default: null, lowercase: true, trim: true }, // awaiting OTP verify
     phone: { type: String, trim: true },
+    jobTitle: { type: String, trim: true }, // e.g. "Office Manager" — shown on the roster + profile
+    notes: { type: String, trim: true }, // internal admin note about the member (not self-editable)
     avatarUrl: { type: String, default: null }, // profile photo as a small data: URL (see lib/image/avatar)
     passwordHash: { type: String, default: null }, // null until the user sets a password
 

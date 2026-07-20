@@ -21,6 +21,7 @@ import { useRetainedWhileClosing } from '@/lib/api/useRetained';
 import { apiPatch } from '@/lib/api/client';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
+import { formatPhone } from '@/lib/format/countries';
 
 const ROLE_LABEL: Record<string, string> = {
   superAdmin: 'Super Admin',
@@ -36,6 +37,8 @@ interface UserDetail {
   name: string;
   email: string;
   phone?: string;
+  jobTitle?: string;
+  notes?: string;
   avatarUrl?: string | null;
   role: string;
   status: string;
@@ -146,6 +149,11 @@ export function UserDetailsModal({
                 <StatusChip label={user.status} tone={STATUS_TONE[user.status] ?? 'neutral'} />
                 {user.isProtected && <Chip label="Protected" size="small" variant="outlined" />}
               </Box>
+              {user.jobTitle && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                  {user.jobTitle}
+                </Typography>
+              )}
               {canEditUser && hasPhoto && (
                 <Button
                   onClick={() => void saveAvatar(null)}
@@ -165,7 +173,8 @@ export function UserDetailsModal({
 
           <Grid container spacing={1}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Field label="Phone" value={user.phone || 'Not set'} />
+              <Field label="Job title" value={user.jobTitle || 'Not set'} />
+              <Field label="Phone" value={formatPhone(user.phone) || "Not set"} />
               <Field label="Email verified" value={user.emailVerified ? 'Yes' : 'No'} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -173,6 +182,20 @@ export function UserDetailsModal({
               <Field label="Last login" value={formatDateTime(user.lastLoginAt, 'Never')} />
             </Grid>
           </Grid>
+
+          {user.notes && (
+            <>
+              <Divider />
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Internal notes
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                  {user.notes}
+                </Typography>
+              </Box>
+            </>
+          )}
         </Stack>
       )}
     </Modal>

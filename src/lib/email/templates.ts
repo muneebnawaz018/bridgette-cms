@@ -1,72 +1,195 @@
 import { colors } from '@/lib/colors';
+import { env } from '@/lib/config/env';
+
+/**
+ * Transactional email bodies.
+ *
+ * Email clients strip <style> blocks, CSS variables and most modern CSS, so everything here
+ * is inline and table-based — the one place in this codebase that cannot use the MUI theme.
+ * Colors still come from lib/colors so the palette traces back to a single source.
+ */
 
 const BRAND = colors.brand.red;
+const INK = colors.text.primary;
+const MUTED = colors.text.secondary;
+const FAINT = colors.ink[400];
+const CANVAS = colors.surface.canvas;
+const PAPER = colors.surface.paper;
+const BORDER = colors.surface.border;
 
-function shell(title: string, body: string): string {
-  return `<!doctype html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#111">
-  <div style="max-width:520px;margin:24px auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #eee">
-    <div style="background:${BRAND};height:6px"></div>
-    <div style="padding:28px">
-      <h1 style="margin:0 0 12px;font-size:20px;color:${colors.brand.black}">${title}</h1>
-      ${body}
-      <p style="margin-top:28px;font-size:12px;color:#888">Bridgette Enterprises LLC, Management Portal</p>
-    </div>
-  </div></body></html>`;
+const COMPANY = 'Bridgette Enterprises LLC';
+const PRODUCT = 'Bridgette Portal';
+
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
+/** Escape interpolated values — a member's name is admin-supplied and lands inside HTML. */
+function esc(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
-export function otpEmail(name: string, code: string): { subject: string; html: string; text: string } {
+/** A button that also renders in Outlook, which ignores padding on inline-block anchors. */
+function button(href: string, label: string): string {
+  const url = esc(href);
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0">
+    <tr><td align="center" bgcolor="${BRAND}" style="border-radius:8px">
+      <a href="${url}" style="display:inline-block;padding:12px 26px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:${PAPER};text-decoration:none;border-radius:8px">${esc(label)}</a>
+    </td></tr>
+  </table>
+  <p style="margin:0 0 4px;font-size:12px;color:${MUTED}">If the button does not work, paste this into your browser:</p>
+  <p style="margin:0;font-size:12px;word-break:break-all"><a href="${url}" style="color:${BRAND}">${url}</a></p>`;
+}
+
+/** A verification code, styled to be readable and easy to copy. */
+function codeBlock(code: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0">
+    <tr><td align="center" bgcolor="${CANVAS}" style="border:1px solid ${BORDER};border-radius:8px;padding:16px 28px">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:30px;font-weight:bold;letter-spacing:8px;color:${BRAND}">${esc(code)}</span>
+    </td></tr>
+  </table>`;
+}
+
+/**
+ * Outer chrome. `preheader` is the grey snippet inboxes show next to the subject — without
+ * one, clients pull the first visible words, which reads as noise.
+ */
+function shell({ title, preheader, body }: { title: string; preheader: string; body: string }): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>${esc(title)}</title>
+</head>
+<body style="margin:0;padding:0;background:${CANVAS};font-family:Arial,Helvetica,sans-serif;color:${INK}">
+  <div style="display:none;font-size:1px;color:${CANVAS};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${esc(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CANVAS}">
+    <tr><td align="center" style="padding:24px 12px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:${PAPER};border:1px solid ${BORDER};border-radius:12px;overflow:hidden">
+        <tr><td style="background:${BRAND};height:5px;line-height:5px;font-size:0">&nbsp;</td></tr>
+        <tr><td style="padding:26px 32px 0">
+          <p style="margin:0;font-size:13px;font-weight:bold;letter-spacing:2px;color:${BRAND};text-transform:uppercase">Bridgette</p>
+          <p style="margin:2px 0 0;font-size:11px;letter-spacing:1px;color:${FAINT};text-transform:uppercase">Management Portal</p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 32px">
+          <h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:${INK}">${esc(title)}</h1>
+          ${body}
+        </td></tr>
+        <tr><td style="padding:18px 32px 24px;border-top:1px solid ${BORDER}">
+          <p style="margin:0 0 4px;font-size:12px;color:${MUTED}">This is an automated message from ${esc(PRODUCT)}. Please do not reply.</p>
+          <p style="margin:0;font-size:12px;color:${FAINT}">&copy; ${new Date().getFullYear()} ${esc(COMPANY)}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export interface MailBody {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+/** New member invite — verify the address and set a first password. */
+export function otpEmail(name: string, code: string): MailBody {
+  const signIn = `${env.appUrl}/login`;
   return {
-    subject: 'Your Bridgette Portal verification code',
-    html: shell(
-      'Verify your account',
-      `<p>Hi ${name},</p><p>Use this code to verify your account and set your password:</p>
-       <p style="font-size:28px;font-weight:bold;letter-spacing:4px;color:${BRAND}">${code}</p>
-       <p style="font-size:13px;color:#666">This code expires in 15 minutes.</p>`,
-    ),
-    text: `Hi ${name}, your Bridgette Portal verification code is ${code} (expires in 15 minutes).`,
+    subject: `Your ${PRODUCT} verification code`,
+    html: shell({
+      title: `Welcome to ${PRODUCT}`,
+      preheader: `Your verification code is ${code}. It expires in 15 minutes.`,
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(name)},</p>
+        <p style="margin:0 0 4px;font-size:15px;line-height:1.6">An account has been created for you on ${esc(PRODUCT)}, the management system for ${esc(COMPANY)}. Use the code below to verify your email and set your password:</p>
+        ${codeBlock(code)}
+        <p style="margin:0 0 12px;font-size:13px;color:${MUTED}">This code expires in <strong>15 minutes</strong>. If it does, ask an administrator to invite you again.</p>
+        <p style="margin:0;font-size:13px;color:${MUTED}">You can sign in at <a href="${esc(signIn)}" style="color:${BRAND}">${esc(signIn)}</a> once your password is set.</p>
+        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">If you were not expecting this invitation, you can ignore this email.</p>`,
+    }),
+    text: [
+      `Hi ${name},`,
+      '',
+      `An account has been created for you on ${PRODUCT} (${COMPANY}).`,
+      `Your verification code is: ${code}`,
+      '',
+      'This code expires in 15 minutes.',
+      `Sign in at ${signIn} once your password is set.`,
+      '',
+      'If you were not expecting this invitation, you can ignore this email.',
+    ].join('\n'),
   };
 }
 
-export function resetPasswordEmail(
-  name: string,
-  link: string,
-): { subject: string; html: string; text: string } {
+/** Forgot-password link. */
+export function resetPasswordEmail(name: string, link: string): MailBody {
   return {
-    subject: 'Reset your Bridgette Portal password',
-    html: shell(
-      'Reset your password',
-      `<p>Hi ${name},</p><p>Click below to set a new password. If you didn't request this, ignore this email.</p>
-       <p><a href="${link}" style="display:inline-block;background:${BRAND};color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Reset password</a></p>
-       <p style="font-size:13px;color:#666">This link expires in 30 minutes.</p>`,
-    ),
-    text: `Hi ${name}, reset your Bridgette Portal password: ${link} (expires in 30 minutes).`,
+    subject: `Reset your ${PRODUCT} password`,
+    html: shell({
+      title: 'Reset your password',
+      preheader: 'This password reset link expires in 30 minutes.',
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(name)},</p>
+        <p style="margin:0;font-size:15px;line-height:1.6">We received a request to reset the password for your ${esc(PRODUCT)} account. Choose a new one here:</p>
+        ${button(link, 'Reset password')}
+        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">This link expires in <strong>30 minutes</strong> and can only be used once.</p>
+        <p style="margin:8px 0 0;font-size:13px;color:${MUTED}">If you did not request a reset, ignore this email — your password stays unchanged.</p>`,
+    }),
+    text: [
+      `Hi ${name},`,
+      '',
+      `We received a request to reset the password for your ${PRODUCT} account.`,
+      `Reset it here: ${link}`,
+      '',
+      'This link expires in 30 minutes and can only be used once.',
+      'If you did not request a reset, ignore this email — your password stays unchanged.',
+    ].join('\n'),
   };
 }
 
-export function changeEmailOtpEmail(name: string, code: string): { subject: string; html: string; text: string } {
+/** Step 2 of an email change — sent to the NEW address. */
+export function changeEmailOtpEmail(name: string, code: string): MailBody {
   return {
-    subject: 'Confirm your new Bridgette Portal email',
-    html: shell(
-      'Confirm your new email',
-      `<p>Hi ${name},</p><p>Use this code to confirm this address as your new sign-in email:</p>
-       <p style="font-size:28px;font-weight:bold;letter-spacing:4px;color:${BRAND}">${code}</p>
-       <p style="font-size:13px;color:#666">This code expires in 15 minutes. If you didn't request this, ignore this email.</p>`,
-    ),
-    text: `Hi ${name}, your Bridgette Portal email-change code is ${code} (expires in 15 minutes).`,
+    subject: `Confirm your new ${PRODUCT} email`,
+    html: shell({
+      title: 'Confirm your new email',
+      preheader: `Your confirmation code is ${code}. It expires in 15 minutes.`,
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(name)},</p>
+        <p style="margin:0;font-size:15px;line-height:1.6">Use the code below to confirm this address as the new sign-in email for your ${esc(PRODUCT)} account:</p>
+        ${codeBlock(code)}
+        <p style="margin:0 0 8px;font-size:13px;color:${MUTED}">This code expires in <strong>15 minutes</strong>.</p>
+        <p style="margin:0;font-size:13px;color:${MUTED}">If you did not request this change, ignore this email and consider changing your password.</p>`,
+    }),
+    text: [
+      `Hi ${name},`,
+      '',
+      `Use this code to confirm this address as your new ${PRODUCT} sign-in email: ${code}`,
+      '',
+      'This code expires in 15 minutes.',
+      'If you did not request this change, ignore this email and consider changing your password.',
+    ].join('\n'),
   };
 }
 
-export function reminderEmail(
-  invoiceNumber: string,
-  link: string,
-): { subject: string; html: string; text: string } {
+/** Invoice reminder — an invoice passed its threshold and is still open. */
+export function reminderEmail(invoiceNumber: string, link: string): MailBody {
   return {
     subject: `Reminder: invoice ${invoiceNumber} needs attention`,
-    html: shell(
-      'Invoice reminder',
-      `<p>Invoice <strong>${invoiceNumber}</strong> has reached its reminder threshold and is still open.</p>
-       <p><a href="${link}" style="color:${BRAND}">Open invoice</a></p>`,
-    ),
-    text: `Invoice ${invoiceNumber} has reached its reminder threshold and is still open: ${link}`,
+    html: shell({
+      title: 'Invoice reminder',
+      preheader: `Invoice ${invoiceNumber} has passed its reminder threshold and is still open.`,
+      body: `<p style="margin:0;font-size:15px;line-height:1.6">Invoice <strong>${esc(invoiceNumber)}</strong> has passed its reminder threshold and is still open. Review it and record a payment if one has been received.</p>
+        ${button(link, 'Open invoice')}`,
+    }),
+    text: [
+      `Invoice ${invoiceNumber} has passed its reminder threshold and is still open.`,
+      '',
+      `Open it here: ${link}`,
+    ].join('\n'),
   };
 }

@@ -8,6 +8,8 @@ import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
 import { normalizeIp } from '@/lib/geo/ipLocation';
 import { otpEmail, resetPasswordEmail, changeEmailOtpEmail } from '@/lib/email/templates';
+import { assertDeliverableEmail } from '@/lib/email/deliverability';
+import { logger } from '@/lib/logger/logger';
 import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { UserStatus, OtpPurpose } from '../enums';
@@ -36,8 +38,15 @@ interface RequestContext {
 /** Admin/Super Admin creates a user → emails an OTP for verify + set-password. */
 export async function createUser(
   actor: SessionUser,
-  input: { name: string; email: string; role: Role; phone?: string },
-): Promise<{ userId: string }> {
+  input: {
+    name: string;
+    email: string;
+    role: Role;
+    phone: string;
+    jobTitle?: string;
+    notes?: string;
+  },
+): Promise<{ userId: string; emailSent: boolean }> {
   await connectDb();
   // The Super Admin is a single seeded fixture — it can never be handed out.
   if (input.role === Role.SuperAdmin) throw new Error('There can only be one Super Admin');
@@ -52,11 +61,16 @@ export async function createUser(
   const email = input.email.toLowerCase().trim();
   const existing = await User.findOne({ email });
   if (existing) throw new Error('A user with this email already exists');
+  // Well-formed is not the same as reachable — reject typo'd/dead domains before we create
+  // an account whose invite can never arrive.
+  await assertDeliverableEmail(email);
 
   const user = await User.create({
     name: input.name,
     email,
     phone: input.phone,
+    jobTitle: input.jobTitle,
+    notes: input.notes,
     role: input.role,
     status: UserStatus.Invited,
     mustSetPassword: true,
@@ -66,8 +80,23 @@ export async function createUser(
 
   const code = await issueOtp(String(user._id), OtpPurpose.VerifyEmail, OTP_TTL_MIN);
   const mail = otpEmail(user.name, code);
-  await sendMail({ to: email, ...mail });
-  return { userId: String(user._id) };
+
+  // The account already exists by this point. A mail failure must not surface as "create
+  // failed" — that would leave a real user behind an error message. Report it instead, so
+  // the caller can tell the admin the invite needs resending.
+  let emailSent = true;
+  try {
+    await sendMail({ to: email, ...mail });
+  } catch (err) {
+    emailSent = false;
+    logger.error('user created but the invite email failed to send', {
+      userId: String(user._id),
+      email,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return { userId: String(user._id), emailSent };
 }
 
 /** Verify email OTP and set the initial password → account becomes active. */
@@ -408,6 +437,8 @@ export async function updateUser(actor: SessionUser, id: string, input: UpdateUs
 
   if (input.name !== undefined) user.name = input.name;
   if (input.phone !== undefined) user.phone = input.phone;
+  if (input.jobTitle !== undefined) user.jobTitle = input.jobTitle;
+  if (input.notes !== undefined) user.notes = input.notes;
   if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
   if (input.role !== undefined) user.role = input.role;
   if (input.status !== undefined) {

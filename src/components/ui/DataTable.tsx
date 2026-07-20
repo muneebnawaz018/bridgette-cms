@@ -4,25 +4,15 @@ import dynamic from 'next/dynamic';
 import Box from '@mui/material/Box';
 import type { GridColDef, GridValidRowModel, GridPaginationModel } from '@mui/x-data-grid';
 import { BrandLoader } from '@/components/ui/BrandLoader';
-import { whiteA } from '@/lib/colors';
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/pagination';
 
-// Code-split the heavy DataGrid so list pages don't ship it in their initial bundle.
+// Code-split the heavy DataGrid so list pages don't ship it in their initial bundle. The
+// chunk-loading fallback is the same full-screen overlay used for row fetches, so a table
+// never shows two different loaders back to back.
 const DataGrid = dynamic(() => import('@mui/x-data-grid').then((m) => m.DataGrid), {
   ssr: false,
-  loading: () => <BrandLoader label="Loading table…" minHeight={0} />,
+  loading: () => <BrandLoader overlay />,
 });
-
-/** The grid's own data-loading overlay. Without this the DataGrid falls back to MUI's
- *  default spinner, so a table would show the brand loader while the chunk loads and then
- *  a different one while rows fetch. */
-function GridLoadingOverlay() {
-  return (
-    <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', bgcolor: whiteA(0.7) }}>
-      <BrandLoader minHeight={0} size={56} label={null} />
-    </Box>
-  );
-}
 
 interface DataTableProps<T extends GridValidRowModel> {
   rows: T[];
@@ -53,11 +43,14 @@ export function DataTable<T extends GridValidRowModel>({
 
   return (
     <Box sx={{ height, width: '100%' }}>
+      {/* One loader for the whole app: the branded full-screen overlay. The grid's own
+          indicator is deliberately not used — it rendered a second, smaller spinner inside
+          the table while this overlay was already up. */}
+      {loading && <BrandLoader overlay />}
       <DataGrid
         rows={rows as GridValidRowModel[]}
         columns={columns as GridColDef<GridValidRowModel>[]}
         getRowId={getRowId as (row: GridValidRowModel) => string}
-        loading={loading}
         pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
         paginationMode={server ? 'server' : 'client'}
         rowCount={server ? (rowCount ?? 0) : undefined}
@@ -75,7 +68,6 @@ export function DataTable<T extends GridValidRowModel>({
           server ? undefined : { pagination: { paginationModel: { pageSize: DEFAULT_PAGE_SIZE, page: 0 } } }
         }
         disableRowSelectionOnClick
-        slots={{ loadingOverlay: GridLoadingOverlay }}
         sx={onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : undefined}
       />
     </Box>

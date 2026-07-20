@@ -17,6 +17,7 @@ export const GET = handle(async () => {
     name?: string;
     status?: string;
     phone?: string;
+    jobTitle?: string;
     avatarUrl?: string | null;
     isSuperAdmin?: boolean;
     createdAt?: Date;
@@ -30,6 +31,7 @@ export const GET = handle(async () => {
     permissions: ROLE_PERMISSIONS[s.role],
     name: user?.name ?? null,
     phone: user?.phone ?? null,
+    jobTitle: user?.jobTitle ?? null,
     avatarUrl: user?.avatarUrl ?? null,
     status: user?.status ?? null,
     isSuperAdmin: user?.isSuperAdmin ?? false,

@@ -40,6 +40,8 @@ export const openApiSpec = {
           email: { type: 'string', format: 'email' },
           role: { type: 'string', enum: ['admin', 'accountant'] },
           phone: { type: 'string' },
+          jobTitle: { type: 'string', description: 'e.g. "Office Manager"' },
+          notes: { type: 'string', description: 'Internal admin note (not self-editable)' },
         },
       },
       UpdateUser: {
@@ -47,6 +49,8 @@ export const openApiSpec = {
         properties: {
           name: { type: 'string' },
           phone: { type: 'string' },
+          jobTitle: { type: 'string' },
+          notes: { type: 'string' },
           role: { type: 'string', enum: ['superAdmin', 'admin', 'accountant', 'sales', 'readOnly'] },
           status: { type: 'string', enum: ['invited', 'active', 'disabled'] },
           avatarUrl: { type: 'string', nullable: true, description: 'base64 image data URL (≤~500KB), or null to clear' },

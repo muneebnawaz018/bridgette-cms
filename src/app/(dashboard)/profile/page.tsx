@@ -16,6 +16,7 @@ import { EditProfileDialog } from '@/components/settings/EditProfileDialog';
 import { apiPatch } from '@/lib/api/client';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
+import { formatPhone } from '@/lib/format/countries';
 import { colors, redA } from '@/lib/colors';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -36,6 +37,7 @@ interface Profile {
   role: string;
   status: string | null;
   phone: string | null;
+  jobTitle: string | null;
   avatarUrl: string | null;
   isSuperAdmin: boolean;
   createdAt: string | null;
@@ -133,8 +135,9 @@ export default function ProfilePage() {
               <Grid size={{ xs: 12, sm: 6 }}><Field label="Name" value={me.name ?? 'Not set'} /></Grid>
               <Grid size={{ xs: 12, sm: 6 }}><Field label="Status" value={me.status ?? 'Unknown'} /></Grid>
               <Grid size={{ xs: 12, sm: 6 }}><Field label="Role" value={ROLE_LABEL[me.role] ?? me.role} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Job title" value={me.jobTitle ?? 'Not set'} /></Grid>
               <Grid size={{ xs: 12, sm: 6 }}><Field label="Member since" value={formatDate(me.createdAt)} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Phone" value={me.phone ?? 'Not set'} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><Field label="Phone" value={formatPhone(me.phone) || "Not set"} /></Grid>
               <Grid size={{ xs: 12, sm: 6 }}><Field label="Last login" value={formatDateTime(me.lastLoginAt, 'Never')} /></Grid>
               <Grid size={{ xs: 12 }}><Field label="Email" value={me.email} /></Grid>
             </Grid>

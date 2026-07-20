@@ -17,11 +17,32 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+/** Optional free-text profile fields, shared by create + update. Trimmed and length-capped. */
+const jobTitle = z.string().trim().max(80).optional();
+const notes = z.string().trim().max(500).optional();
+
+/**
+ * Contact number in E.164 — `+` then country code then the national number, digits only.
+ * The UI composes this from its country picker; this file is client-safe, so the browser and
+ * the server validate against exactly the same rule.
+ */
+export const E164 = /^\+[1-9]\d{7,14}$/;
+const phone = z
+  .string()
+  .trim()
+  .min(1, 'A contact number is required')
+  .regex(E164, 'Enter a valid number including the country code');
+
 export const createUserSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  role: z.nativeEnum(Role),
-  phone: z.string().optional(),
+  name: z.string().trim().min(1, 'Name is required').max(120),
+  email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
+  role: z.nativeEnum(Role, {
+    required_error: 'A role is required',
+    invalid_type_error: 'A role is required',
+  }),
+  phone,
+  jobTitle,
+  notes,
 });
 
 export const setPasswordSchema = z.object({
@@ -48,11 +69,22 @@ export const listUsersSchema = z.object({
 });
 
 export const updateUserSchema = z.object({
-  name: z.string().min(1).optional(),
-  phone: z.string().optional(),
+  name: z.string().trim().min(1, 'Name is required').max(120).optional(),
+  // Optional so avatar-only PATCHes still work, but never blankable — contact is required.
+  phone: phone.optional(),
+  jobTitle,
+  notes,
   role: z.nativeEnum(Role).optional(),
   status: z.nativeEnum(UserStatus).optional(),
   avatarUrl: avatarUrl.optional(),
+});
+
+/** The subset the edit form actually submits — lets the client validate before sending. */
+export const editUserFormSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(120),
+  phone,
+  jobTitle,
+  notes,
 });
 
 export const changePasswordSchema = z.object({

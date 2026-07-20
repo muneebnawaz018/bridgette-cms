@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Grow from '@mui/material/Grow';
 import CloseRounded from '@mui/icons-material/CloseRounded';
+import { colors, gradients, redA } from '@/lib/colors';
 
 export type ModalWidth = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -68,6 +69,9 @@ export function Modal({
         },
       }}
     >
+      {/* Sits on the same left/right inset as the header text and level with the title's
+          first line. The old neutral grey read as disabled — a brand-tinted fill with the
+          gradient on hover makes it clearly the way out. */}
       <IconButton
         aria-label="Close"
         onClick={close}
@@ -75,13 +79,16 @@ export function Modal({
         size="small"
         sx={{
           position: 'absolute',
-          top: 12,
-          right: 12,
+          top: { xs: 18, sm: 22 },
+          right: { xs: 16, sm: 24 },
           zIndex: 2,
-          color: 'text.secondary',
-          bgcolor: 'action.hover',
+          color: 'primary.main',
+          bgcolor: redA(0.1),
           transition: 'background-color .16s ease, color .16s ease',
-          '&:hover': { bgcolor: 'action.selected', color: 'text.primary' },
+          '&:hover': {
+            color: colors.brand.white,
+            backgroundImage: gradients.brand,
+          },
         }}
       >
         <CloseRounded fontSize="small" />
