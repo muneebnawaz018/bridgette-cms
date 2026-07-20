@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
+import BlockRounded from '@mui/icons-material/BlockRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission, Role, ACTIVE_ROLES } from '@/modules/auth/rbac';
@@ -369,6 +370,7 @@ export default function UsersPage() {
           </>
         }
         confirmLabel="Deactivate"
+        confirmIcon={<BlockRounded />}
         confirmColor="error"
         loading={deactivating}
         onConfirm={confirmDeactivate}

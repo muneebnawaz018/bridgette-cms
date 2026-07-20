@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import DevicesRounded from '@mui/icons-material/DevicesRounded';
 import LogoutRounded from '@mui/icons-material/LogoutRounded';
 import { useSnackbar } from 'notistack';
@@ -67,7 +68,7 @@ export function SessionScopeDialog({
       busy={locked}
       actions={
         allowDismiss ? (
-          <Button onClick={onClose} disabled={locked} color="inherit">
+          <Button onClick={onClose} disabled={locked} color="inherit" startIcon={<CloseRounded />}>
             Keep all devices signed in
           </Button>
         ) : undefined

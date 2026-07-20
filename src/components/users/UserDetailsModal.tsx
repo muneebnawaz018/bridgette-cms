@@ -215,6 +215,7 @@ export function UserDetailsModal({
         title="Remove photo?"
         description="This deletes the current photo. A new one can be uploaded at any time."
         confirmLabel="Remove"
+        confirmIcon={<DeleteOutlineRounded />}
         confirmColor="error"
         loading={uploading}
         onConfirm={() => {

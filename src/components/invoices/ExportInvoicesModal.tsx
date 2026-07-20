@@ -170,16 +170,18 @@ export function ExportInvoicesModal({
       busy={downloading}
       actions={
         <>
-          <Button onClick={onClose} disabled={downloading} variant="outlined" color="inherit">
+          <Button onClick={onClose} disabled={downloading} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             Cancel
           </Button>
           {step > 0 && (
-            <Button onClick={() => setStep((s) => s - 1)} disabled={downloading} variant="outlined">
+            <Button onClick={() => setStep((s) => s - 1)} disabled={downloading} variant="outlined" startIcon={<ArrowBackRounded />}>
               Back
             </Button>
           )}
           {step < STEPS.length - 1 ? (
-            <Button variant="contained" disabled={!canGoNext} onClick={() => setStep((s) => s + 1)}>
+            // endIcon, not start: the arrow trails the label because it points at where the
+            // step is going, which is the one place in these dialogs that reads better after.
+            <Button variant="contained" disabled={!canGoNext} onClick={() => setStep((s) => s + 1)} endIcon={<ArrowForwardRounded />}>
               Next
             </Button>
           ) : (
@@ -188,6 +190,7 @@ export function ExportInvoicesModal({
               loading={downloading}
               disabled={total === 0 || invalidRange}
               onClick={runExport}
+              startIcon={<FileDownloadRounded />}
             >
               Export
             </SubmitButton>
