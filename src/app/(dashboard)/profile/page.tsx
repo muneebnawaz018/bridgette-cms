@@ -10,7 +10,6 @@ import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
-import { BrandLoader } from '@/components/ui/BrandLoader';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import { EditProfileDialog } from '@/components/settings/EditProfileDialog';
 import { apiPatch } from '@/lib/api/client';
@@ -18,14 +17,9 @@ import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/countries';
 import { colors, redA } from '@/lib/colors';
+import { ROLE_LABEL } from '@/lib/format/labels';
+import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
 
-const ROLE_LABEL: Record<string, string> = {
-  superAdmin: 'Super Admin',
-  admin: 'Administrator',
-  accountant: 'Accountant / Manager',
-  sales: 'Sales',
-  readOnly: 'Read only',
-};
 
 // Soft, non-button badge: tinted fill, no heavy border.
 const badgeSx = { fontWeight: 700, fontSize: '0.82rem', height: 32, borderRadius: 2, '& .MuiChip-label': { px: 1.5 } } as const;
@@ -65,6 +59,10 @@ export default function ProfilePage() {
   const [editOpen, setEditOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Ask for the one app-wide overlay rather than drawing one in the page, which could not
+  // cover the sidebar or the top bar.
+  useGlobalLoading(loading);
+
   useEffect(() => {
     void (async () => {
       const res = await fetch('/api/auth/me').then((r) => r.json());
@@ -92,7 +90,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) return <BrandLoader overlay label="Loading profile…" />;
+  if (loading) return null;
   if (!me) return <Typography color="error">Could not load profile.</Typography>;
 
   return (

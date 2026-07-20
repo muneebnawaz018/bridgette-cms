@@ -31,13 +31,17 @@ function ResetForm() {
     }
     setLoading(true);
     const res = await apiPost('/api/auth/reset', { userId, code, password: form.password });
-    setLoading(false);
-    if (res.ok) {
-      enqueueSnackbar('Password reset. Sign in with your new password.', { variant: 'success' });
-      router.push('/login');
-    } else {
+
+    if (!res.ok) {
+      setLoading(false);
       enqueueSnackbar(res.error ?? 'Reset failed', { variant: 'error' });
+      return;
     }
+
+    enqueueSnackbar('Password reset. Sign in with your new password.', { variant: 'success' });
+    // See the login page: holding `loading` keeps the overlay up across the navigation.
+    router.replace('/login');
+    window.setTimeout(() => setLoading(false), 10_000);
   }
 
   if (!userId || !code) {

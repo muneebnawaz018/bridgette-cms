@@ -31,3 +31,10 @@ export const invoiceStateTone: Record<string, Tone> = {
   paid: 'success',
   overdue: 'error',
 };
+
+/** Same idea for account status, so the user table and the user card agree on the colours. */
+export const userStatusTone: Record<string, Tone> = {
+  active: 'success',
+  invited: 'warning',
+  disabled: 'neutral',
+};

@@ -1,32 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppLink } from '@/components/ui/AppLink';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
-import Menu from '@mui/material/Menu';
 import AddRounded from '@mui/icons-material/AddRounded';
-import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
-import PaymentsRounded from '@mui/icons-material/PaymentsRounded';
 import FileDownloadRounded from '@mui/icons-material/FileDownloadRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
-import { InvoiceType, PaymentMethod } from '@/modules/invoicing/enums';
+import { InvoiceType } from '@/modules/invoicing/enums';
 import type { InvoiceView } from '@/modules/invoicing/schemas';
 import { useCan } from '@/components/auth/SessionProvider';
-import { SubmitButton } from '@/components/ui/SubmitButton';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { Modal } from '@/components/ui/Modal';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { NoAccess } from '@/components/ui/NoAccess';
+import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { InvoiceDetailsModal } from '@/components/invoices/InvoiceDetailsModal';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
+import { InvoiceFormDialog } from '@/components/invoices/InvoiceFormDialog';
+import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
@@ -34,6 +30,7 @@ import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { apiPost, apiDelete } from '@/lib/api/client';
 import { today, daysAgo } from '@/lib/format/date';
+import { formatMoney } from '@/lib/format/money';
 
 interface InvoiceRow {
   _id: string;
@@ -50,49 +47,25 @@ interface InvoiceRow {
 
 type Action = { kind: 'archive' | 'delete'; row: InvoiceRow };
 
-/** Per-row overflow menu. Owns its own anchor state so the page doesn't track it. */
-function RowActions({
-  row,
-  canPay,
-  canArchive,
-  canDelete,
-  onPay,
-  onAct,
-}: {
-  row: InvoiceRow;
-  canPay: boolean;
-  canArchive: boolean;
-  canDelete: boolean;
-  onPay: (row: InvoiceRow) => void;
-  onAct: (kind: 'archive' | 'delete', row: InvoiceRow) => void;
-}) {
-  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
-  const payable = canPay && !row.isArchived && !row.isDeleted && row.state !== 'paid' && row.state !== 'draft';
-  const archivable = canArchive && !row.isArchived && !row.isDeleted;
-  const deletable = canDelete && !row.isDeleted;
-  if (!payable && !archivable && !deletable) return null;
-
-  const close = () => setAnchor(null);
-  return (
-    <>
-      <IconButton size="small" aria-label="Row actions" onClick={(e) => setAnchor(e.currentTarget)}>
-        <MoreVertRounded fontSize="small" />
-      </IconButton>
-      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={close}>
-        {payable && (
-          <MenuItem onClick={() => { close(); onPay(row); }}>Record payment</MenuItem>
-        )}
-        {archivable && (
-          <MenuItem onClick={() => { close(); onAct('archive', row); }}>Archive</MenuItem>
-        )}
-        {deletable && (
-          <MenuItem sx={{ color: 'error.main' }} onClick={() => { close(); onAct('delete', row); }}>
-            Delete
-          </MenuItem>
-        )}
-      </Menu>
-    </>
-  );
+/** Which of the row actions this user may take on this particular invoice. */
+function rowActions(
+  row: InvoiceRow,
+  perms: { canPay: boolean; canArchive: boolean; canDelete: boolean },
+  onPay: (row: InvoiceRow) => void,
+  onAct: (kind: 'archive' | 'delete', row: InvoiceRow) => void,
+): RowAction[] {
+  const actions: RowAction[] = [];
+  const paid = row.state === 'paid' || row.state === 'draft';
+  if (perms.canPay && !row.isArchived && !row.isDeleted && !paid) {
+    actions.push({ label: 'Record payment', onClick: () => onPay(row) });
+  }
+  if (perms.canArchive && !row.isArchived && !row.isDeleted) {
+    actions.push({ label: 'Archive', onClick: () => onAct('archive', row) });
+  }
+  if (perms.canDelete && !row.isDeleted) {
+    actions.push({ label: 'Delete', danger: true, onClick: () => onAct('delete', row) });
+  }
+  return actions;
 }
 
 const VIEW_META: Record<InvoiceView, { label: string; blurb: string }> = {
@@ -104,6 +77,7 @@ const VIEW_META: Record<InvoiceView, { label: string; blurb: string }> = {
 
 export default function InvoicesPage() {
   const { enqueueSnackbar } = useSnackbar();
+  const canView = useCan(Permission.InvoiceView);
   const canCreate = useCan(Permission.InvoiceCreate);
   const canPay = useCan(Permission.PaymentRecord);
   const canArchive = useCan(Permission.InvoiceArchive);
@@ -118,6 +92,7 @@ export default function InvoicesPage() {
   // Defaults to the last 7 days, per the agreed filter. Clearing both dates shows everything.
   const [range, setRange] = useState({ from: daysAgo(7), to: today() });
   const [exportOpen, setExportOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
 
   // Preselect the type filter from ?type=tax|cash|pk (e.g. clicked from a dashboard card).
@@ -159,10 +134,9 @@ export default function InvoicesPage() {
   // Details modal (row click)
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  // Record-payment dialog
+  // Record-payment dialog. The modal owns the form and the request; the page only says which
+  // invoice is being paid.
   const [payFor, setPayFor] = useState<InvoiceRow | null>(null);
-  const [pay, setPay] = useState({ amount: '', method: PaymentMethod.BankTransfer });
-  const [saving, setSaving] = useState(false);
 
   // Archive / delete dialog (both need a reason)
   const [action, setAction] = useState<Action | null>(null);
@@ -171,28 +145,9 @@ export default function InvoicesPage() {
 
   const views: InvoiceView[] = ['active', 'archived', ...(canSeeDeleted ? (['deleted'] as const) : []), 'all'];
 
-  function openPay(row: InvoiceRow) {
-    setPayFor(row);
-    setPay({ amount: String(row.balanceDue ?? ''), method: PaymentMethod.BankTransfer });
-  }
-
   function openAction(kind: 'archive' | 'delete', row: InvoiceRow) {
     setAction({ kind, row });
     setReason('');
-  }
-
-  async function submitPayment() {
-    if (!payFor) return;
-    setSaving(true);
-    const res = await apiPost(`/api/invoices/${payFor._id}/payments`, { amount: Number(pay.amount), method: pay.method });
-    setSaving(false);
-    if (res.ok) {
-      enqueueSnackbar('Payment recorded', { variant: 'success' });
-      setPayFor(null);
-      void mutate();
-    } else {
-      enqueueSnackbar(res.error ?? 'Failed to record payment', { variant: 'error' });
-    }
   }
 
   async function runAction() {
@@ -238,8 +193,8 @@ export default function InvoicesPage() {
       renderCell: (p) => <StatusChip label={p.value} tone={invoiceStateTone[p.value] ?? 'neutral'} />,
     },
     { field: 'billTo', headerName: 'Bill to', flex: 1.4, minWidth: 150, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => r.billTo?.name ?? 'No customer' },
-    { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => `${r.currency} ${Number(r.grandTotal).toFixed(2)}` },
-    { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => `${r.currency} ${Number(r.balanceDue).toFixed(2)}` },
+    { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => formatMoney(r.currency, Number(r.grandTotal)) },
+    { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => formatMoney(r.currency, Number(r.balanceDue)) },
     {
       field: 'status',
       headerName: 'Status',
@@ -262,65 +217,43 @@ export default function InvoicesPage() {
       headerAlign: 'center',
       align: 'center',
       renderCell: (p) => (
-        <RowActions
-          row={p.row}
-          canPay={canPay}
-          canArchive={canArchive}
-          canDelete={canDelete}
-          onPay={openPay}
-          onAct={openAction}
+        <RowActionsMenu
+          actions={rowActions(p.row, { canPay, canArchive, canDelete }, setPayFor, openAction)}
         />
       ),
     },
   ];
 
+  if (!canView) {
+    return <NoAccess message="You do not have permission to view invoices." />;
+  }
+
   return (
     <Box className="rise-in">
-      {/* Below 768px the sidebar is a drawer (mobile) — center the title + full-width button;
-          from 768px up switch to title-left / button-right. */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, mb: 2.5, '@media (min-width:768px)': { flexDirection: 'row', alignItems: 'flex-start' } }}>
-        <Box sx={{ flexGrow: 1, minWidth: 0, textAlign: 'center', '@media (min-width:768px)': { textAlign: 'left' } }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-            {VIEW_META[view].label} invoices
-          </Typography>
-          <Typography color="text.secondary" variant="subtitle2" sx={{ mt: 0.25 }}>
-            {rowCount} invoice{rowCount === 1 ? '' : 's'} · {VIEW_META[view].blurb}
-          </Typography>
-        </Box>
-        {/* Phones: full width, stacked. Tablet: normal width pinned right (the header is a
-            column there, so alignSelf is the horizontal axis). Desktop: the row handles it. */}
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 1.5,
-            flexShrink: 0,
-            width: { xs: '100%', sm: 'auto' },
-            alignSelf: { xs: 'stretch', sm: 'flex-end' },
-            '@media (min-width:768px)': { alignSelf: 'flex-start' },
-          }}
-        >
-          <Button
-            variant="outlined"
-            startIcon={<FileDownloadRounded />}
-            onClick={() => setExportOpen(true)}
-            sx={{ flexShrink: 0 }}
-          >
-            Export
-          </Button>
-          {canCreate && (
+      <PageHeader
+        title={`${VIEW_META[view].label} invoices`}
+        subtitle={`${rowCount} invoice${rowCount === 1 ? '' : 's'} · ${VIEW_META[view].blurb}`}
+        actions={
+          <>
             <Button
-              component={AppLink}
-              href="/invoices/new"
-              variant="contained"
-              startIcon={<AddRounded />}
-              sx={{ flexShrink: 0 }}
+              variant="outlined"
+              startIcon={<FileDownloadRounded />}
+              onClick={() => setExportOpen(true)}
             >
-              New invoice
+              Export
             </Button>
-          )}
-        </Box>
-      </Box>
+            {canCreate && (
+              <Button
+                variant="contained"
+                startIcon={<AddRounded />}
+                onClick={() => setCreateOpen(true)}
+              >
+                New invoice
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* Search + two fused filter dropdowns (type + view), same pattern as user management */}
       <Box sx={{ mb: 2 }}>
@@ -361,6 +294,12 @@ export default function InvoicesPage() {
 
       <InvoiceDetailsModal id={detailId} onClose={() => setDetailId(null)} />
 
+      <InvoiceFormDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSaved={() => void mutate()}
+      />
+
       <ExportInvoicesModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
@@ -369,54 +308,11 @@ export default function InvoicesPage() {
         search={search}
       />
 
-      {/* Record payment */}
-      <Modal
-        open={Boolean(payFor)}
+      <RecordPaymentModal
+        invoice={payFor}
         onClose={() => setPayFor(null)}
-        title={`Record payment for ${payFor?.number ?? ''}`}
-        icon={<PaymentsRounded />}
-        maxWidth="xs"
-        busy={saving}
-        actions={
-          <>
-            <Button onClick={() => setPayFor(null)} disabled={saving} variant="outlined" color="inherit">
-              Cancel
-            </Button>
-            <SubmitButton variant="contained" loading={saving} onClick={submitPayment} disabled={!pay.amount || Number(pay.amount) <= 0}>
-              Record
-            </SubmitButton>
-          </>
-        }
-      >
-        <Stack spacing={2}>
-          <Typography variant="body2" color="text.secondary">
-            Balance due: {payFor?.currency} {Number(payFor?.balanceDue ?? 0).toFixed(2)}
-          </Typography>
-          <TextField
-            label="Amount"
-            type="number"
-            value={pay.amount}
-            onChange={(e) => setPay((p) => ({ ...p, amount: e.target.value }))}
-            fullWidth
-            disabled={saving}
-            autoFocus
-          />
-          <TextField
-            select
-            label="Method"
-            value={pay.method}
-            onChange={(e) => setPay((p) => ({ ...p, method: e.target.value as PaymentMethod }))}
-            fullWidth
-            disabled={saving}
-          >
-            {Object.values(PaymentMethod).map((m) => (
-              <MenuItem key={m} value={m}>
-                {m}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
-      </Modal>
+        onRecorded={() => void mutate()}
+      />
 
       {/* Archive / delete, both require a reason */}
       <ConfirmDialog

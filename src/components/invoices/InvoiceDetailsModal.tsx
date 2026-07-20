@@ -72,8 +72,15 @@ export function InvoiceDetailsModal({ id, onClose }: { id: string | null; onClos
   // keepPreviousData:false so opening a different invoice never flashes the last one's data
   // (and a failed fetch shows the error state instead of stale data). useRetainedWhileClosing
   // keeps the current one on screen through the close animation instead of flashing the error.
-  const { data: liveInvoice, isLoading } = useApi<Invoice>(id ? `/api/invoices/${id}` : null, { keepPreviousData: false });
-  const { data: livePayments } = useApi<Payment[]>(id ? `/api/invoices/${id}/payments` : null, { keepPreviousData: false });
+  const { data: liveInvoice, isLoading } = useApi<Invoice>(id ? `/api/invoices/${id}` : null, {
+    keepPreviousData: false,
+    // Own loader inside the dialog; see UserDetailsModal.
+    globalLoading: false,
+  });
+  const { data: livePayments } = useApi<Payment[]>(id ? `/api/invoices/${id}/payments` : null, {
+    keepPreviousData: false,
+    globalLoading: false,
+  });
   const invoice = useRetainedWhileClosing(liveInvoice, Boolean(id));
   const payments = useRetainedWhileClosing(livePayments, Boolean(id));
 

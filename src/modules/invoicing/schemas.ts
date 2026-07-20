@@ -41,6 +41,45 @@ export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
   type: z.nativeEnum(InvoiceType).optional(),
 });
 
+/**
+ * What the New invoice dialog validates before it will submit.
+ *
+ * It covers the same ground as `createInvoiceSchema` but is shaped like the form rather than
+ * like the API body: flat `billToName` / `billToEmail` instead of a nested party, a percentage
+ * tax rate instead of a fraction. Sharing this file with the browser (nothing here imports
+ * `server-only`) is what stops the two sets of rules from drifting.
+ */
+export const invoiceFormSchema = z.object({
+  type: z.nativeEnum(InvoiceType, {
+    required_error: 'Pick an invoice type',
+    invalid_type_error: 'Pick an invoice type',
+  }),
+  billToName: z.string().trim().min(1, 'A customer name is required').max(160, 'That name is too long'),
+  // Optional, but a typo should still be caught rather than silently saved.
+  billToEmail: z.union([z.literal(''), z.string().trim().email('Enter a valid email address')]),
+  items: z
+    .array(
+      z.object({
+        description: z.string().trim().min(1, 'Describe this line'),
+        quantity: z
+          .number({ invalid_type_error: 'Enter a number' })
+          .positive('Quantity must be more than zero'),
+        unitPrice: z
+          .number({ invalid_type_error: 'Enter a number' })
+          .nonnegative('Price cannot be negative'),
+      }),
+    )
+    .min(1, 'Add at least one line item'),
+  taxRate: z
+    .number({ invalid_type_error: 'Enter a number' })
+    .nonnegative('Tax rate cannot be negative')
+    .max(100, 'Tax rate cannot be more than 100%')
+    .optional(),
+  notes: z.string().max(2000, 'That note is too long').optional(),
+});
+
+export type InvoiceFormInput = z.infer<typeof invoiceFormSchema>;
+
 /** Which slice of invoices to list. Default `active` hides archived + deleted; `all` shows
  *  everything the caller may see. */
 export const invoiceViewSchema = z.enum(['active', 'archived', 'deleted', 'all']);

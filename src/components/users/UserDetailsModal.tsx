@@ -14,7 +14,7 @@ import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { BrandLoader } from '@/components/ui/BrandLoader';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
-import { StatusChip, type Tone } from '@/components/ui/StatusChip';
+import { StatusChip, userStatusTone } from '@/components/ui/StatusChip';
 import { useSession } from '@/components/auth/SessionProvider';
 import { useApi } from '@/lib/api/useApi';
 import { useRetainedWhileClosing } from '@/lib/api/useRetained';
@@ -22,15 +22,8 @@ import { apiPatch } from '@/lib/api/client';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/countries';
+import { ROLE_LABEL } from '@/lib/format/labels';
 
-const ROLE_LABEL: Record<string, string> = {
-  superAdmin: 'Super Admin',
-  admin: 'Administrator',
-  accountant: 'Accountant / Manager',
-  sales: 'Sales',
-  readOnly: 'Read only',
-};
-const STATUS_TONE: Record<string, Tone> = { active: 'success', invited: 'warning', disabled: 'neutral' };
 
 interface UserDetail {
   _id: string;
@@ -74,7 +67,12 @@ export function UserDetailsModal({
   // keepPreviousData:false so a different user never briefly shows the last one's record;
   // useRetainedWhileClosing keeps this one on screen through the close animation instead of
   // flashing the error state.
-  const { data: liveUser, isLoading, mutate } = useApi<UserDetail>(id ? `/api/auth/users/${id}` : null, { keepPreviousData: false });
+  const { data: liveUser, isLoading, mutate } = useApi<UserDetail>(id ? `/api/auth/users/${id}` : null, {
+    keepPreviousData: false,
+    // This modal draws its own loader inside the dialog, so it must not also raise the
+    // app-wide overlay: that would be two loaders for one fetch.
+    globalLoading: false,
+  });
   const user = useRetainedWhileClosing(liveUser, Boolean(id));
 
   const [uploading, setUploading] = useState(false);
@@ -146,7 +144,7 @@ export function UserDetailsModal({
             <Box sx={{ minWidth: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Chip label={ROLE_LABEL[user.role] ?? user.role} color="primary" variant="outlined" size="small" sx={{ fontWeight: 700 }} />
-                <StatusChip label={user.status} tone={STATUS_TONE[user.status] ?? 'neutral'} />
+                <StatusChip label={user.status} tone={userStatusTone[user.status] ?? 'neutral'} />
                 {user.isProtected && <Chip label="Protected" size="small" variant="outlined" />}
               </Box>
               {user.jobTitle && (

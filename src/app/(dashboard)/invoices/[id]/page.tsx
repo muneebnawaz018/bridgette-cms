@@ -15,25 +15,22 @@ import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
-import { InvoiceType, PaymentMethod, TAX_POLICY } from '@/modules/invoicing/enums';
+import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import { calcInvoice } from '@/modules/invoicing/calc';
 import { useCan } from '@/components/auth/SessionProvider';
-import { SubmitButton } from '@/components/ui/SubmitButton';
-import { BrandLoader } from '@/components/ui/BrandLoader';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
+import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
 import { useApi } from '@/lib/api/useApi';
-import { apiPost, apiPatch } from '@/lib/api/client';
+import { apiPatch } from '@/lib/api/client';
+import { formatMoney } from '@/lib/format/money';
+import { paymentMethodLabel } from '@/lib/format/labels';
 
 interface Party {
   name?: string;
@@ -99,8 +96,8 @@ interface EditForm {
   dueDate: string;
 }
 
-const money = (n: number, cur: string) =>
-  `${cur} ${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Local alias for the shared formatter; the arguments read better in this order here. */
+const money = (n: number, cur: string) => formatMoney(cur, Number(n ?? 0));
 
 function toForm(inv: Invoice): EditForm {
   return {
@@ -134,12 +131,12 @@ export default function InvoiceDetailPage() {
   const [confirmSave, setConfirmSave] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Record-payment dialog
+  // The record-payment modal owns its own form and request.
   const [payOpen, setPayOpen] = useState(false);
-  const [pay, setPay] = useState({ amount: '', method: PaymentMethod.BankTransfer });
-  const [recording, setRecording] = useState(false);
 
-  if (isLoading && !invoice) return <BrandLoader overlay label="Loading invoice…" />;
+  // The app-wide overlay is already up (useApi drives it); rendering a second one here would
+  // sit inside the page and leave the sidebar and top bar uncovered.
+  if (isLoading && !invoice) return null;
   if (error || !invoice) return <Alert severity="error">This invoice could not be loaded.</Alert>;
 
   const locked = invoice.isArchived || invoice.isDeleted;
@@ -192,24 +189,6 @@ export default function InvoiceDetailPage() {
     }
   }
 
-  async function submitPayment() {
-    if (!invoice) return;
-    setRecording(true);
-    const res = await apiPost(`/api/invoices/${invoice._id}/payments`, {
-      amount: Number(pay.amount),
-      method: pay.method,
-    });
-    setRecording(false);
-    if (res.ok) {
-      enqueueSnackbar('Payment recorded', { variant: 'success' });
-      setPayOpen(false);
-      void mutate();
-      void mutatePayments();
-    } else {
-      enqueueSnackbar(res.error ?? 'Failed to record payment', { variant: 'error' });
-    }
-  }
-
   return (
     <Box className="rise-in">
       {/* Header */}
@@ -232,7 +211,7 @@ export default function InvoiceDetailPage() {
             </Button>
           )}
           {!form && canPay && !locked && invoice.state !== 'paid' && invoice.state !== 'draft' && (
-            <Button variant="contained" onClick={() => { setPay({ amount: String(invoice.balanceDue ?? ''), method: PaymentMethod.BankTransfer }); setPayOpen(true); }}>
+            <Button variant="contained" onClick={() => setPayOpen(true)}>
               Record payment
             </Button>
           )}
@@ -373,7 +352,7 @@ export default function InvoiceDetailPage() {
                   <Box key={p._id} sx={{ display: 'flex', alignItems: 'baseline', gap: 1, py: 1 }}>
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                       <Typography sx={{ fontWeight: 600 }} className="tnum">{money(p.amount, p.currency)}</Typography>
-                      <Typography variant="caption" color="text.secondary">{p.method} · {new Date(p.paidAt).toLocaleDateString()}</Typography>
+                      <Typography variant="caption" color="text.secondary">{paymentMethodLabel(p.method)} · {new Date(p.paidAt).toLocaleDateString()}</Typography>
                     </Box>
                   </Box>
                 ))}
@@ -394,25 +373,14 @@ export default function InvoiceDetailPage() {
         onClose={() => setConfirmSave(false)}
       />
 
-      {/* Record payment */}
-      <Dialog open={payOpen} onClose={() => setPayOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Record payment for {invoice.number}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">Balance due: {money(invoice.balanceDue, invoice.currency)}</Typography>
-            <TextField label="Amount" type="number" value={pay.amount} onChange={(e) => setPay((p) => ({ ...p, amount: e.target.value }))} fullWidth disabled={recording} />
-            <TextField select label="Method" value={pay.method} onChange={(e) => setPay((p) => ({ ...p, method: e.target.value as PaymentMethod }))} fullWidth disabled={recording}>
-              {Object.values(PaymentMethod).map((m) => (
-                <MenuItem key={m} value={m}>{m}</MenuItem>
-              ))}
-            </TextField>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPayOpen(false)} disabled={recording}>Cancel</Button>
-          <SubmitButton variant="contained" loading={recording} onClick={submitPayment} disabled={!pay.amount || Number(pay.amount) <= 0}>Record</SubmitButton>
-        </DialogActions>
-      </Dialog>
+      <RecordPaymentModal
+        invoice={payOpen ? invoice : null}
+        onClose={() => setPayOpen(false)}
+        onRecorded={() => {
+          void mutate();
+          void mutatePayments();
+        }}
+      />
     </Box>
   );
 }

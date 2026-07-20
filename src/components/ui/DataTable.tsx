@@ -3,15 +3,16 @@
 import dynamic from 'next/dynamic';
 import Box from '@mui/material/Box';
 import type { GridColDef, GridValidRowModel, GridPaginationModel } from '@mui/x-data-grid';
-import { BrandLoader } from '@/components/ui/BrandLoader';
+import { GlobalLoading } from '@/components/ui/GlobalLoading';
+import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/pagination';
 
-// Code-split the heavy DataGrid so list pages don't ship it in their initial bundle. The
-// chunk-loading fallback is the same full-screen overlay used for row fetches, so a table
-// never shows two different loaders back to back.
+// Code-split the heavy DataGrid so list pages don't ship it in their initial bundle. Waiting
+// on the chunk asks for the app-wide overlay rather than drawing one here, which would sit
+// inside the page and leave the sidebar and top bar uncovered.
 const DataGrid = dynamic(() => import('@mui/x-data-grid').then((m) => m.DataGrid), {
   ssr: false,
-  loading: () => <BrandLoader overlay />,
+  loading: () => <GlobalLoading />,
 });
 
 interface DataTableProps<T extends GridValidRowModel> {
@@ -41,12 +42,12 @@ export function DataTable<T extends GridValidRowModel>({
 }: DataTableProps<T>) {
   const server = Boolean(paginationModel && onPaginationModelChange);
 
+  // Rows loading asks for the one app-wide overlay. The grid's own indicator stays off: it
+  // drew a second, smaller spinner in the table's top-left while the overlay was already up.
+  useGlobalLoading(Boolean(loading));
+
   return (
     <Box sx={{ height, width: '100%' }}>
-      {/* One loader for the whole app: the branded full-screen overlay. The grid's own
-          indicator is deliberately not used — it rendered a second, smaller spinner inside
-          the table while this overlay was already up. */}
-      {loading && <BrandLoader overlay />}
       <DataGrid
         rows={rows as GridValidRowModel[]}
         columns={columns as GridColDef<GridValidRowModel>[]}

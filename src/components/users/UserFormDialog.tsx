@@ -1,32 +1,22 @@
 'use client';
 
-import {
-  memo,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
-import Box from '@mui/material/Box';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
-import Typography from '@mui/material/Typography';
 import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneField } from '@/components/ui/PhoneField';
+import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { Role } from '@/modules/auth/rbac';
 import { UserStatus } from '@/modules/auth/enums';
 import { createUserSchema, editUserFormSchema } from '@/modules/auth/schemas';
 import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countries';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
+import { ROLE_LABEL } from '@/lib/format/labels';
 
 /*
  * One dialog for creating and editing a team member. The two forms were ~90% identical, so a
@@ -60,13 +50,6 @@ export interface EditableUser {
   isProtected?: boolean;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  superAdmin: 'Super Admin',
-  admin: 'Administrator',
-  accountant: 'Accountant / Manager',
-  sales: 'Sales',
-  readOnly: 'Read only',
-};
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -84,7 +67,6 @@ interface FormValues {
 }
 
 type TextKey = 'name' | 'email' | 'jobTitle' | 'notes';
-type SelectKey = 'role' | 'status';
 
 const EMPTY: FormValues = {
   name: '',
@@ -118,98 +100,10 @@ function valuesFromUser(user: EditableUser): FormValues {
   };
 }
 
-/** Hoisted so they are not rebuilt, and re-serialized by emotion, on every render. */
-const SHRINK_LABEL = { shrink: true } as const;
-const DISPLAY_EMPTY = { displayEmpty: true } as const;
-const STATUS_OPTIONS = Object.values(UserStatus).map((s) => ({ value: s, label: cap(s) }));
-
-/** A labelled group of fields, so the form reads as a profile rather than a loose stack. */
-const FormSection = memo(function FormSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <Box>
-      <Typography
-        variant="overline"
-        sx={{
-          display: 'block',
-          color: 'text.secondary',
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          mb: 1,
-        }}
-      >
-        {title}
-      </Typography>
-      {children}
-    </Box>
-  );
-});
-
-/**
- * A text input that owns its value. It reports every change up through `onChange`, which
- * writes to a ref rather than to state, so the dialog around it does not re-render while
- * someone types. `defaultValue` is read once at mount; the dialog remounts these on open.
- */
-const TextInput = memo(function TextInput({
-  name,
-  label,
-  defaultValue,
-  error,
-  helperText,
-  disabled,
-  required,
-  placeholder,
-  type,
-  multiline,
-  minRows,
-  autoFocus,
-  onChange,
-  onBlur,
-}: {
-  name: TextKey;
-  label: string;
-  defaultValue: string;
-  error?: boolean;
-  helperText?: string;
-  disabled?: boolean;
-  required?: boolean;
-  placeholder?: string;
-  type?: string;
-  multiline?: boolean;
-  minRows?: number;
-  autoFocus?: boolean;
-  onChange: (key: TextKey, value: string) => void;
-  onBlur: (key: TextKey) => void;
-}) {
-  const [value, setValue] = useState(defaultValue);
-
-  return (
-    <TextField
-      label={label}
-      type={type}
-      value={value}
-      onChange={(e) => {
-        setValue(e.target.value);
-        onChange(name, e.target.value);
-      }}
-      onBlur={() => onBlur(name)}
-      error={error}
-      helperText={helperText}
-      fullWidth
-      required={required}
-      disabled={disabled}
-      placeholder={placeholder}
-      multiline={multiline}
-      minRows={minRows}
-      autoFocus={autoFocus}
-    />
-  );
-});
+const STATUS_OPTIONS: SelectOption[] = Object.values(UserStatus).map((s) => ({
+  value: s,
+  label: cap(s),
+}));
 
 /**
  * Same idea for the phone picker: the value lives here, not in the dialog. PhoneField itself
@@ -255,62 +149,6 @@ const PhoneInput = memo(function PhoneInput({
       disabled={disabled}
       required={required}
     />
-  );
-});
-
-/** Select counterpart. Options come in as a memoized array so the identity check holds. */
-const SelectInput = memo(function SelectInput({
-  name,
-  label,
-  value,
-  options,
-  placeholderLabel,
-  error,
-  helperText,
-  disabled,
-  required,
-  onChange,
-  onBlur,
-}: {
-  name: SelectKey;
-  label: string;
-  value: string;
-  options: readonly { value: string; label: string }[];
-  /** Shown as a disabled first entry when there is no value yet (create mode). */
-  placeholderLabel?: string;
-  error?: boolean;
-  helperText?: string;
-  disabled?: boolean;
-  required?: boolean;
-  onChange: (key: SelectKey, value: string) => void;
-  onBlur: (key: SelectKey) => void;
-}) {
-  return (
-    <TextField
-      select
-      label={label}
-      value={value}
-      onChange={(e) => onChange(name, e.target.value)}
-      onBlur={() => onBlur(name)}
-      error={error}
-      helperText={helperText}
-      fullWidth
-      required={required}
-      disabled={disabled}
-      InputLabelProps={SHRINK_LABEL}
-      SelectProps={DISPLAY_EMPTY}
-    >
-      {placeholderLabel && (
-        <MenuItem value="" disabled>
-          {placeholderLabel}
-        </MenuItem>
-      )}
-      {options.map((o) => (
-        <MenuItem key={o.value} value={o.value}>
-          {o.label}
-        </MenuItem>
-      ))}
-    </TextField>
   );
 });
 
@@ -399,8 +237,8 @@ export function UserFormDialog({
   // --- Handlers below never change identity. That is what lets a memoized input skip
   // rendering when a different field changes. ---
 
-  const setText = useCallback((key: TextKey, value: string) => {
-    valuesRef.current[key] = value;
+  const setText = useCallback((key: string, value: string) => {
+    valuesRef.current[key as TextKey] = value;
   }, []);
 
   const setPhone = useCallback((next: { iso2: string; national: string; e164: string }) => {
@@ -409,7 +247,7 @@ export function UserFormDialog({
     valuesRef.current.phone = next.e164;
   }, []);
 
-  const setSelect = useCallback((key: SelectKey, value: string) => {
+  const setSelect = useCallback((key: string, value: string) => {
     if (key === 'role') {
       valuesRef.current.role = value as Role;
       setRole(value as Role);
@@ -420,7 +258,7 @@ export function UserFormDialog({
   }, []);
 
   const blurField = useCallback(
-    (key: TextKey | SelectKey | 'phone') => {
+    (key: string) => {
       setTouched((t) => (t[key] ? t : { ...t, [key]: true }));
       setErrors(validate(valuesRef.current, isEditRef.current));
     },
@@ -494,7 +332,7 @@ export function UserFormDialog({
   // Administrator first, then Accountant. Admin is only offered to a Super Admin; the current
   // role is prepended in edit mode so the select is never empty.
   const roleOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [
+    const options: SelectOption[] = [
       ...(canCreateAdmin ? [{ value: Role.Admin, label: ROLE_LABEL.admin }] : []),
       { value: Role.Accountant, label: ROLE_LABEL.accountant },
     ];

@@ -31,13 +31,18 @@ function SetPasswordForm() {
     }
     setLoading(true);
     const res = await apiPost('/api/auth/verify', { email: form.email, code: form.code, password: form.password });
-    setLoading(false);
-    if (res.ok) {
-      enqueueSnackbar('Password set. You can sign in now.', { variant: 'success' });
-      router.push('/login');
-    } else {
+
+    if (!res.ok) {
+      setLoading(false);
       enqueueSnackbar(res.error ?? 'Verification failed', { variant: 'error' });
+      return;
     }
+
+    enqueueSnackbar('Password set. You can sign in now.', { variant: 'success' });
+    // Stays true so the global overlay covers the trip to the login page instead of leaving
+    // this form on screen looking idle. Unmounting on arrival releases it.
+    router.replace('/login');
+    window.setTimeout(() => setLoading(false), 10_000);
   }
 
   return (

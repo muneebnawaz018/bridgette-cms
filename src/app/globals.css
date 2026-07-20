@@ -65,9 +65,14 @@ body {
     opacity: 0;
     transform: translateY(8px);
   }
+  /* `transform: none`, not `translateY(0)`. The animation is `both`, so the element keeps
+     its final state forever, and any transform (even a zero one) makes that element the
+     containing block for `position: fixed` descendants. Page wrappers use this class, so a
+     zero translate here was quietly trapping full-screen overlays inside the content area,
+     leaving the sidebar and top bar uncovered. */
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 .rise-in {

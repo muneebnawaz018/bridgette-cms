@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppLink } from '@/components/ui/AppLink';
 import Stack from '@mui/material/Stack';
@@ -21,17 +21,34 @@ export default function LoginPage() {
   const set = (k: 'email' | 'password') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Warm the dashboard while the password is still being typed, so signing in doesn't wait
+  // on a cold route.
+  useEffect(() => {
+    router.prefetch('/dashboard');
+  }, [router]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     const res = await apiPost('/api/auth/login', form);
-    setLoading(false);
-    if (res.ok) {
-      enqueueSnackbar('Signed in', { variant: 'success' });
-      router.push('/dashboard');
-    } else {
+
+    if (!res.ok) {
+      setLoading(false);
       enqueueSnackbar(res.error ?? 'Login failed', { variant: 'error' });
+      return;
     }
+
+    enqueueSnackbar('Signed in', { variant: 'success' });
+    // `loading` deliberately stays true. It holds the global overlay open across the
+    // navigation; clearing it here left the login form sitting there looking idle while the
+    // dashboard loaded, which read as nothing having happened. This page unmounts on
+    // arrival, which releases the overlay. `replace` so Back doesn't return to a form the
+    // user is already past.
+    router.replace('/dashboard');
+
+    // Failsafe: if that navigation never lands, don't strand the user behind an overlay
+    // with no way out. A no-op once this page has unmounted.
+    window.setTimeout(() => setLoading(false), 10_000);
   }
 
   return (
@@ -57,8 +74,9 @@ export default function LoginPage() {
             autoComplete="current-password"
             disabled={loading}
           />
+          {/* Static label: the global overlay is what says a request is in flight. */}
           <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
-            {loading ? 'Signing in…' : 'Sign in'}
+            Sign in
           </SubmitButton>
           <MuiLink
             component={AppLink}

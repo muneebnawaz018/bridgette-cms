@@ -13,7 +13,6 @@ import Button from '@mui/material/Button';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
-import CircularProgress from '@mui/material/CircularProgress';
 import PersonRounded from '@mui/icons-material/PersonRounded';
 import LockResetRounded from '@mui/icons-material/LockResetRounded';
 import MailRounded from '@mui/icons-material/MailRounded';
@@ -32,14 +31,8 @@ import { apiPost } from '@/lib/api/client';
 import { ChangePasswordDialog } from '@/components/settings/ChangePasswordDialog';
 import { ChangeEmailDialog } from '@/components/settings/ChangeEmailDialog';
 import { SessionsCard } from '@/components/settings/SessionsCard';
+import { ROLE_LABEL } from '@/lib/format/labels';
 
-const ROLE_LABEL: Record<string, string> = {
-  superAdmin: 'Super Admin',
-  admin: 'Administrator',
-  accountant: 'Accountant / Manager',
-  sales: 'Sales',
-  readOnly: 'Read only',
-};
 
 /** Shared header height for the two top cards, so their first divider lines up exactly
  *  regardless of how tall each header's own content happens to be. Sized to the tallest
@@ -214,7 +207,6 @@ export default function SettingsPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
               <Typography sx={{ fontWeight: 600 }}>Rows per page</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {savingPref && <CircularProgress size={18} />}
                 <FormControl size="small" sx={{ minWidth: 96 }}>
                   <Select value={pageSize} disabled={savingPref} onChange={(e) => changeRowsPerPage(Number(e.target.value))}>
                     {PAGE_SIZE_OPTIONS.map((n) => (

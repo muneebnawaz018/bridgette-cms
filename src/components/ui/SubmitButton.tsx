@@ -1,11 +1,16 @@
 'use client';
 
 import Button, { type ButtonProps } from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
+import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
 
 /**
- * Button that shows a spinner and is disabled while `loading` — prevents double submits
- * and locks the action during in-flight requests.
+ * Button that locks itself while `loading`, so an action cannot be submitted twice.
+ *
+ * It deliberately shows no spinner of its own. The app has exactly one loader, the branded
+ * overlay at the root, and a second indicator inside the button meant every save flashed two
+ * at once. `loading` also holds that overlay open, which covers callers that do their own
+ * fetch instead of going through the api client (which raises it already; asking twice is
+ * harmless, the bus counts).
  */
 export function SubmitButton({
   loading,
@@ -13,12 +18,10 @@ export function SubmitButton({
   disabled,
   ...props
 }: ButtonProps & { loading: boolean }) {
+  useGlobalLoading(loading);
+
   return (
-    <Button
-      {...props}
-      disabled={loading || disabled}
-      startIcon={loading ? <CircularProgress size={18} color="inherit" /> : props.startIcon}
-    >
+    <Button {...props} disabled={loading || disabled}>
       {children}
     </Button>
   );

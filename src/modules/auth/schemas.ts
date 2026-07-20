@@ -94,8 +94,16 @@ export const changePasswordSchema = z.object({
 
 export const updateProfileSchema = z
   .object({
-    name: z.string().min(1, 'Name is required').optional(),
-    phone: z.string().trim().max(40).optional(),
+    name: z.string().trim().min(1, 'Name is required').max(120).optional(),
+    // The same E.164 rule user management enforces, so a number saved from the profile page
+    // and one saved by an admin are the same shape. Empty clears it: unlike a team member
+    // created by an admin, your own profile is not blocked on having a contact number.
+    phone: z
+      .union([
+        z.literal(''),
+        z.string().trim().regex(E164, 'Enter a valid number including the country code'),
+      ])
+      .optional(),
     avatarUrl: avatarUrl.optional(),
   })
   .refine((v) => v.name !== undefined || v.phone !== undefined || v.avatarUrl !== undefined, {

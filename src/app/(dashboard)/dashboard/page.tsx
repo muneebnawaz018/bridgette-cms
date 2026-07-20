@@ -25,6 +25,7 @@ import { useApi } from '@/lib/api/useApi';
 import { colors, gradients, redA } from '@/lib/colors';
 import { displayFont } from '@/lib/theme';
 import { formatMonth } from '@/lib/format/date';
+import { ROLE_LABEL } from '@/lib/format/labels';
 
 // Outline button styling for use on the dark gradient quick-actions panel.
 const onDarkButtonSx = {
@@ -47,13 +48,6 @@ interface Stats {
   byType: Record<string, TypeTotals>;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  superAdmin: 'Super Admin',
-  admin: 'Administrator',
-  accountant: 'Accountant / Manager',
-  sales: 'Sales',
-  readOnly: 'Read only',
-};
 
 // The 3 invoice types + their fixed currency (Tax/Cash = USD, PK = PKR).
 const TYPES = [

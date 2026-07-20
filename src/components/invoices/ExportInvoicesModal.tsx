@@ -15,7 +15,6 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Alert from '@mui/material/Alert';
-import CircularProgress from '@mui/material/CircularProgress';
 import FileDownloadRounded from '@mui/icons-material/FileDownloadRounded';
 import TableChartRounded from '@mui/icons-material/TableChartRounded';
 import GridOnRounded from '@mui/icons-material/GridOnRounded';
@@ -26,6 +25,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
 import { formatDate, today, daysAgo } from '@/lib/format/date';
+import { formatMoney } from '@/lib/format/money';
 import { colors, redA } from '@/lib/colors';
 import type { InvoiceView, ExportFormat } from '@/modules/invoicing/schemas';
 
@@ -98,6 +98,9 @@ export function ExportInvoicesModal({
   const shouldFetch = open && step >= 1 && !invalidRange;
   const { data, isLoading, isValidating } = useApi<{ items: PreviewRow[]; total: number }>(
     shouldFetch ? `/api/invoices?${countParams.toString()}` : null,
+    // The step says "Counting matching invoices…" in place of the total. Throwing the
+    // app-wide overlay up as well would blank the dialog every time a date is edited.
+    { globalLoading: false },
   );
 
   // useApi keeps previous data across key changes, so on a date edit `isLoading` stays false
@@ -293,10 +296,9 @@ export function ExportInvoicesModal({
           {invalidRange ? (
             <Alert severity="error">The start date must be on or before the end date.</Alert>
           ) : counting ? (
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ color: 'text.secondary' }}>
-              <CircularProgress size={18} />
-              <Typography variant="body2">Counting matching invoices…</Typography>
-            </Stack>
+            <Typography variant="body2" color="text.secondary">
+              Counting matching invoices…
+            </Typography>
           ) : (
             <Alert severity={total > 0 ? 'success' : 'warning'}>
               {total > 0
@@ -354,7 +356,7 @@ export function ExportInvoicesModal({
                       <StatusChip label={r.state} tone={invoiceStateTone[r.state] ?? 'neutral'} />
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {r.currency} {Number(r.grandTotal ?? 0).toFixed(2)}
+                      {formatMoney(r.currency, Number(r.grandTotal ?? 0))}
                     </TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(r.createdAt)}</TableCell>
                   </TableRow>

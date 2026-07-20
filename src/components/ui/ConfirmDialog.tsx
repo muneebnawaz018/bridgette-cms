@@ -8,7 +8,10 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 /**
  * Confirmation dialog for actions the user should not trigger by accident (sign out,
  * deactivate, archive, and other one-way changes). Built on the shared Modal, so it gets
- * the close (X), click-outside dismiss, and transition for free. Locks while `loading`.
+ * click-outside dismiss and the transition for free. Locks while `loading`.
+ *
+ * No close (X): the question already has two answers on screen, and a third way to dismiss
+ * in the corner is noise on a dialog this small.
  */
 export function ConfirmDialog({
   open,
@@ -44,6 +47,7 @@ export function ConfirmDialog({
       description={description}
       busy={loading}
       maxWidth="xs"
+      showClose={false}
       actions={
         <>
           <Button onClick={onClose} disabled={loading} variant="outlined" color="inherit">

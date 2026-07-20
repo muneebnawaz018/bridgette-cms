@@ -1,21 +1,22 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import EditRounded from '@mui/icons-material/EditRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import { useSnackbar } from 'notistack';
-import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Modal } from '@/components/ui/Modal';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
+import { PhoneField } from '@/components/ui/PhoneField';
+import { TextInput } from '@/components/form/fields';
+import { updateProfileSchema } from '@/modules/auth/schemas';
 import { apiPatch } from '@/lib/api/client';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
-
-const FORM_ID = 'edit-profile-form';
+import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countries';
+import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
 export interface ProfileDraft {
   name: string;
@@ -24,9 +25,13 @@ export interface ProfileDraft {
 }
 
 /**
- * Edit everything about your own profile that Settings does not already own: photo, name
- * and phone. Email and password live in Settings; role and status are admin-controlled.
- * The photo is staged locally and saved with the rest on Save.
+ * Edit everything about your own profile that Settings does not already own: photo, name and
+ * phone. Email and password live in Settings; role and status are admin-controlled. The photo
+ * is staged locally and saved with the rest on Save.
+ *
+ * The phone uses the same country picker and the same E.164 storage as user management. It
+ * used to be a plain text box here, which meant the number an admin saved for you and the one
+ * you saved yourself were stored in two different formats.
  */
 export function EditProfileDialog({
   open,
@@ -40,53 +45,76 @@ export function EditProfileDialog({
   onSaved: (next: { name: string; phone: string | null; avatarUrl: string | null }) => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
-  const [name, setName] = useState(initial.name);
-  const [phone, setPhone] = useState(initial.phone);
+
+  // Typed values live in a ref, so a keystroke never re-renders the dialog. See
+  // components/form/fields for why.
+  const nameRef = useRef(initial.name);
+  const [phone, setPhone] = useState(() => splitPhone(initial.phone));
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initial.avatarUrl);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [formKey, setFormKey] = useState(0);
 
   // Reopening should show the current record, not whatever was typed last time.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
-    setName(initial.name);
-    setPhone(initial.phone);
+    nameRef.current = initial.name;
+    setPhone(splitPhone(initial.phone));
     setAvatarUrl(initial.avatarUrl);
+    setErrors({});
+    setFormKey((k) => k + 1);
   }, [open, initial.name, initial.phone, initial.avatarUrl]);
+
+  const setName = useCallback((_field: string, value: string) => {
+    nameRef.current = value;
+  }, []);
+
+  const handlePhone = useCallback((next: { iso2: string; national: string }) => {
+    setPhone({ iso2: next.iso2, national: next.national });
+  }, []);
 
   async function pickAvatar(file: File) {
     setProcessing(true);
     try {
       setAvatarUrl(await fileToAvatarDataUrl(file, 256));
     } catch (err) {
-      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', { variant: 'error' });
+      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', {
+        variant: 'error',
+      });
     } finally {
       setProcessing(false);
     }
   }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) {
-      enqueueSnackbar('Name is required', { variant: 'warning' });
+  async function submit() {
+    // An empty number means "no phone", not an invalid one.
+    const e164 = phone.national ? joinPhone(phone.iso2, phone.national) : '';
+    const parsed = updateProfileSchema.safeParse({ name: nameRef.current.trim(), phone: e164 });
+    if (!parsed.success) {
+      setErrors(toFieldErrors(parsed.error));
+      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
       return;
     }
+
+    setErrors({});
     setSaving(true);
     // Only send the photo when it actually changed — no point re-uploading the same bytes.
     const avatarChanged = avatarUrl !== initial.avatarUrl;
-    const res = await apiPatch<{ name: string; phone: string | null; avatarUrl: string | null }>('/api/auth/me', {
-      name: name.trim(),
-      phone: phone.trim(),
-      ...(avatarChanged ? { avatarUrl } : {}),
-    });
+    const res = await apiPatch<{ name: string; phone: string | null; avatarUrl: string | null }>(
+      '/api/auth/me',
+      { ...parsed.data, ...(avatarChanged ? { avatarUrl } : {}) },
+    );
     setSaving(false);
-    if (res.ok && res.data) {
-      enqueueSnackbar('Profile updated', { variant: 'success' });
-      onSaved(res.data);
-      onClose();
-    } else {
+
+    if (!res.ok || !res.data) {
+      setErrors(serverFieldErrors(res.details));
       enqueueSnackbar(res.error ?? 'Could not update profile', { variant: 'error' });
+      return;
     }
+    enqueueSnackbar('Profile updated', { variant: 'success' });
+    onSaved(res.data);
+    onClose();
   }
 
   const busy = saving || processing;
@@ -94,7 +122,7 @@ export function EditProfileDialog({
   return (
     <Modal
       open={open}
-      onClose={busy ? () => {} : onClose}
+      onClose={onClose}
       title="Edit profile"
       icon={<EditRounded />}
       maxWidth="sm"
@@ -104,47 +132,63 @@ export function EditProfileDialog({
           <Button onClick={onClose} disabled={busy} variant="outlined" color="inherit">
             Cancel
           </Button>
-          <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving} disabled={processing}>
+          {/* No spinner here — the global overlay already covers the request. */}
+          <Button variant="contained" onClick={submit} disabled={busy}>
             Save
-          </SubmitButton>
+          </Button>
         </>
       }
     >
-      <form id={FORM_ID} onSubmit={submit}>
-        <Stack spacing={2.5} sx={{ mt: 0.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <AvatarPicker
-              src={avatarUrl}
-              fallback={(name || '?').charAt(0).toUpperCase()}
-              title={name || 'Photo'}
-              size={88}
-              canEdit
-              uploading={processing}
-              onPick={pickAvatar}
-            />
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                Click the photo to view it, or use the edit button to pick a new one.
-              </Typography>
-              {avatarUrl && (
-                <Button
-                  onClick={() => setAvatarUrl(null)}
-                  disabled={busy}
-                  size="small"
-                  color="inherit"
-                  startIcon={<DeleteOutlineRounded fontSize="small" />}
-                  sx={{ mt: 0.5 }}
-                >
-                  Remove photo
-                </Button>
-              )}
-            </Box>
+      <Stack key={formKey} spacing={2.5} sx={{ mt: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <AvatarPicker
+            src={avatarUrl}
+            fallback={(initial.name || '?').charAt(0).toUpperCase()}
+            title={initial.name || 'Photo'}
+            size={88}
+            canEdit
+            uploading={processing}
+            onPick={pickAvatar}
+          />
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Click the photo to view it, or use the edit button to pick a new one.
+            </Typography>
+            {avatarUrl && (
+              <Button
+                onClick={() => setAvatarUrl(null)}
+                disabled={busy}
+                size="small"
+                color="inherit"
+                startIcon={<DeleteOutlineRounded fontSize="small" />}
+                sx={{ mt: 0.5 }}
+              >
+                Remove photo
+              </Button>
+            )}
           </Box>
+        </Box>
 
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth disabled={busy} autoFocus />
-          <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth disabled={busy} placeholder="Optional" />
-        </Stack>
-      </form>
+        <TextInput
+          name="name"
+          label="Name"
+          defaultValue={initial.name}
+          error={Boolean(errors.name)}
+          helperText={errors.name}
+          required
+          autoFocus
+          disabled={busy}
+          onChange={setName}
+        />
+        <PhoneField
+          iso2={phone.iso2 || DEFAULT_COUNTRY_ISO2}
+          national={phone.national}
+          onChange={handlePhone}
+          error={Boolean(errors.phone)}
+          helperText={errors.phone ?? 'Optional.'}
+          disabled={busy}
+        />
+      </Stack>
     </Modal>
   );
 }

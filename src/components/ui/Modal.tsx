@@ -17,6 +17,11 @@ export type ModalWidth = 'xs' | 'sm' | 'md' | 'lg';
  * The one modal used across the app: rounded card, close (X) top-right, click-outside /
  * Esc to dismiss, and a grow-in transition. Keeps every dialog visually consistent.
  * Set `busy` to lock it (X, backdrop, and Esc) while a request is in flight.
+ *
+ * The X is desktop-only. On a phone it costs a whole line of header width, which pushes the
+ * title down and starts the dialog scrolling, and it is redundant there: every dialog carries
+ * an explicit Cancel or Close button, and the backdrop and Esc still dismiss. Pass
+ * `showClose={false}` to drop it everywhere, which is what a confirmation dialog wants.
  */
 export function Modal({
   open,
@@ -28,6 +33,7 @@ export function Modal({
   icon,
   maxWidth = 'sm',
   busy = false,
+  showClose = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -38,6 +44,8 @@ export function Modal({
   icon?: ReactNode;
   maxWidth?: ModalWidth;
   busy?: boolean;
+  /** Set false when the dialog's own buttons are the only way out it needs. */
+  showClose?: boolean;
 }) {
   const close = () => {
     if (!busy) onClose();
@@ -71,28 +79,35 @@ export function Modal({
     >
       {/* Sits on the same left/right inset as the header text and level with the title's
           first line. The old neutral grey read as disabled — a brand-tinted fill with the
-          gradient on hover makes it clearly the way out. */}
-      <IconButton
-        aria-label="Close"
-        onClick={close}
-        disabled={busy}
-        size="small"
-        sx={{
-          position: 'absolute',
-          top: { xs: 18, sm: 22 },
-          right: { xs: 16, sm: 24 },
-          zIndex: 2,
-          color: 'primary.main',
-          bgcolor: redA(0.1),
-          transition: 'background-color .16s ease, color .16s ease',
-          '&:hover': {
-            color: colors.brand.white,
-            backgroundImage: gradients.brand,
-          },
-        }}
-      >
-        <CloseRounded fontSize="small" />
-      </IconButton>
+          gradient on hover makes it clearly the way out.
+
+          Hidden below sm: on a phone the space it reserves squeezes the title into extra
+          lines and starts the dialog scrolling, and the buttons at the bottom already say
+          how to leave. */}
+      {showClose && (
+        <IconButton
+          aria-label="Close"
+          onClick={close}
+          disabled={busy}
+          size="small"
+          sx={{
+            display: { xs: 'none', sm: 'inline-flex' },
+            position: 'absolute',
+            top: 22,
+            right: 24,
+            zIndex: 2,
+            color: 'primary.main',
+            bgcolor: redA(0.1),
+            transition: 'background-color .16s ease, color .16s ease',
+            '&:hover': {
+              color: colors.brand.white,
+              backgroundImage: gradients.brand,
+            },
+          }}
+        >
+          <CloseRounded fontSize="small" />
+        </IconButton>
+      )}
 
       {(title || icon) && (
         <Box
@@ -103,8 +118,10 @@ export function Modal({
             px: { xs: 2, sm: 3 },
             pt: 2.75,
             pb: description ? 0.5 : 1.5,
-            // Room for the close button, which is pinned to the top-right corner.
-            pr: { xs: 5.5, sm: 6 },
+            // Room for the close button, which is pinned to the top-right corner. Only from
+            // sm up, since that is the only place it renders — reserving it on a phone was
+            // costing the title a chunk of its width for nothing.
+            ...(showClose ? { pr: { xs: 2, sm: 6 } } : null),
           }}
         >
           {icon && (

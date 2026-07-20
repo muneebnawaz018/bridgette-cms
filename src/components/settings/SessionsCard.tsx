@@ -10,7 +10,6 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import CircularProgress from '@mui/material/CircularProgress';
 import DevicesRounded from '@mui/icons-material/DevicesRounded';
 import LogoutRounded from '@mui/icons-material/LogoutRounded';
 import HistoryRounded from '@mui/icons-material/HistoryRounded';
@@ -85,7 +84,7 @@ function SessionRow({
         <Tooltip title="Sign out this device">
           <span>
             <IconButton size="small" onClick={() => onRevoke(s.id)} disabled={revoking}>
-              {revoking ? <CircularProgress size={18} /> : <LogoutRounded fontSize="small" />}
+              <LogoutRounded fontSize="small" />
             </IconButton>
           </span>
         </Tooltip>
@@ -97,7 +96,10 @@ function SessionRow({
 /** Lists active sign-ins (revoke any one, or all others) plus a short signed-out history. */
 export function SessionsCard() {
   const { enqueueSnackbar } = useSnackbar();
-  const { data, isLoading, mutate } = useApi<{ sessions: ActiveSession[] }>('/api/auth/sessions');
+  const { data, isLoading, mutate } = useApi<{ sessions: ActiveSession[] }>('/api/auth/sessions', {
+    // The card shows its own inline loader in place of the list.
+    globalLoading: false,
+  });
   const [revoking, setRevoking] = useState<string | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
 
