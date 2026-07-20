@@ -17,10 +17,6 @@ export const ROLE_LABEL: Record<string, string> = {
   readOnly: 'Read only',
 };
 
-/** Falls back to the raw value so an unknown role shows something rather than nothing. */
-export const roleLabel = (role: string | undefined): string =>
-  (role && ROLE_LABEL[role]) || role || '—';
-
 /** Payment methods, which are otherwise shown as raw camelCase enum values. */
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   [PaymentMethod.Cash]: 'Cash',

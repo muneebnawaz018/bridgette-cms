@@ -47,7 +47,7 @@ export async function createUser(
     jobTitle?: string;
     notes?: string;
   },
-): Promise<{ userId: string; emailSent: boolean }> {
+): Promise<{ userId: string; emailSent: boolean; otpTtlMinutes: number }> {
   await connectDb();
   // The Super Admin is a single seeded fixture — it can never be handed out.
   if (input.role === Role.SuperAdmin) throw new Error('There can only be one Super Admin');
@@ -97,7 +97,9 @@ export async function createUser(
     });
   }
 
-  return { userId: String(user._id), emailSent };
+  // The lifetime travels with the response so the toast can state it exactly. Hardcoding
+  // "15 minutes" in the dialog would quietly start lying the day OTP_TTL_MIN changes.
+  return { userId: String(user._id), emailSent, otpTtlMinutes: OTP_TTL_MIN };
 }
 
 /** Verify email OTP and set the initial password → account becomes active. */

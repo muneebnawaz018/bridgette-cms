@@ -310,7 +310,7 @@ export function UserFormDialog({
       return;
     }
 
-    const res = await apiPost<{ emailSent?: boolean }>(
+    const res = await apiPost<{ emailSent?: boolean; otpTtlMinutes?: number }>(
       '/api/auth/users',
       buildPayload(values, false),
     );
@@ -319,11 +319,17 @@ export function UserFormDialog({
 
     // The account exists either way; only the invite may have failed. Say which happened
     // rather than reporting a plain success the admin would wrongly trust.
+    //
+    // On success, name the expiry. The code is short-lived and the admin is the one who has
+    // to chase the invitee, so "sent" alone leaves out the part that decides whether they
+    // need to resend. The window comes from the server so it stays true if OTP_TTL_MIN moves.
+    const failed = res.data?.emailSent === false;
+    const ttl = res.data?.otpTtlMinutes;
     enqueueSnackbar(
-      res.data?.emailSent === false
+      failed
         ? 'User created, but the invite email could not be sent'
-        : 'User created. Invite email sent.',
-      { variant: res.data?.emailSent === false ? 'warning' : 'success' },
+        : `User created. Verification code sent${ttl ? `, expires in ${ttl} minutes` : ''}.`,
+      { variant: failed ? 'warning' : 'success' },
     );
     close();
     onSaved();

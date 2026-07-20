@@ -115,5 +115,4 @@ export const gradients = {
 
 /** Primary brand color — used for MUI primary, themeColor, accents. */
 export const BRAND_RED = colors.brand.red;
-export const BRAND_BLACK = colors.brand.black;
 export const BRAND_WHITE = colors.brand.white;

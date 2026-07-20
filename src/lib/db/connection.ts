@@ -8,9 +8,9 @@ import mongoose from 'mongoose';
  * connection AND the in-flight promise on `globalThis` so a single pooled connection is
  * shared across reloads and invocations.
  *
- * Note on closing: do NOT close the connection per request in the app — the pool is meant
- * to stay warm and shared. Closing belongs only in one-off scripts/tests (use
- * `disconnectDb`). The seed script disconnects when it finishes.
+ * Note on closing: do NOT close the connection per request in the app. The pool is meant to
+ * stay warm and shared. Closing belongs only in one-off scripts, which call
+ * `mongoose.disconnect()` directly, as the seed script does when it finishes.
  */
 
 interface MongooseCache {
@@ -104,11 +104,3 @@ export async function connectDb(): Promise<typeof mongoose> {
   return cache.conn;
 }
 
-/** Close the connection. Use only in scripts/tests — never per request in the app. */
-export async function disconnectDb(): Promise<void> {
-  if (cache.conn) {
-    await cache.conn.disconnect();
-    cache.conn = null;
-    cache.promise = null;
-  }
-}

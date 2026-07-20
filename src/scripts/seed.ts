@@ -28,6 +28,9 @@ async function main() {
   const email = process.env.SUPER_ADMIN_EMAIL?.toLowerCase().trim();
   const password = process.env.SUPER_ADMIN_PASSWORD;
   const name = process.env.SUPER_ADMIN_NAME ?? 'Super Admin';
+  // Optional: left undefined the phone is simply not written, so an existing number is not
+  // wiped by running the seed without the variable set.
+  const phone = process.env.SUPER_ADMIN_PHONE?.trim() || undefined;
 
   if (!uri) throw new Error('MONGODB_URI is not set');
   if (!email || !password) {
@@ -43,6 +46,7 @@ async function main() {
     const created = await User.create({
       name,
       email,
+      ...(phone ? { phone } : null),
       role: Role.SuperAdmin,
       status: UserStatus.Active,
       isSuperAdmin: true,
@@ -67,6 +71,7 @@ async function main() {
   existing.set({
     name,
     email,
+    ...(phone ? { phone } : null),
     passwordHash,
     status: UserStatus.Active,
     emailVerified: true,
@@ -82,6 +87,7 @@ async function main() {
 
   console.log(`Super Admin updated: ${after!.email}${emailChanged ? ' (email changed)' : ''}`);
   console.log(`  status=${after!.status} verified=${after!.emailVerified} mustSetPassword=${after!.mustSetPassword}`);
+  console.log(`  phone=${after!.phone ?? '(not set)'}`);
   console.log(`  password check: ${matches ? 'PASS — stored hash matches the env password' : 'FAIL'}`);
   console.log(`  total users: ${await User.countDocuments({})}`);
 
