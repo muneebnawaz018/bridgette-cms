@@ -44,7 +44,16 @@ export async function middleware(req: NextRequest) {
       });
       if (!check.ok) throw new Error('Session revoked');
 
-      const newAccess = await signAccessToken({ sub: p.sub, role: p.role, email: p.email });
+      // Mint with the role the probe just read from the database, NOT the one baked into the
+      // refresh token at sign-in. Those differ the moment someone is demoted, and minting
+      // from the token kept handing back the old role every hour until the refresh expired,
+      // so a demotion took up to seven days to bite. The token's own role claim is now only
+      // a fallback for the case where the probe somehow answers without one.
+      const { role: liveRole } = (await check.json().catch(() => ({}))) as { role?: string };
+      const role = (liveRole as typeof p.role) ?? p.role;
+
+      // Carry the device-session id across, so the replacement access token stays revocable.
+      const newAccess = await signAccessToken({ sub: p.sub, role, email: p.email, jti: p.jti });
       const res = NextResponse.next();
       res.cookies.set(ACCESS_COOKIE, newAccess, {
         httpOnly: true,

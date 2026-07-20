@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { logger } from '@/lib/logger/logger';
+import { RateLimitedError } from '@/lib/security/rateLimit';
+import { CaptchaRequiredError } from '@/lib/security/turnstile';
 
 export function ok<T>(data: T, status = 200): NextResponse {
   return NextResponse.json({ ok: true, data }, { status });
@@ -14,6 +16,15 @@ export function fail(message: string, status = 400, details?: unknown): NextResp
 function errorResponse(err: unknown): NextResponse {
   if (err instanceof ZodError) {
     return fail('Validation failed', 422, err.flatten());
+  }
+  if (err instanceof RateLimitedError) {
+    const res = fail(err.message, 429);
+    // Tell well-behaved clients when to come back instead of making them guess.
+    res.headers.set('Retry-After', String(err.retryAfter));
+    return res;
+  }
+  if (err instanceof CaptchaRequiredError) {
+    return fail(err.message, 403, { captchaRequired: true });
   }
   const message = err instanceof Error ? err.message : 'Unexpected error';
   if (message === 'Unauthorized') return fail(message, 401);

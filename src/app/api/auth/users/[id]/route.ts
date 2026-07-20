@@ -8,6 +8,7 @@ import {
   requirePermission,
   Permission,
 } from '@/modules/auth';
+import { requireWrite } from '@/lib/security/guard';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -20,7 +21,7 @@ export const GET = handle<Ctx>(async (_req, { params }) => {
 
 // PATCH /api/auth/users/:id — update profile/role/status.
 export const PATCH = handle<Ctx>(async (req, { params }) => {
-  const actor = await requirePermission(Permission.UserManage);
+  const actor = await requireWrite(Permission.UserManage);
   assertBodySize(req); // avatar payloads make this the one route that can carry real weight
   const { id } = await params;
   const body = updateUserSchema.parse(await req.json());
@@ -29,7 +30,7 @@ export const PATCH = handle<Ctx>(async (req, { params }) => {
 
 // DELETE /api/auth/users/:id — soft delete (deactivate). Never hard-deletes.
 export const DELETE = handle<Ctx>(async (_req, { params }) => {
-  const actor = await requirePermission(Permission.UserManage);
+  const actor = await requireWrite(Permission.UserManage);
   const { id } = await params;
   await deactivateUser(actor, id);
   return ok({ deactivated: true });

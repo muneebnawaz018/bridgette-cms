@@ -15,6 +15,8 @@ const avatarUrl = z
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  /** Turnstile response, only demanded once an account has failed repeatedly. */
+  turnstileToken: z.string().max(2048).optional(),
 });
 
 /** Optional free-text profile fields, shared by create + update. Trimmed and length-capped. */

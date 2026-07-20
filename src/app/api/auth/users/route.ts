@@ -5,9 +5,10 @@ import {
   createUserSchema,
   listUsersSchema,
   requirePermission,
-  requireSession,
   Permission,
 } from '@/modules/auth';
+import { requireSessionWrite } from '@/lib/security/guard';
+import { assertBodySize } from '@/lib/api/bodyLimit';
 
 // GET /api/auth/users — paginated, searchable list (requires UserView).
 export const GET = handle(async (req) => {
@@ -20,7 +21,8 @@ export const GET = handle(async (req) => {
 
 // POST /api/auth/users — create a user (RBAC enforced in createUser; emails OTP).
 export const POST = handle(async (req) => {
-  const actor = await requireSession();
+  assertBodySize(req);
+  const actor = await requireSessionWrite();
   const body = createUserSchema.parse(await req.json());
   const result = await createUser(actor, body);
   return ok(result, 201);

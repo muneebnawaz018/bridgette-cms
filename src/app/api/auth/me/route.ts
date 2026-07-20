@@ -8,6 +8,7 @@ import {
 } from '@/modules/auth';
 import { connectDb } from '@/lib/db/connection';
 import { assertBodySize } from '@/lib/api/bodyLimit';
+import { requireSessionWrite } from '@/lib/security/guard';
 
 // Current session + full profile + permission list (for FE gating and the profile page).
 export const GET = handle(async () => {
@@ -42,7 +43,7 @@ export const GET = handle(async () => {
 
 // PATCH /api/auth/me — update your own profile (name / phone only).
 export const PATCH = handle(async (req) => {
-  const actor = await requireSession();
+  const actor = await requireSessionWrite();
   assertBodySize(req); // avatar payloads make this the one route that can carry real weight
   const body = updateProfileSchema.parse(await req.json());
   const updated = await updateOwnProfile(actor, body);

@@ -1,6 +1,8 @@
 import { handle, ok } from '@/lib/api/respond';
 import { requirePermission, Permission } from '@/modules/auth';
 import { createInvoice, listInvoices, createInvoiceSchema, listInvoiceSchema } from '@/modules/invoicing';
+import { requireWrite } from '@/lib/security/guard';
+import { assertBodySize } from '@/lib/api/bodyLimit';
 
 // GET /api/invoices — paginated, role-scoped list.
 export const GET = handle(async (req) => {
@@ -13,7 +15,8 @@ export const GET = handle(async (req) => {
 
 // POST /api/invoices — create.
 export const POST = handle(async (req) => {
-  const actor = await requirePermission(Permission.InvoiceCreate);
+  assertBodySize(req);
+  const actor = await requireWrite(Permission.InvoiceCreate);
   const body = createInvoiceSchema.parse(await req.json());
   const invoice = await createInvoice(actor, body);
   return ok(invoice, 201);

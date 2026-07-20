@@ -19,6 +19,7 @@ export {
   updateOwnProfile,
   requestEmailChange,
   confirmEmailChange,
+  failedAttemptsFor,
 } from './services/auth.service';
 export {
   listSessions,

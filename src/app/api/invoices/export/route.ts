@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { handle } from '@/lib/api/respond';
-import { requirePermission, Permission } from '@/modules/auth';
+import { Permission } from '@/modules/auth';
+import { requireLimited } from '@/lib/security/guard';
+import { LIMITS } from '@/lib/security/rateLimit';
 import { exportInvoices, exportInvoiceSchema, type ExportFormat } from '@/modules/invoicing';
 import { toCsv } from '@/lib/export/csv';
 import { buildXlsx, type XlsxValue } from '@/lib/export/xlsx';
@@ -38,7 +40,9 @@ function stamp(): string {
 
 // GET /api/invoices/export — the current filter set as a downloadable file.
 export const GET = handle(async (req) => {
-  const actor = await requirePermission(Permission.InvoiceView);
+  // The heaviest authenticated call in the app: it scans and serialises up to 5000
+  // invoices per request, so it gets its own budget rather than the shared write limit.
+  const actor = await requireLimited(Permission.InvoiceView, 'export', LIMITS.exportPerUser);
   const params = Object.fromEntries(new URL(req.url).searchParams);
   const query = exportInvoiceSchema.parse(params);
 

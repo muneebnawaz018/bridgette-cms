@@ -22,23 +22,69 @@ function isValidRole(role: unknown): role is Role {
 }
 
 /**
- * Current session. Prefers the short-lived access token; if it's missing/expired, falls
- * back to the refresh token (verify + load the user) so a valid 7-day session isn't
- * dropped just because the access token expired. Cookies get rotated separately by the
- * client SessionRefresher / the /api/auth/refresh route.
+ * The account as it stands right now, read from the database.
+ *
+ * A JWT is a photograph, not a live feed: every claim inside it froze at the moment it was
+ * signed. Authorising off the token's `role` claim meant a demotion changed nothing until
+ * that token expired, and a disabled account kept working for exactly as long. So the token
+ * is only ever asked to prove identity, which its signature does, and every authorisation
+ * answer is read from here instead.
+ *
+ * Returns null when the account is gone, disabled, or carries a role the enum no longer
+ * knows — all three end the session on the very next request.
+ */
+async function liveAccount(userId: string): Promise<SessionUser | null> {
+  const user = await User.findById(userId).select('role status email').lean<{
+    _id: unknown;
+    role?: string;
+    status?: string;
+    email?: string;
+  }>();
+  if (!user || user.status !== UserStatus.Active) return null;
+  if (!isValidRole(user.role)) return null;
+  return { userId: String(user._id), role: user.role, email: user.email ?? '' };
+}
+
+/**
+ * Is this device's session still active? Signing out one device, all others, or everywhere
+ * revokes the refresh token row, and an admin disabling someone does the same. The JWT stays
+ * cryptographically valid through all of that, so the row is the only thing that knows.
+ */
+async function deviceSessionIsLive(jti: string): Promise<boolean> {
+  const stored = await RefreshToken.findOne({ jti, revokedAt: null }).select('_id').lean();
+  return Boolean(stored);
+}
+
+/**
+ * Current session: identity from the signed cookie, role and status from the database.
+ *
+ * Prefers the access token; if it's missing or expired, falls back to the refresh token so a
+ * valid 7-day session isn't dropped just because the access token aged out. Either way both
+ * database checks run, so a role change, a disable, and a remote sign-out all take effect on
+ * the next request rather than whenever a token happens to expire.
+ *
+ * Wrapped in react's cache(), so the two lookups happen once per request no matter how many
+ * layouts, pages and route handlers ask for the session. They're independent, so they run
+ * concurrently and cost one round trip, not two.
  */
 export const getSession = cache(async (): Promise<SessionUser | null> => {
   const access = await readAccessToken();
   if (access) {
     try {
       const payload = await verifyAccessToken(access);
-      // Only trust the token's role if it's a known role; otherwise fall through to the
-      // refresh path, which reloads the authoritative role from the database.
-      if (isValidRole(payload.role)) {
-        return { userId: payload.sub, role: payload.role, email: payload.email };
+      // Access tokens minted before they carried a jti can't be matched to a device session,
+      // so they fall through to the refresh path below, which can do that check. Existing
+      // sessions heal themselves the next time a token is issued.
+      if (payload.jti) {
+        await connectDb();
+        const [account, deviceLive] = await Promise.all([
+          liveAccount(payload.sub),
+          deviceSessionIsLive(payload.jti),
+        ]);
+        return deviceLive ? account : null;
       }
     } catch {
-      /* expired/invalid — try refresh below */
+      /* expired/invalid signature, or the database is unreachable — try refresh below */
     }
   }
 
@@ -47,20 +93,11 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
     try {
       const payload = await verifyRefreshToken(refresh);
       await connectDb();
-      // Enforce revocation: a revoked refresh token (sign out others/everywhere/admin) is
-      // no longer a valid session, even though its JWT is still cryptographically valid.
-      const stored = await RefreshToken.findOne({ jti: payload.jti, revokedAt: null }).select('_id').lean();
-      if (!stored) return null;
-
-      const user = await User.findById(payload.sub).lean<{
-        _id: unknown;
-        role: Role;
-        email: string;
-        status: string;
-      }>();
-      if (user && user.status === UserStatus.Active && isValidRole(user.role)) {
-        return { userId: String(user._id), role: user.role, email: user.email };
-      }
+      const [account, deviceLive] = await Promise.all([
+        liveAccount(payload.sub),
+        deviceSessionIsLive(payload.jti),
+      ]);
+      return deviceLive ? account : null;
     } catch {
       /* invalid/expired refresh */
     }

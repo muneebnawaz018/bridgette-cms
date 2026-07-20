@@ -1,10 +1,11 @@
 import { handle, ok } from '@/lib/api/respond';
 import {
-  requireSession,
   revokeOtherSessions,
   revokeAllSessions,
   revokeSessionsSchema,
 } from '@/modules/auth';
+import { requireSessionWrite } from '@/lib/security/guard';
+import { assertBodySize } from '@/lib/api/bodyLimit';
 
 /**
  * POST /api/auth/sessions/revoke — sign out other devices.
@@ -12,7 +13,8 @@ import {
  * - scope "all": revoke everything including this device (forces re-login).
  */
 export const POST = handle(async (req) => {
-  const actor = await requireSession();
+  assertBodySize(req);
+  const actor = await requireSessionWrite();
   const { scope } = revokeSessionsSchema.parse(await req.json());
 
   if (scope === 'all') {

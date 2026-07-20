@@ -25,6 +25,11 @@ const userSchema = new Schema(
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     lastLoginAt: { type: Date, default: null },
+
+    // Brute-force state. Counted per account, so an attacker spreading attempts across many
+    // IPs still trips the lock. Both reset on a successful sign-in.
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );

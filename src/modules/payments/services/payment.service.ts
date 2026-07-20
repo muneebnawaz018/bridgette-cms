@@ -49,6 +49,10 @@ export async function recordPayment(
 
   const invoice = await Invoice.findById(invoiceId);
   if (!invoice) throw new Error('Invoice not found');
+  // listPayments already applies this; recording one did not, so an invoice the caller
+  // cannot read could still have money booked against it.
+  if (!canViewInvoice(actor, invoice)) throw new Error('Forbidden: invoice not visible');
+  if (invoice.isDeleted) throw new Error('Cannot record payment on a deleted invoice');
   if (invoice.isArchived) throw new Error('Cannot record payment on an archived invoice');
 
   // Block overpayment unless explicitly allowed.

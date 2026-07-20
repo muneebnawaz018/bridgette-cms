@@ -10,6 +10,7 @@ import { useSnackbar } from 'notistack';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { PasswordField } from '@/components/form/PasswordField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { TurnstileWidget } from '@/components/auth/TurnstileWidget';
 import { apiPost } from '@/lib/api/client';
 
 export default function LoginPage() {
@@ -17,6 +18,10 @@ export default function LoginPage() {
   const { enqueueSnackbar } = useSnackbar();
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  // The challenge only appears once the server says this account has failed too often, so
+  // someone signing in normally never meets it.
+  const [captchaNeeded, setCaptchaNeeded] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const set = (k: 'email' | 'password') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -30,10 +35,19 @@ export default function LoginPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await apiPost('/api/auth/login', form);
+    const res = await apiPost('/api/auth/login', {
+      ...form,
+      ...(captchaToken ? { turnstileToken: captchaToken } : {}),
+    });
 
     if (!res.ok) {
       setLoading(false);
+      // The server decides when a challenge is required; the form just obeys.
+      if ((res.details as { captchaRequired?: boolean } | undefined)?.captchaRequired) {
+        setCaptchaNeeded(true);
+      }
+      // A token is single-use, so clear it whatever went wrong.
+      setCaptchaToken(null);
       enqueueSnackbar(res.error ?? 'Login failed', { variant: 'error' });
       return;
     }
@@ -74,6 +88,7 @@ export default function LoginPage() {
             autoComplete="current-password"
             disabled={loading}
           />
+          {captchaNeeded && <TurnstileWidget onToken={setCaptchaToken} />}
           {/* Static label: the global overlay is what says a request is in flight. */}
           <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
             Sign in

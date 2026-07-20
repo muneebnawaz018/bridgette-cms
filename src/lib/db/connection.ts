@@ -39,6 +39,50 @@ const CONNECT_OPTIONS: mongoose.ConnectOptions = {
   socketTimeoutMS: 45_000,
 };
 
+/**
+ * Server-side cap on how long any single query may run.
+ *
+ * Without it, one pathological query (an unindexed scan over a large collection, a
+ * regex that degenerates) holds a connection from a pool of 10 for as long as Mongo is
+ * willing to work on it. A handful of those and every other request queues behind them,
+ * which turns one slow query into a site-wide outage. `maxTimeMS` makes the server abort
+ * it instead, so the connection comes back.
+ *
+ * 10s is far above any query this app makes on purpose and far below anything a user
+ * would wait out.
+ */
+const QUERY_TIMEOUT_MS = Number(process.env.MONGO_QUERY_TIMEOUT_MS ?? 10_000);
+
+// Registered before any model compiles, so it applies to every schema in the app. Guarded
+// by a module-level flag because Next's hot reload re-runs this file.
+declare global {
+  var _mongoTimeoutPluginInstalled: boolean | undefined;
+}
+if (!globalThis._mongoTimeoutPluginInstalled) {
+  globalThis._mongoTimeoutPluginInstalled = true;
+
+  mongoose.plugin((schema: mongoose.Schema) => {
+    // Query middleware: find/count/update/delete all expose maxTimeMS().
+    schema.pre(
+      /^(find|count|distinct|update|delete|replace|estimatedDocumentCount)/,
+      function (this: mongoose.Query<unknown, unknown>, next: (err?: Error) => void) {
+        if (this.getOptions().maxTimeMS === undefined) this.maxTimeMS(QUERY_TIMEOUT_MS);
+        next();
+      },
+    );
+
+    // Aggregations take it as a pipeline option rather than a query method.
+    schema.pre(
+      'aggregate',
+      function (this: mongoose.Aggregate<unknown>, next: (err?: Error) => void) {
+        const options = this.options ?? {};
+        if (options.maxTimeMS === undefined) this.option({ maxTimeMS: QUERY_TIMEOUT_MS });
+        next();
+      },
+    );
+  });
+}
+
 export async function connectDb(): Promise<typeof mongoose> {
   if (cache.conn) return cache.conn;
 

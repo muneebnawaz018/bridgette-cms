@@ -1,6 +1,7 @@
 import 'server-only';
 import type { PipelineStage } from 'mongoose';
 import { connectDb } from '@/lib/db/connection';
+import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
 import { Invoice, type InvoiceDoc } from '../models/invoice.model';
@@ -89,10 +90,6 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
 }
 
 /** Regex-escape user input — otherwise a search for `a+b` throws, and `.*` scans everything. */
-function escapeRegex(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /**
  * Shared filter for the list and the export, so what a user previews is exactly what they
  * download. Dates are whole calendar days in UTC: `from` starts at 00:00:00.000Z and `to`
@@ -261,6 +258,10 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   await connectDb();
   const doc = await Invoice.findById(id);
   if (!doc) throw new Error('Invoice not found');
+  // Same visibility rule the read path applies. Without it, holding the permission plus an
+  // id was enough to edit an invoice the caller is not allowed to so much as open.
+  if (!canViewInvoice(actor, doc)) throw new Error('Forbidden: invoice not visible');
+  if (doc.isDeleted) throw new Error('Deleted invoices cannot be edited');
   if (doc.isArchived) throw new Error('Archived invoices cannot be edited');
 
   const type = input.type ?? doc.type;
@@ -324,7 +325,9 @@ export async function archiveInvoice(actor: SessionUser, id: string, reason: str
   await connectDb();
   const doc = await Invoice.findById(id);
   if (!doc) throw new Error('Invoice not found');
+  if (!canViewInvoice(actor, doc)) throw new Error('Forbidden: invoice not visible');
   if (doc.isDeleted) throw new Error('Deleted invoices cannot be archived');
+  if (doc.isArchived) throw new Error('That invoice is already archived');
   doc.isArchived = true;
   doc.archivedBy = actor.userId as unknown as InvoiceDoc['archivedBy'];
   doc.archivedAt = new Date();
@@ -342,6 +345,10 @@ export async function deleteInvoice(actor: SessionUser, id: string, reason: stri
   await connectDb();
   const doc = await Invoice.findById(id);
   if (!doc) throw new Error('Invoice not found');
+  if (!canViewInvoice(actor, doc)) throw new Error('Forbidden: invoice not visible');
+  // Deleting twice would overwrite who deleted it, when, and why — the audit trail this
+  // soft delete exists to preserve.
+  if (doc.isDeleted) throw new Error('That invoice is already deleted');
   doc.isDeleted = true;
   doc.deletedBy = actor.userId as unknown as InvoiceDoc['deletedBy'];
   doc.deletedAt = new Date();

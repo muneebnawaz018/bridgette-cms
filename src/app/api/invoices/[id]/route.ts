@@ -7,6 +7,8 @@ import {
   updateInvoiceSchema,
   deleteInvoiceSchema,
 } from '@/modules/invoicing';
+import { requireWrite } from '@/lib/security/guard';
+import { assertBodySize } from '@/lib/api/bodyLimit';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -20,7 +22,8 @@ export const GET = handle<Ctx>(async (_req, { params }) => {
 
 // PATCH /api/invoices/:id
 export const PATCH = handle<Ctx>(async (req, { params }) => {
-  const actor = await requirePermission(Permission.InvoiceEdit);
+  assertBodySize(req);
+  const actor = await requireWrite(Permission.InvoiceEdit);
   const { id } = await params;
   const body = updateInvoiceSchema.parse(await req.json());
   const invoice = await updateInvoice(actor, id, body);
@@ -29,7 +32,8 @@ export const PATCH = handle<Ctx>(async (req, { params }) => {
 
 // DELETE /api/invoices/:id — soft-delete (never hard-deletes). Requires a reason.
 export const DELETE = handle<Ctx>(async (req, { params }) => {
-  const actor = await requirePermission(Permission.InvoiceDelete);
+  assertBodySize(req);
+  const actor = await requireWrite(Permission.InvoiceDelete);
   const { id } = await params;
   const { reason } = deleteInvoiceSchema.parse(await req.json());
   const invoice = await deleteInvoice(actor, id, reason);

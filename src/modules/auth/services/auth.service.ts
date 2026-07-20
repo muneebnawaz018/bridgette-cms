@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { PipelineStage } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { connectDb } from '@/lib/db/connection';
+import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
@@ -14,7 +15,7 @@ import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { UserStatus, OtpPurpose } from '../enums';
 import { Role, Permission, assertCan, ACTIVE_ROLES } from '../rbac';
-import { hashPassword, verifyPassword } from '../password';
+import { hashPassword, verifyPassword, burnPasswordTime } from '../password';
 import { issueOtp, verifyOtp, generateUrlToken } from '../otp';
 import {
   signAccessToken,
@@ -119,6 +120,25 @@ export async function verifyAndSetPassword(input: {
   await user.save();
 }
 
+/**
+ * Failed-attempt policy, counted per account so an attacker spreading guesses across many
+ * IPs still trips it. `SOFT` starts a small delay, `HARD` locks the account outright.
+ */
+const SOFT_FAIL_THRESHOLD = 5;
+const HARD_FAIL_THRESHOLD = 10;
+const LOCK_MINUTES = 15;
+/** Capped deliberately: a long sleep holds a connection open, which is its own DoS lever. */
+const MAX_SOFT_DELAY_MS = 1000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** How long to stall this attempt, given how many have already failed. */
+function softDelayMs(failures: number): number {
+  if (failures < SOFT_FAIL_THRESHOLD) return 0;
+  const step = 2 ** (failures - SOFT_FAIL_THRESHOLD) * 250;
+  return Math.min(MAX_SOFT_DELAY_MS, step);
+}
+
 /** Email + password login → issues tokens and sets httpOnly cookies. */
 export async function login(
   input: { email: string; password: string },
@@ -126,11 +146,39 @@ export async function login(
 ): Promise<SessionUser> {
   await connectDb();
   const user = await User.findOne({ email: input.email.toLowerCase().trim() });
+
+  // No account, no password set, or disabled: spend the same time a real check would before
+  // answering. Returning early here is what let an attacker time the response and learn
+  // which addresses are registered, since only the real path paid for bcrypt.
   if (!user || !user.passwordHash || user.status !== UserStatus.Active) {
+    await burnPasswordTime(input.password);
     throw new Error('Invalid credentials');
   }
+
+  if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+    const minutes = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000));
+    throw new Error(`Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`);
+  }
+
   const ok = await verifyPassword(input.password, user.passwordHash);
-  if (!ok) throw new Error('Invalid credentials');
+
+  if (!ok) {
+    const failures = (user.failedLoginAttempts ?? 0) + 1;
+    user.failedLoginAttempts = failures;
+    if (failures >= HARD_FAIL_THRESHOLD) {
+      user.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60_000);
+      user.failedLoginAttempts = 0; // the lock now carries the penalty
+    }
+    await user.save();
+
+    const delay = softDelayMs(failures);
+    if (delay > 0) await sleep(delay);
+
+    if (user.lockedUntil) {
+      throw new Error(`Too many failed attempts. Try again in ${LOCK_MINUTES} minutes.`);
+    }
+    throw new Error('Invalid credentials');
+  }
 
   const session: SessionUser = {
     userId: String(user._id),
@@ -140,20 +188,39 @@ export async function login(
   await issueTokens(session, ctx);
 
   user.lastLoginAt = new Date();
+  user.failedLoginAttempts = 0;
+  user.lockedUntil = null;
   await user.save();
   return session;
 }
 
+/**
+ * How many failures this account has on record, for deciding whether to demand a captcha.
+ * Unknown addresses report 0, which is the same answer a clean account gives, so this can
+ * never be used to probe for registered users.
+ */
+export async function failedAttemptsFor(email: string): Promise<number> {
+  await connectDb();
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('failedLoginAttempts')
+    .lean<{ failedLoginAttempts?: number }>();
+  return user?.failedLoginAttempts ?? 0;
+}
+
 /** Sign tokens, persist the refresh token (hashed), set cookies. */
 async function issueTokens(session: SessionUser, ctx: RequestContext): Promise<void> {
+  // One id for the pair. Both tokens carry it, so a revoked device session is recognisable
+  // from the access token alone — no waiting for it to expire first.
+  const jti = randomUUID();
+
   const payload: AccessTokenPayload = {
     sub: session.userId,
     role: session.role,
     email: session.email,
+    jti,
   };
   const accessToken = await signAccessToken(payload);
 
-  const jti = randomUUID();
   const refreshToken = await signRefreshToken({
     sub: session.userId,
     jti,
@@ -389,7 +456,7 @@ export async function listUsers(
   const match: Record<string, unknown> = {};
   if (query.role) match.role = query.role;
   if (query.search) {
-    const rx = new RegExp(query.search.trim(), 'i');
+    const rx = new RegExp(escapeRegex(query.search.trim()), 'i');
     match.$or = [{ name: rx }, { email: rx }];
   }
 
