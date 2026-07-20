@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@mui/material/Button';
+import CheckRounded from '@mui/icons-material/CheckRounded';
+import SendRounded from '@mui/icons-material/SendRounded';
+import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -96,14 +100,21 @@ export function ChangeEmailDialog({
       actions={
         <>
           {step === 'verify' && (
-            <Button onClick={() => setStep('request')} disabled={busy} variant="outlined" color="inherit">
+            <Button onClick={() => setStep('request')} disabled={busy} variant="outlined" color="inherit" startIcon={<ArrowBackRounded />}>
               Back
             </Button>
           )}
-          <Button onClick={close} disabled={busy} variant="outlined" color="inherit">
+          <Button onClick={close} disabled={busy} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             Cancel
           </Button>
-          <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={busy} disabled={!canSubmit}>
+          <SubmitButton
+            type="submit"
+            form={FORM_ID}
+            variant="contained"
+            loading={busy}
+            disabled={!canSubmit}
+            startIcon={step === 'request' ? <SendRounded /> : <CheckRounded />}
+          >
             {step === 'request' ? 'Send' : 'Confirm'}
           </SubmitButton>
         </>

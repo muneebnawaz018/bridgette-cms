@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import Typography from '@mui/material/Typography';
 import PaymentsRounded from '@mui/icons-material/PaymentsRounded';
 import { useSnackbar } from 'notistack';
@@ -129,11 +130,11 @@ export function RecordPaymentModal({
       busy={saving}
       actions={
         <>
-          <Button onClick={close} disabled={saving} variant="outlined" color="inherit">
+          <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}
-          <Button variant="contained" onClick={submit} disabled={saving}>
+          <Button variant="contained" onClick={submit} disabled={saving} startIcon={<PaymentsRounded />}>
             Record
           </Button>
         </>

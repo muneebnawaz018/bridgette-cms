@@ -10,6 +10,7 @@ import { sendMail } from '@/lib/email/mailer';
 import { normalizeIp } from '@/lib/geo/ipLocation';
 import { otpEmail, resetPasswordEmail, changeEmailOtpEmail } from '@/lib/email/templates';
 import { assertDeliverableEmail } from '@/lib/email/deliverability';
+import { assertCaptchaIfSuspicious } from '@/lib/security/turnstile';
 import { logger } from '@/lib/logger/logger';
 import { User, type UserDoc } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
@@ -34,6 +35,12 @@ const ADMIN_ROLES: Role[] = [Role.Admin, Role.SuperAdmin];
 interface RequestContext {
   userAgent?: string;
   ip?: string;
+  /**
+   * The caller's IP as the rate limiter resolves it (cf-connecting-ip first). Kept separate
+   * from `ip`, which is what gets stored on the session record: this one is the value
+   * Turnstile verifies against and must not fall back to a placeholder.
+   */
+  clientIp?: string;
 }
 
 /** Admin/Super Admin creates a user → emails an OTP for verify + set-password. */
@@ -80,7 +87,7 @@ export async function createUser(
   });
 
   const code = await issueOtp(String(user._id), OtpPurpose.VerifyEmail, OTP_TTL_MIN);
-  const mail = otpEmail(user.name, code);
+  const mail = otpEmail(user.name, code, email);
 
   // The account already exists by this point. A mail failure must not surface as "create
   // failed" — that would leave a real user behind an error message. Report it instead, so
@@ -143,16 +150,32 @@ function softDelayMs(failures: number): number {
 
 /** Email + password login → issues tokens and sets httpOnly cookies. */
 export async function login(
-  input: { email: string; password: string },
+  input: { email: string; password: string; turnstileToken?: string },
   ctx: RequestContext = {},
 ): Promise<SessionUser> {
   await connectDb();
   const user = await User.findOne({ email: input.email.toLowerCase().trim() });
 
-  // No account, no password set, or disabled: spend the same time a real check would before
-  // answering. Returning early here is what let an attacker time the response and learn
-  // which addresses are registered, since only the real path paid for bcrypt.
-  if (!user || !user.passwordHash || user.status !== UserStatus.Active) {
+  // The captcha gate reads this user's failure count, so it lives here rather than in the
+  // route. It used to sit in front of login() and fetch the same document through
+  // failedAttemptsFor(), which meant every sign-in paid two round trips to Atlas for one
+  // record — ~190ms of pure waste from Pakistan to ap-south-1. Still evaluated before
+  // bcrypt, which is the property that matters: an unsolved challenge must not buy 300ms
+  // of CPU. An unknown address reports 0 failures, exactly as a clean account does, so this
+  // cannot be used to probe which addresses exist.
+  await assertCaptchaIfSuspicious(
+    user?.failedLoginAttempts ?? 0,
+    input.turnstileToken,
+    ctx.clientIp,
+  );
+
+  // No account, or no password set yet (an invited user who never onboarded): spend the same
+  // time a real check would before answering. Returning early here is what let an attacker
+  // time the response and learn which addresses are registered, since only the real path paid
+  // for bcrypt. Neither case can be told apart from a wrong password, by design.
+  //
+  // Status is deliberately NOT checked here — see below.
+  if (!user || !user.passwordHash) {
     await burnPasswordTime(input.password);
     throw new Error('Invalid credentials');
   }
@@ -182,17 +205,38 @@ export async function login(
     throw new Error('Invalid credentials');
   }
 
+  // The password is correct, so the caller demonstrably owns this account — telling them it
+  // has been deactivated reveals nothing they could not already establish, and no enumeration
+  // channel opens because anyone without the password still gets a flat "Invalid credentials"
+  // above. Checking status before bcrypt is what produced the old behavior: a deactivated
+  // user who had just reset their password was told their credentials were wrong, which sent
+  // them back to reset it again instead of to an administrator.
+  if (user.status !== UserStatus.Active) {
+    logger.info('sign-in blocked: account is not active', {
+      userId: String(user._id),
+      email: user.email,
+      status: user.status,
+    });
+    throw new Error('This account has been deactivated. Contact an administrator.');
+  }
+
   const session: SessionUser = {
     userId: String(user._id),
     role: user.role as Role,
     email: user.email,
   };
-  await issueTokens(session, ctx);
+  // Two independent writes — the refresh-token insert and the bookkeeping on the user — so
+  // they go out together rather than one after the other. Sequentially that was two full
+  // round trips; concurrently it is one. updateOne rather than user.save() because the
+  // document is not otherwise dirty and a targeted $set is what this actually is.
+  await Promise.all([
+    issueTokens(session, ctx),
+    User.updateOne(
+      { _id: user._id },
+      { $set: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null } },
+    ),
+  ]);
 
-  user.lastLoginAt = new Date();
-  user.failedLoginAttempts = 0;
-  user.lockedUntil = null;
-  await user.save();
   return session;
 }
 
@@ -295,7 +339,34 @@ export async function logout(): Promise<void> {
 export async function forgotPassword(email: string): Promise<void> {
   await connectDb();
   const user = await User.findOne({ email: email.toLowerCase().trim() });
-  if (!user || user.status === UserStatus.Disabled) return;
+
+  // Both misses answer the caller identically — a 200 and the same "if an account exists"
+  // panel — because saying which one happened is exactly the enumeration this flow avoids.
+  // The silence is for the caller, though, not for us: with nothing recorded, a legitimate
+  // "I never got the email" report is indistinguishable from a broken mailer, and answering
+  // it means querying the database by hand. One line here turns that into a log lookup.
+  //
+  // A disabled account is deliberately not sent a link. login() rejects on status before it
+  // ever checks a password, so the reset would succeed and sign-in would still fail — a
+  // longer, more confusing dead end than no email at all. Reactivating is an admin action.
+  if (!user) {
+    logger.info('password reset requested for an unknown address', {
+      email: email.toLowerCase().trim(),
+    });
+    return;
+  }
+
+  // Disabled accounts DO get the link. resetPassword does not check status either, so the
+  // reset itself succeeds; login() still refuses on status, so this grants no access. The
+  // point is that someone who has been deactivated can arrive with a working password the
+  // moment an admin re-enables them, rather than needing a second round trip through support.
+  // Logged because "deactivated user is resetting their password" is worth being able to see.
+  if (user.status === UserStatus.Disabled) {
+    logger.info('password reset requested by a disabled account', {
+      userId: String(user._id),
+      email: user.email,
+    });
+  }
 
   const token = generateUrlToken();
   await issueOtp(String(user._id), OtpPurpose.ResetPassword, RESET_TTL_MIN, token);
@@ -383,6 +454,12 @@ export async function requestEmailChange(
   const taken = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
   if (taken) throw new Error('That email is already in use');
 
+  // Same MX check createUser runs. It matters more here: pendingEmail is committed below and
+  // the code is sent to an address the account holder cannot read yet, so a typo like
+  // "@gmial.com" leaves a pending change that can never be confirmed. Checked before the save
+  // so a bad address changes nothing.
+  await assertDeliverableEmail(newEmail);
+
   user.pendingEmail = newEmail;
   await user.save();
 
@@ -428,6 +505,77 @@ export async function confirmEmailChange(
   await issueTokens({ userId: String(user._id), role: user.role as Role, email: user.email }, {});
 
   return { email: user.email };
+}
+
+/**
+ * Send a fresh invite code to someone who never finished onboarding.
+ *
+ * The original code lives for OTP_TTL_MIN and there was no way to issue another, so an
+ * invite that expired, bounced, or landed in spam stranded the account permanently — the
+ * email address is taken, so the admin cannot even re-create it. `issueOtp` consumes any
+ * prior unredeemed code for the same purpose, so the newest email is always the only one
+ * that works.
+ *
+ * Restricted to Invited accounts on purpose. An Active user has a password and belongs in
+ * the forgot-password flow; a Disabled one must be reactivated first, or this would be a
+ * way to hand working credentials back to a revoked account.
+ */
+export async function resendInvite(
+  actor: SessionUser,
+  targetId: string,
+): Promise<{ emailSent: boolean; otpTtlMinutes: number }> {
+  await connectDb();
+  assertCan(actor.role, Permission.UserManage);
+  const user = await User.findById(targetId);
+  if (!user) throw new Error('User not found');
+  if (user.status !== UserStatus.Invited) {
+    throw new Error('Only a pending invitation can be resent');
+  }
+
+  const code = await issueOtp(String(user._id), OtpPurpose.VerifyEmail, OTP_TTL_MIN);
+  const mail = otpEmail(user.name, code, user.email);
+
+  // Same reasoning as createUser: the code is already issued and the old one already dead,
+  // so a mail failure is reported rather than thrown. Throwing would tell the admin nothing
+  // was sent while leaving the account holding a code it never received.
+  let emailSent = true;
+  try {
+    await sendMail({ to: user.email, ...mail });
+  } catch (err) {
+    emailSent = false;
+    logger.error('invite resend failed to send', {
+      userId: String(user._id),
+      email: user.email,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return { emailSent, otpTtlMinutes: OTP_TTL_MIN };
+}
+
+/**
+ * Undo a deactivation.
+ *
+ * Where the account lands depends on how far it got before being disabled. Someone who had
+ * verified their email and set a password returns to Active and can sign straight back in.
+ * Someone disabled while still Invited has no password hash, and `login` rejects those — so
+ * flipping them to Active would produce an account that looks enabled in the UI and can
+ * never actually be used. They go back to Invited instead, and the admin resends the invite.
+ */
+export async function reactivateUser(
+  actor: SessionUser,
+  targetId: string,
+): Promise<{ status: UserStatus }> {
+  await connectDb();
+  assertCan(actor.role, Permission.UserManage);
+  const target = await User.findById(targetId).select('+passwordHash');
+  if (!target) throw new Error('User not found');
+  if (target.status !== UserStatus.Disabled) throw new Error('This user is not disabled');
+
+  target.status =
+    target.emailVerified && target.passwordHash ? UserStatus.Active : UserStatus.Invited;
+  await target.save();
+  return { status: target.status as UserStatus };
 }
 
 /** Soft-delete: deactivate a user. Never hard-deletes; refuses protected users. */
@@ -479,7 +627,9 @@ export async function getUser(actor: SessionUser, id: string) {
 export async function updateUser(actor: SessionUser, id: string, input: UpdateUserInput) {
   assertCan(actor.role, Permission.UserManage);
   await connectDb();
-  const user = await User.findById(id);
+  // passwordHash is select:false but the status guard below needs it. It is stripped from
+  // the returned object at the end of this function, as it already was.
+  const user = await User.findById(id).select('+passwordHash');
   if (!user) throw new Error('User not found');
 
   // There is exactly one Super Admin and it stays that way — the role is never assignable.
@@ -511,6 +661,12 @@ export async function updateUser(actor: SessionUser, id: string, input: UpdateUs
   if (input.avatarUrl !== undefined) user.avatarUrl = input.avatarUrl;
   if (input.role !== undefined) user.role = input.role;
   if (input.status !== undefined) {
+    // An account with no password hash cannot log in, so marking one Active produces a user
+    // the UI shows as enabled and the sign-in form always rejects. Invited is the honest
+    // state for them — reactivateUser applies the same rule.
+    if (input.status === UserStatus.Active && !(user.emailVerified && user.passwordHash)) {
+      throw new Error('This user has not set a password yet — resend their invitation instead');
+    }
     user.status = input.status;
     if (input.status === UserStatus.Disabled) {
       await RefreshToken.updateMany(

@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import SaveAsRounded from '@mui/icons-material/SaveAsRounded';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
@@ -404,14 +405,14 @@ export function InvoiceFormDialog({
       busy={saving}
       actions={
         <>
-          <Button onClick={close} disabled={saving} variant="outlined" color="inherit">
+          <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             Cancel
           </Button>
-          <Button onClick={() => submit(true)} disabled={saving} color="inherit">
+          <Button onClick={() => submit(true)} disabled={saving} color="inherit" startIcon={<SaveAsRounded />}>
             Save as draft
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}
-          <Button variant="contained" onClick={() => submit(false)} disabled={saving}>
+          <Button variant="contained" onClick={() => submit(false)} disabled={saving} startIcon={<ReceiptLongRounded />}>
             Create invoice
           </Button>
         </>

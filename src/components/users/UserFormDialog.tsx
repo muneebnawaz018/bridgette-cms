@@ -4,6 +4,8 @@ import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'r
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import SaveRounded from '@mui/icons-material/SaveRounded';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
@@ -363,11 +365,16 @@ export function UserFormDialog({
       busy={saving}
       actions={
         <>
-          <Button onClick={close} disabled={saving} variant="outlined" color="inherit">
+          <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}
-          <Button variant="contained" onClick={submit} disabled={saving}>
+          <Button
+            variant="contained"
+            onClick={submit}
+            disabled={saving}
+            startIcon={isEdit ? <SaveRounded /> : <PersonAddRounded />}
+          >
             {isEdit ? 'Save' : 'Create'}
           </Button>
         </>

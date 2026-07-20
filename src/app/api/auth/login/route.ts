@@ -1,8 +1,7 @@
 import { handle, ok } from '@/lib/api/respond';
-import { login, loginSchema, failedAttemptsFor } from '@/modules/auth';
+import { login, loginSchema } from '@/modules/auth';
 import { assertBodySize } from '@/lib/api/bodyLimit';
 import { enforce, clientIp, LIMITS } from '@/lib/security/rateLimit';
-import { assertCaptchaIfSuspicious } from '@/lib/security/turnstile';
 
 /**
  * Sign in.
@@ -17,23 +16,25 @@ export const POST = handle(async (req) => {
   assertBodySize(req);
   const ip = clientIp(req);
 
-  // Per IP first: it is free and catches the common case of one host hammering the route.
-  await enforce(`login:ip:${ip}`, LIMITS.loginPerIp);
-
   const body = loginSchema.parse(await req.json());
   const email = body.email.toLowerCase().trim();
 
-  // Per account as well, so guessing one password from a thousand addresses still trips.
-  await enforce(`login:email:${email}`, LIMITS.loginPerEmail);
-
-  // Unknown addresses report zero failures, the same as a clean account, so this cannot be
-  // used to probe which addresses exist.
-  await assertCaptchaIfSuspicious(await failedAttemptsFor(email), body.turnstileToken, ip);
+  // Per IP and per account: the first catches one host hammering the route, the second means
+  // guessing one password across a thousand addresses still trips. They are independent
+  // counters, so both hits go out at once — sequentially this was two round trips before any
+  // real work started. Either rejecting still rejects the request; both counters increment
+  // either way, which is what a limiter wants.
+  await Promise.all([
+    enforce(`login:ip:${ip}`, LIMITS.loginPerIp),
+    enforce(`login:email:${email}`, LIMITS.loginPerEmail),
+  ]);
 
   const ctx = {
     userAgent: req.headers.get('user-agent') ?? undefined,
     ip: req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined,
+    clientIp: ip,
   };
+  // The captcha gate now runs inside login(), which already has the user document it needs.
   const session = await login(body, ctx);
   return ok({ userId: session.userId, role: session.role, email: session.email });
 });

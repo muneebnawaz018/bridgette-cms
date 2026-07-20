@@ -98,9 +98,17 @@ export interface MailBody {
   text: string;
 }
 
-/** New member invite — verify the address and set a first password. */
-export function otpEmail(name: string, code: string): MailBody {
-  const signIn = `${env.appUrl}/login`;
+/**
+ * New member invite — verify the address and set a first password.
+ *
+ * The link goes to /set-password, not /login. An invited account has no password yet, so
+ * the sign-in form has nothing to accept and no field for the code — pointing there left
+ * new users holding a six-digit number with nowhere to type it. /set-password takes the
+ * code and the new password together, and prefilling `email` saves them retyping the
+ * address the invite was sent to.
+ */
+export function otpEmail(name: string, code: string, email: string): MailBody {
+  const setPassword = `${env.appUrl}/set-password?email=${encodeURIComponent(email)}`;
   return {
     subject: `Your ${PRODUCT} verification code`,
     html: shell({
@@ -109,8 +117,8 @@ export function otpEmail(name: string, code: string): MailBody {
       body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi ${esc(name)},</p>
         <p style="margin:0 0 4px;font-size:15px;line-height:1.6">An account has been created for you on ${esc(PRODUCT)}, the management system for ${esc(COMPANY)}. Use the code below to verify your email and set your password:</p>
         ${codeBlock(code)}
-        <p style="margin:0 0 12px;font-size:13px;color:${MUTED}">This code expires in <strong>15 minutes</strong>. If it does, ask an administrator to invite you again.</p>
-        <p style="margin:0;font-size:13px;color:${MUTED}">You can sign in at <a href="${esc(signIn)}" style="color:${BRAND}">${esc(signIn)}</a> once your password is set.</p>
+        <p style="margin:0 0 12px;font-size:13px;color:${MUTED}">This code expires in <strong>15 minutes</strong>. If it does, ask an administrator to send you a new invitation.</p>
+        <p style="margin:0;font-size:13px;color:${MUTED}">Enter it at <a href="${esc(setPassword)}" style="color:${BRAND}">${esc(setPassword)}</a> to finish setting up your account.</p>
         <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">If you were not expecting this invitation, you can ignore this email.</p>`,
     }),
     text: [
@@ -120,7 +128,7 @@ export function otpEmail(name: string, code: string): MailBody {
       `Your verification code is: ${code}`,
       '',
       'This code expires in 15 minutes.',
-      `Sign in at ${signIn} once your password is set.`,
+      `Enter it at ${setPassword} to finish setting up your account.`,
       '',
       'If you were not expecting this invitation, you can ignore this email.',
     ].join('\n'),

@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
@@ -95,7 +96,7 @@ export function InvoiceDetailsModal({ id, onClose }: { id: string | null; onClos
       maxWidth="md"
       actions={
         <>
-          <Button onClick={onClose} variant="outlined" color="inherit">Close</Button>
+          <Button onClick={onClose} variant="outlined" color="inherit" startIcon={<CloseRounded />}>Close</Button>
           {invoice && (
             <Button component={AppLink} href={`/invoices/${invoice._id}`} variant="contained" startIcon={<OpenInNewRounded />}>
               Open full invoice

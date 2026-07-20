@@ -3,6 +3,8 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import SaveRounded from '@mui/icons-material/SaveRounded';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import EditRounded from '@mui/icons-material/EditRounded';
@@ -129,11 +131,11 @@ export function EditProfileDialog({
       busy={busy}
       actions={
         <>
-          <Button onClick={onClose} disabled={busy} variant="outlined" color="inherit">
+          <Button onClick={onClose} disabled={busy} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}
-          <Button variant="contained" onClick={submit} disabled={busy}>
+          <Button variant="contained" onClick={submit} disabled={busy} startIcon={<SaveRounded />}>
             Save
           </Button>
         </>
@@ -185,7 +187,7 @@ export function EditProfileDialog({
           national={phone.national}
           onChange={handlePhone}
           error={Boolean(errors.phone)}
-          helperText={errors.phone ?? 'Optional.'}
+          helperText={errors.phone}
           disabled={busy}
         />
       </Stack>

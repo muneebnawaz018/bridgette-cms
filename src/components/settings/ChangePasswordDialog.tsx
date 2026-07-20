@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Button from '@mui/material/Button';
+import SaveRounded from '@mui/icons-material/SaveRounded';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import Stack from '@mui/material/Stack';
 import LockResetRounded from '@mui/icons-material/LockResetRounded';
 import { useSnackbar } from 'notistack';
@@ -70,10 +72,10 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
         busy={saving}
         actions={
           <>
-            <Button onClick={close} disabled={saving} variant="outlined" color="inherit">
+            <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
               Cancel
             </Button>
-            <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving} disabled={!filled}>
+            <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving} disabled={!filled} startIcon={<SaveRounded />}>
               Save
             </SubmitButton>
           </>

@@ -79,7 +79,8 @@ export async function assertDeliverableEmail(email: string): Promise<void> {
     const accepts = await domainAcceptsMail(domain);
     if (!accepts) {
       throw new UndeliverableEmailError(
-        `"${domain}" has no mail server, so the invite could not be delivered. Check the address for a typo.`,
+        // Wording stays neutral: this runs for invites and for email changes alike.
+        `"${domain}" has no mail server, so the message could not be delivered. Check the address for a typo.`,
       );
     }
   } catch (err) {

@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import CloseRounded from '@mui/icons-material/CloseRounded';
 import Chip from '@mui/material/Chip';
 import EditRounded from '@mui/icons-material/EditRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
@@ -14,6 +15,7 @@ import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { BrandLoader } from '@/components/ui/BrandLoader';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, userStatusTone } from '@/components/ui/StatusChip';
 import { useSession } from '@/components/auth/SessionProvider';
 import { useApi } from '@/lib/api/useApi';
@@ -55,11 +57,18 @@ export function UserDetailsModal({
   id,
   onClose,
   onEdit,
+  onChanged,
   canManage = false,
 }: {
   id: string | null;
   onClose: () => void;
   onEdit?: (id: string) => void;
+  /**
+   * Called after this modal changes the user, so the list behind it can revalidate. Its own
+   * `mutate` only covers `/api/auth/users/:id`; the grid reads a different SWR key and would
+   * otherwise keep showing a photo that has already been deleted.
+   */
+  onChanged?: () => void;
   canManage?: boolean;
 }) {
   const { enqueueSnackbar } = useSnackbar();
@@ -76,6 +85,9 @@ export function UserDetailsModal({
   const user = useRetainedWhileClosing(liveUser, Boolean(id));
 
   const [uploading, setUploading] = useState(false);
+  // Picking a photo already confirms before it replaces anything (see AvatarPicker); deleting
+  // one did not, so a single stray click destroyed it with no way back.
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   // The protected Super Admin is locked: only the account holder may edit it. Everyone else
   // with UserManage can edit any other user.
@@ -91,6 +103,7 @@ export function UserDetailsModal({
     if (res.ok) {
       enqueueSnackbar(next ? 'Photo updated' : 'Photo removed', { variant: 'success' });
       void mutate();
+      onChanged?.();
     } else {
       enqueueSnackbar(res.error ?? 'Could not update the photo', { variant: 'error' });
     }
@@ -115,7 +128,7 @@ export function UserDetailsModal({
       busy={uploading}
       actions={
         <>
-          <Button onClick={onClose} variant="outlined" color="inherit">Close</Button>
+          <Button onClick={onClose} variant="outlined" color="inherit" startIcon={<CloseRounded />}>Close</Button>
           {canEditUser && onEdit && user && (
             <Button variant="contained" startIcon={<EditRounded />} onClick={() => onEdit(user._id)}>
               Edit
@@ -154,7 +167,7 @@ export function UserDetailsModal({
               )}
               {canEditUser && hasPhoto && (
                 <Button
-                  onClick={() => void saveAvatar(null)}
+                  onClick={() => setConfirmRemove(true)}
                   disabled={uploading}
                   size="small"
                   color="inherit"
@@ -196,6 +209,20 @@ export function UserDetailsModal({
           )}
         </Stack>
       )}
+
+      <ConfirmDialog
+        open={confirmRemove}
+        title="Remove photo?"
+        description="This deletes the current photo. A new one can be uploaded at any time."
+        confirmLabel="Remove"
+        confirmColor="error"
+        loading={uploading}
+        onConfirm={() => {
+          setConfirmRemove(false);
+          void saveAvatar(null);
+        }}
+        onClose={() => setConfirmRemove(false)}
+      />
     </Modal>
   );
 }

@@ -13,13 +13,28 @@ import { apiPost } from '@/lib/api/client';
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await apiPost('/api/auth/forgot', { email });
+    setError(null);
+    const res = await apiPost('/api/auth/forgot', { email });
     setLoading(false);
+
+    // The result used to be discarded, so the success panel rendered no matter what came
+    // back. That hid the per-address rate limit completely: the seventh request in an hour
+    // returns 429 and looked identical to the six that worked. It hid real failures too — a
+    // dead SMTP server or a 500 still told the user their link was on its way.
+    //
+    // Showing the error does not leak whether the account exists: a 429 is about how often
+    // this address has been *asked for*, which the caller already knows, and the success
+    // message stays deliberately non-committal.
+    if (!res.ok) {
+      setError(res.error ?? 'Could not send the reset link. Try again in a moment.');
+      return;
+    }
     setSent(true);
   }
 
@@ -37,6 +52,7 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={submit}>
           <Stack spacing={2}>
+            {error && <Alert severity="error">{error}</Alert>}
             <TextField
               label="Email"
               type="email"

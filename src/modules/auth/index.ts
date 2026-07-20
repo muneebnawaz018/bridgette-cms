@@ -12,6 +12,8 @@ export {
   forgotPassword,
   resetPassword,
   deactivateUser,
+  reactivateUser,
+  resendInvite,
   listUsers,
   getUser,
   updateUser,

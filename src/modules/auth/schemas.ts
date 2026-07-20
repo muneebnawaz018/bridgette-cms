@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidPhoneNumber } from 'libphonenumber-js';
 import { Role } from './rbac';
 import { UserStatus } from './enums';
 
@@ -27,13 +28,26 @@ const notes = z.string().trim().max(500).optional();
  * Contact number in E.164 — `+` then country code then the national number, digits only.
  * The UI composes this from its country picker; this file is client-safe, so the browser and
  * the server validate against exactly the same rule.
+ *
+ * The regex is only a shape check: it accepts 8-15 digits, which is E.164's global bound and
+ * says nothing about the country. `+9230275` passed it happily despite being an incomplete
+ * Pakistani number, so half-typed numbers saved. `isValidPhoneNumber` applies the actual
+ * per-country rules — length, valid prefixes, mobile vs fixed-line — which cannot be
+ * expressed as one pattern because they differ per country and vary within a country.
+ *
+ * Deliberately not derived from the `groups` data in lib/format/countries: that is display
+ * spacing, set for only a handful of countries, and would silently break validation the day
+ * someone adjusted how a number is rendered.
  */
 export const E164 = /^\+[1-9]\d{7,14}$/;
+const PHONE_INCOMPLETE = 'Enter a complete number for the selected country';
+
 const phone = z
   .string()
   .trim()
   .min(1, 'A contact number is required')
-  .regex(E164, 'Enter a valid number including the country code');
+  .regex(E164, 'Enter a valid number including the country code')
+  .refine(isValidPhoneNumber, PHONE_INCOMPLETE);
 
 export const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
@@ -47,9 +61,11 @@ export const createUserSchema = z.object({
   notes,
 });
 
+// Messages spelled out because these now render under the inputs on /set-password, where
+// Zod's defaults ("String must contain at least 4 character(s)") would be the visible text.
 export const setPasswordSchema = z.object({
-  email: z.string().email(),
-  code: z.string().min(4),
+  email: z.string().email('Enter a valid email address'),
+  code: z.string().min(4, 'Enter the code from your email'),
   password,
 });
 
@@ -103,7 +119,11 @@ export const updateProfileSchema = z
     phone: z
       .union([
         z.literal(''),
-        z.string().trim().regex(E164, 'Enter a valid number including the country code'),
+        z
+          .string()
+          .trim()
+          .regex(E164, 'Enter a valid number including the country code')
+          .refine(isValidPhoneNumber, PHONE_INCOMPLETE),
       ])
       .optional(),
     avatarUrl: avatarUrl.optional(),

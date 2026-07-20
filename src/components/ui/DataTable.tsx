@@ -15,6 +15,9 @@ const DataGrid = dynamic(() => import('@mui/x-data-grid').then((m) => m.DataGrid
   loading: () => <GlobalLoading />,
 });
 
+/** Columns whose cells handle their own clicks and must not also trigger `onRowClick`. */
+const INTERACTIVE_FIELDS = new Set(['actions', 'avatar']);
+
 interface DataTableProps<T extends GridValidRowModel> {
   rows: T[];
   columns: GridColDef<T>[];
@@ -60,8 +63,10 @@ export function DataTable<T extends GridValidRowModel>({
         onCellClick={
           onRowClick
             ? (params) => {
-                // Skip the actions column so its overflow menu / buttons keep working.
-                if (params.field !== 'actions') onRowClick(String(params.id));
+                // Skip columns whose cells are themselves interactive, so their own click
+                // handler is not shadowed by the row's: `actions` owns an overflow menu, and
+                // `avatar` opens a full-size viewer.
+                if (!INTERACTIVE_FIELDS.has(params.field)) onRowClick(String(params.id));
               }
             : undefined
         }

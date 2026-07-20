@@ -32,6 +32,7 @@
     "@scalar/nextjs-api-reference": "^0.11.9",
     "bcryptjs": "^2.4.3",
     "jose": "^6.2.3",
+    "libphonenumber-js": "^1.13.9",
     "mongoose": "^8.9.5",
     "next": "^15.1.6",
     "nodemailer": "^6.9.16",

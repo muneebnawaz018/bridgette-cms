@@ -10,6 +10,7 @@ import { useSnackbar } from 'notistack';
 import { Permission, Role, ACTIVE_ROLES } from '@/modules/auth/rbac';
 import { useCan, useSession } from '@/components/auth/SessionProvider';
 import { DataTable } from '@/components/ui/DataTable';
+import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { NoAccess } from '@/components/ui/NoAccess';
@@ -21,7 +22,7 @@ import { StatusChip, userStatusTone } from '@/components/ui/StatusChip';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
-import { apiDelete } from '@/lib/api/client';
+import { apiDelete, apiPost } from '@/lib/api/client';
 import { ROLE_LABEL } from '@/lib/format/labels';
 
 interface UserRow {
@@ -33,6 +34,7 @@ interface UserRow {
   notes?: string;
   role: string;
   status: string;
+  avatarUrl?: string | null;
   isProtected?: boolean;
   createdAt: string;
 }
@@ -45,11 +47,22 @@ function rowActions(
   isSelf: boolean,
   onEdit: (row: UserRow) => void,
   onDeactivate: (row: UserRow) => void,
+  onResendInvite: (row: UserRow) => void,
+  onReactivate: (row: UserRow) => void,
 ): RowAction[] {
   const actions: RowAction[] = [];
   // The protected Super Admin is locked — only the account holder can edit it.
   if (canManage && (!row.isProtected || isSelf)) {
     actions.push({ label: 'Edit', onClick: () => onEdit(row) });
+  }
+  // An invite that expired or never arrived otherwise strands the account: the address is
+  // taken, so it cannot be re-created, and there was no other way to issue a fresh code.
+  if (canManage && row.status === 'invited') {
+    actions.push({ label: 'Resend invitation', onClick: () => onResendInvite(row) });
+  }
+  // Deactivation had no counterpart, so a disabled account could never be brought back.
+  if (canManage && row.status === 'disabled' && !row.isProtected) {
+    actions.push({ label: 'Enable', onClick: () => onReactivate(row) });
   }
   // Cannot deactivate a disabled user, a protected user, or your own account.
   if (canManage && row.status !== 'disabled' && !row.isProtected && !isSelf) {
@@ -124,9 +137,97 @@ export default function UsersPage() {
     }
   }
 
+  // Resend invitation / enable. Both are single-step and reversible, so neither gets a
+  // confirmation dialog the way Deactivate does.
+  const resendInvite = useCallback(
+    async (row: UserRow) => {
+      const res = await apiPost<{ emailSent: boolean; otpTtlMinutes: number }>(
+        `/api/auth/users/${row._id}/resend-invite`,
+      );
+      if (!res.ok) {
+        enqueueSnackbar(res.error ?? 'Could not resend the invitation', { variant: 'error' });
+        return;
+      }
+      // The code is issued either way — say so plainly when the email itself failed, rather
+      // than reporting success for a message that never left.
+      if (res.data?.emailSent) {
+        enqueueSnackbar(
+          `Invitation sent to ${row.email} — the code expires in ${res.data.otpTtlMinutes} minutes`,
+          { variant: 'success' },
+        );
+      } else {
+        enqueueSnackbar('New code issued, but the email failed to send', { variant: 'warning' });
+      }
+    },
+    [enqueueSnackbar],
+  );
+
+  const reactivate = useCallback(
+    async (row: UserRow) => {
+      const res = await apiPost<{ status: string }>(`/api/auth/users/${row._id}/reactivate`);
+      if (!res.ok) {
+        enqueueSnackbar(res.error ?? 'Could not enable user', { variant: 'error' });
+        return;
+      }
+      // Someone disabled before they ever set a password goes back to invited, not active —
+      // say which, so the admin knows an invite still has to be sent.
+      enqueueSnackbar(
+        res.data?.status === 'invited'
+          ? 'User enabled — they still need an invitation to set a password'
+          : 'User enabled',
+        { variant: 'success' },
+      );
+      void mutate();
+    },
+    [enqueueSnackbar, mutate],
+  );
+
   // Memoized so the grid isn't handed a brand-new column array on every render.
   const columns: GridColDef<UserRow>[] = useMemo(
     () => [
+      {
+        field: 'avatar',
+        headerName: '',
+        width: 72,
+        sortable: false,
+        filterable: false,
+        headerAlign: 'center',
+        align: 'center',
+        // Same component the details modal and profile page use, in view-only mode: clicking
+        // the photo opens it full size.
+        //
+        // The wrapper stops the click rather than relying on DataTable's field exclusion
+        // alone: AvatarPicker's own handler has already opened the viewer by the time the
+        // event reaches here, and letting it continue to the grid opened the details modal on
+        // top of it. With no photo there is nothing to view, so the cell falls back to the
+        // row's own behavior instead of being dead.
+        //
+        // It must also fill the cell — sized to its content it collapsed to the avatar and sat
+        // against the left edge, which is why the photos looked off-centre.
+        renderCell: (p) => (
+          <Box
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!p.row.avatarUrl) setDetailId(p.row._id);
+            }}
+            sx={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: p.row.avatarUrl ? 'zoom-in' : 'pointer',
+            }}
+          >
+            <AvatarPicker
+              src={p.row.avatarUrl}
+              fallback={(p.row.name || p.row.email).charAt(0).toUpperCase()}
+              title={p.row.name}
+              size={36}
+            />
+          </Box>
+        ),
+      },
       { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150, headerAlign: 'center', align: 'center' },
       {
         field: 'jobTitle',
@@ -174,12 +275,14 @@ export default function UsersPage() {
               p.row._id === currentUserId,
               openEdit,
               setToDeactivate,
+              resendInvite,
+              reactivate,
             )}
           />
         ),
       },
     ],
-    [canManage, currentUserId, openEdit],
+    [canManage, currentUserId, openEdit, resendInvite, reactivate],
   );
 
   if (!canView) {
@@ -235,6 +338,9 @@ export default function UsersPage() {
         id={detailId}
         onClose={() => setDetailId(null)}
         canManage={canManage}
+        // The modal can change a user's photo, which this list also renders. Its own revalidate
+        // only covers the single-user key, so the grid needs telling.
+        onChanged={() => void mutate()}
         onEdit={(uid) => {
           const row = rows.find((r) => r._id === uid);
           if (row) {

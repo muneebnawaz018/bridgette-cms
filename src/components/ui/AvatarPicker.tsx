@@ -156,14 +156,16 @@ export function AvatarPicker({
         )}
       </ConfirmDialog>
 
-      <Modal open={viewOpen} onClose={() => setViewOpen(false)} title={title} maxWidth="sm">
+      <Modal open={viewOpen} onClose={() => setViewOpen(false)} title={title} maxWidth="lg">
         {src && (
           <Box sx={{ display: 'grid', placeItems: 'center' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={src}
               alt={title}
-              style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 12 }}
+              // Avatars are stored downscaled to ~256px, so this is capped by width rather
+              // than stretched past the source and left blurry.
+              style={{ maxWidth: '100%', maxHeight: '82vh', borderRadius: 12 }}
             />
           </Box>
         )}

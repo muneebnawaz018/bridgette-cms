@@ -2,10 +2,17 @@
 
 import useSWR, { type SWRConfiguration } from 'swr';
 import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
+import { handleUnauthorized } from '@/lib/api/unauthorized';
 
 /** Fetcher for internal `{ ok, data }` endpoints — unwraps data or throws the error. */
 async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url);
+  // A dead session is not a data error — bounce to /login rather than surfacing "Unauthorized"
+  // on a page the user can no longer load anything into.
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error('Unauthorized');
+  }
   const json = await res.json();
   if (!json.ok) throw new Error(json.error ?? 'Request failed');
   return json.data as T;

@@ -2,6 +2,8 @@
 
 import type { ReactNode } from 'react';
 import Button from '@mui/material/Button';
+import CloseRounded from '@mui/icons-material/CloseRounded';
+import CheckRounded from '@mui/icons-material/CheckRounded';
 import { Modal } from '@/components/ui/Modal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 
@@ -20,6 +22,7 @@ export function ConfirmDialog({
   children,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  confirmIcon,
   confirmColor = 'primary',
   confirmDisabled = false,
   loading = false,
@@ -33,6 +36,8 @@ export function ConfirmDialog({
   children?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  /** Overrides the default tick — pass a delete/send/etc icon when that reads truer. */
+  confirmIcon?: ReactNode;
   confirmColor?: 'primary' | 'error';
   confirmDisabled?: boolean;
   loading?: boolean;
@@ -50,10 +55,10 @@ export function ConfirmDialog({
       showClose={false}
       actions={
         <>
-          <Button onClick={onClose} disabled={loading} variant="outlined" color="inherit">
+          <Button onClick={onClose} disabled={loading} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
             {cancelLabel}
           </Button>
-          <SubmitButton onClick={onConfirm} loading={loading} disabled={confirmDisabled} variant="contained" color={confirmColor}>
+          <SubmitButton onClick={onConfirm} loading={loading} disabled={confirmDisabled} variant="contained" color={confirmColor} startIcon={confirmIcon ?? <CheckRounded />}>
             {confirmLabel}
           </SubmitButton>
         </>
