@@ -44,10 +44,10 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
   const number = await issueInvoiceNumber(input.type);
 
   const reminder =
-    input.reminderThresholdHours != null
+    input.reminderThresholdMinutes != null
       ? {
-          thresholdHours: input.reminderThresholdHours,
-          dueAt: new Date(Date.now() + input.reminderThresholdHours * 3_600_000),
+          thresholdMinutes: input.reminderThresholdMinutes,
+          dueAt: new Date(Date.now() + input.reminderThresholdMinutes * 60_000),
           sent: false,
         }
       : undefined;
@@ -314,6 +314,23 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   if (input.dueDate) doc.dueDate = new Date(input.dueDate);
   if (input.terms !== undefined) doc.terms = input.terms;
   if (input.notes !== undefined) doc.notes = input.notes;
+
+  // Reminder. Omitting the key leaves it alone; null clears it.
+  if (input.reminderThresholdMinutes !== undefined) {
+    if (input.reminderThresholdMinutes === null) {
+      doc.set('reminder', undefined);
+    } else {
+      // The clock restarts from now rather than from creation. Someone changing this is
+      // saying "remind me in an hour", and measuring from a creation date days ago would
+      // either fire instantly or never, neither of which is what they asked for. Clearing
+      // `sent` is part of the same intent: a new interval means a new reminder is owed.
+      doc.set('reminder', {
+        thresholdMinutes: input.reminderThresholdMinutes,
+        dueAt: new Date(Date.now() + input.reminderThresholdMinutes * 60_000),
+        sent: false,
+      });
+    }
+  }
 
   await doc.save();
   return doc.toObject();

@@ -30,7 +30,7 @@ export const createInvoiceSchema = z.object({
   dueDate: z.string().datetime().optional(),
   terms: z.string().optional(),
   notes: z.string().optional(),
-  reminderThresholdHours: z.number().positive().optional(),
+  reminderThresholdMinutes: z.number().int().positive().optional(),
   asDraft: z.boolean().optional(), // save as Draft instead of finalizing to Pending
   // type-specific
   cashReceived: z.number().nonnegative().optional(),
@@ -39,6 +39,9 @@ export const createInvoiceSchema = z.object({
 
 export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
   type: z.nativeEnum(InvoiceType).optional(),
+  // null clears an existing reminder. Without it there would be no way to turn one off:
+  // omitting the key means "leave unchanged", which is a different intent.
+  reminderThresholdMinutes: z.number().int().positive().nullable().optional(),
 });
 
 /**

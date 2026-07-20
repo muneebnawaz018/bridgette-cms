@@ -16,6 +16,7 @@ import { Modal } from '@/components/ui/Modal';
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { InvoiceType, TAX_POLICY, DEFAULT_CURRENCY } from '@/modules/invoicing/enums';
 import { invoiceFormSchema } from '@/modules/invoicing/schemas';
+import { REMINDER_PRESETS } from '@/modules/invoicing/reminders';
 import { apiPost } from '@/lib/api/client';
 import { formatMoney } from '@/lib/format/money';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
@@ -37,6 +38,12 @@ const TYPE_OPTIONS: SelectOption[] = [
   { value: InvoiceType.Tax, label: 'Tax (US, taxed)' },
   { value: InvoiceType.Cash, label: 'Cash (US, no tax)' },
   { value: InvoiceType.PK, label: 'PK (Pakistan)' },
+];
+
+/** Built from the shared presets so the picker and the detail view never disagree. */
+const REMINDER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'No reminder' },
+  ...REMINDER_PRESETS.map((p) => ({ value: String(p.minutes), label: p.label })),
 ];
 
 const APPLY_TAX_OPTIONS: SelectOption[] = [
@@ -298,6 +305,7 @@ export function InvoiceFormDialog({
   const numbersRef = useRef<Numbers>({ lines: [], applyTax: false, taxRate: '0' });
 
   const [type, setType] = useState<InvoiceType>(InvoiceType.Tax);
+  const [reminder, setReminder] = useState('');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formKey, setFormKey] = useState(0);
@@ -307,6 +315,7 @@ export function InvoiceFormDialog({
     if (!open) return;
     textRef.current = { ...EMPTY_TEXT };
     setType(InvoiceType.Tax);
+    setReminder('');
     setErrors({});
     setFormKey((k) => k + 1);
   }, [open]);
@@ -368,6 +377,8 @@ export function InvoiceFormDialog({
       taxRate: form.taxable ? (form.taxRate ?? 0) / 100 : undefined,
       applyTax: TAX_POLICY[form.type] === 'optional' ? form.applyTax : undefined,
       notes: form.notes,
+      // Omitted entirely when "No reminder" is chosen, so no reminder subdocument is stored.
+      reminderThresholdMinutes: reminder ? Number(reminder) : undefined,
       asDraft,
     });
 
@@ -445,6 +456,17 @@ export function InvoiceFormDialog({
                 helperText={errors.billToEmail ?? 'Optional — used to send the invoice.'}
                 disabled={saving}
                 onChange={setText}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <SelectInput
+                name="reminder"
+                label="Remind me if unpaid"
+                value={reminder}
+                options={REMINDER_OPTIONS}
+                helperText="Emails you if the invoice is still open after this long."
+                disabled={saving}
+                onChange={(_name, value) => setReminder(value)}
               />
             </Grid>
           </Grid>

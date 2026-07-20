@@ -27,7 +27,10 @@ const itemSchema = new Schema(
 
 const reminderSchema = new Schema(
   {
-    thresholdHours: { type: Number }, // chosen from preset dropdown
+    // Minutes, not hours: the shortest useful reminder is a handful of minutes, and hours
+    // would force fractions like 0.0833 to express that. Presets in the form cover the
+    // range from 5 minutes to a week.
+    thresholdMinutes: { type: Number },
     dueAt: { type: Date },
     sent: { type: Boolean, default: false },
     sentAt: { type: Date },

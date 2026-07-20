@@ -31,6 +31,24 @@ import { useApi } from '@/lib/api/useApi';
 import { apiPatch } from '@/lib/api/client';
 import { formatMoney } from '@/lib/format/money';
 import { paymentMethodLabel } from '@/lib/format/labels';
+import { REMINDER_PRESETS, reminderLabel } from '@/modules/invoicing/reminders';
+
+/**
+ * One line describing an invoice's reminder: the interval, plus whether it has gone out yet.
+ * The interval on its own ("3 days") does not answer the question people actually have, which
+ * is whether they are still waiting on it.
+ */
+function reminderSummary(reminder?: Invoice['reminder']): string {
+  if (!reminder?.thresholdMinutes) return '—';
+  const label = reminderLabel(reminder.thresholdMinutes);
+  if (reminder.sent) {
+    const when = reminder.sentAt ? new Date(reminder.sentAt).toLocaleString() : 'already';
+    return `${label} · sent ${when}`;
+  }
+  if (!reminder.dueAt) return label;
+  const due = new Date(reminder.dueAt);
+  return `${label} · ${due.getTime() <= Date.now() ? 'due now' : `due ${due.toLocaleString()}`}`;
+}
 
 interface Party {
   name?: string;
@@ -68,6 +86,12 @@ interface Invoice {
   isDeleted: boolean;
   archiveReason?: string;
   deleteReason?: string;
+  reminder?: {
+    thresholdMinutes?: number;
+    dueAt?: string;
+    sent?: boolean;
+    sentAt?: string;
+  };
 }
 interface Payment {
   _id: string;
@@ -94,6 +118,8 @@ interface EditForm {
   terms: string;
   notes: string;
   dueDate: string;
+  /** Minutes as a string, or '' for no reminder — matches the select's value type. */
+  reminder: string;
 }
 
 /** Local alias for the shared formatter; the arguments read better in this order here. */
@@ -115,6 +141,7 @@ function toForm(inv: Invoice): EditForm {
     terms: inv.terms ?? '',
     notes: inv.notes ?? '',
     dueDate: inv.dueDate ? inv.dueDate.slice(0, 10) : '',
+    reminder: inv.reminder?.thresholdMinutes != null ? String(inv.reminder.thresholdMinutes) : '',
   };
 }
 
@@ -177,6 +204,8 @@ export default function InvoiceDetailPage() {
       terms: form.terms || undefined,
       notes: form.notes || undefined,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+      // null, not undefined, when cleared: undefined would mean "leave it as it is".
+      reminderThresholdMinutes: form.reminder ? Number(form.reminder) : null,
     });
     setSaving(false);
     setConfirmSave(false);
@@ -329,12 +358,28 @@ export default function InvoiceDetailPage() {
             {!form ? (
               <Stack spacing={1}>
                 <Row label="Due date" value={invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—'} />
+                <Row label="Reminder" value={reminderSummary(invoice.reminder)} />
                 <Row label="Terms" value={invoice.terms || '—'} />
                 <Row label="Notes" value={invoice.notes || '—'} />
               </Stack>
             ) : (
               <Stack spacing={2}>
                 <TextField label="Due date" size="small" type="date" value={form.dueDate} onChange={(e) => setForm((f) => (f ? { ...f, dueDate: e.target.value } : f))} fullWidth InputLabelProps={{ shrink: true }} disabled={saving} />
+                <TextField
+                  select
+                  label="Remind me if unpaid"
+                  size="small"
+                  value={form.reminder}
+                  onChange={(e) => setForm((f) => (f ? { ...f, reminder: e.target.value } : f))}
+                  fullWidth
+                  disabled={saving}
+                  helperText="Changing this restarts the countdown from now."
+                >
+                  <MenuItem value="">No reminder</MenuItem>
+                  {REMINDER_PRESETS.map((p) => (
+                    <MenuItem key={p.minutes} value={String(p.minutes)}>{p.label}</MenuItem>
+                  ))}
+                </TextField>
                 <TextField label="Terms" size="small" value={form.terms} onChange={(e) => setForm((f) => (f ? { ...f, terms: e.target.value } : f))} fullWidth disabled={saving} />
                 <TextField label="Notes" size="small" value={form.notes} onChange={(e) => setForm((f) => (f ? { ...f, notes: e.target.value } : f))} fullWidth multiline minRows={2} disabled={saving} />
               </Stack>

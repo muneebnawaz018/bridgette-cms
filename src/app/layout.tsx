@@ -8,6 +8,7 @@ import { theme } from '@/lib/theme';
 import { ToastProvider } from '@/components/ToastProvider';
 import { GlobalRequestLoader } from '@/components/providers/GlobalRequestLoader';
 import { BRAND_RED } from '@/lib/colors';
+import { env } from '@/lib/config/env';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
@@ -22,7 +23,9 @@ const APP_NAME = 'Bridgette Portal';
 const APP_TITLE = 'Bridgette Enterprises Management Portal';
 const APP_DESCRIPTION =
   'Customer support portal and management system for Bridgette Enterprises LLC. Handles invoicing, payments, customers, and reporting.';
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+// Via env.appUrl rather than reading process.env again: a second copy of the localhost
+// fallback here would quietly reinstate the behaviour env.appUrl exists to prevent.
+const SITE_URL = env.appUrl;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

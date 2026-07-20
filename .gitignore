@@ -7,8 +7,11 @@ dist
 coverage
 
 # env
-.env
-.env*.local
+# Ignore every .env variant and allow the template back in, rather than listing suffixes.
+# The old rules covered .env and .env*.local only, so .env.prod, .env.production and
+# .env.staging would all have been committed with real credentials in them.
+.env*
+!.env.example
 
 # misc
 .DS_Store
