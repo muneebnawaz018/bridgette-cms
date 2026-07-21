@@ -267,7 +267,7 @@ export default function DashboardPage() {
           color="text.secondary"
           sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
         >
-          A snapshot of your invoices across all types.
+          This month&apos;s invoices across all types.
           <Chip
             component="span"
             size="small"
@@ -283,7 +283,10 @@ export default function DashboardPage() {
         </Typography>
       </Box>
 
-      {/* One premium card per invoice type */}
+      {/* One premium card per invoice type — current calendar month only. */}
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+        This month · {formatMonth(stats?.pipelineMonth, 'this month')}
+      </Typography>
       <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
         {TYPES.map((t) => (
           <Grid size={{ xs: 12, md: 4 }} key={t.key}>

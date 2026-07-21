@@ -208,10 +208,12 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
   assertCan(actor.role, Permission.InvoiceView);
   await connectDb();
 
-  // The pipeline reports the current calendar month; the type totals stay lifetime-to-date.
+  // Both the pipeline and the per-type totals report the current calendar month only, so the
+  // dashboard is a snapshot of this month rather than an ever-growing lifetime tally.
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const thisMonth = { createdAt: { $gte: monthStart, $lt: nextMonthStart } };
 
   const [row] = await Invoice.aggregate([
     // Stats cover the active set only (archived + deleted excluded).
@@ -219,6 +221,7 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
     {
       $facet: {
         type: [
+          { $match: thisMonth },
           {
             $group: {
               _id: '$type',
@@ -228,11 +231,8 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
             },
           },
         ],
-        state: [
-          { $match: { createdAt: { $gte: monthStart, $lt: nextMonthStart } } },
-          { $group: { _id: '$state', count: { $sum: 1 } } },
-        ],
-        total: [{ $count: 'n' }],
+        state: [{ $match: thisMonth }, { $group: { _id: '$state', count: { $sum: 1 } } }],
+        total: [{ $match: thisMonth }, { $count: 'n' }],
       },
     },
   ]);
