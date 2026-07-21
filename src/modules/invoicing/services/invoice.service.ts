@@ -9,6 +9,7 @@ import { InvoiceState, DEFAULT_CURRENCY } from '../enums';
 import { computePaymentState } from '../state';
 import { calcInvoice } from '../calc';
 import { issueInvoiceNumber } from '../numbering';
+import { reminderDueAt } from '../reminders';
 import { invoiceVisibilityFilter, canViewInvoice } from '../visibility';
 import type {
   CreateInvoiceInput,
@@ -43,16 +44,24 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
 
   const number = await issueInvoiceNumber(input.type);
 
+  const issueDate = input.issueDate ? new Date(input.issueDate) : undefined;
+  const dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
+
+  // A reminder fires `thresholdMinutes` after the due date, and only once the invoice is live.
+  // A draft, or an invoice with no due date, keeps the chosen interval but leaves dueAt unset,
+  // so the sweep never chases a document that has not been issued or has no date to fire after.
+  // Finalizing is what stamps dueAt (see updateInvoice).
   const reminder =
     input.reminderThresholdMinutes != null
       ? {
           thresholdMinutes: input.reminderThresholdMinutes,
-          dueAt: new Date(Date.now() + input.reminderThresholdMinutes * 60_000),
+          dueAt: input.asDraft
+            ? undefined
+            : reminderDueAt(dueDate, input.reminderThresholdMinutes),
           sent: false,
         }
       : undefined;
 
-  const dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
   const state = input.asDraft
     ? InvoiceState.Draft
     : computePaymentState({ amountPaid: 0, grandTotal: calc.grandTotal, dueDate });
@@ -79,6 +88,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     advancePayment: input.advancePayment,
     remainingBalance: input.advancePayment != null ? calc.grandTotal - input.advancePayment : undefined,
     paymentMethod: input.paymentMethod,
+    issueDate,
     dueDate,
     terms: input.terms,
     notes: input.notes,
@@ -301,8 +311,18 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   doc.taxAmount = calc.taxAmount;
   doc.grandTotal = calc.grandTotal;
   doc.balanceDue = Math.max(0, calc.grandTotal - doc.amountPaid);
-  // Recompute payment-driven state (leave explicit drafts as Draft).
-  if (doc.state !== InvoiceState.Draft) {
+
+  // A draft is finalized by saving it with asDraft:false — the only transition out of Draft,
+  // and one the edit UI previously had no way to trigger (a draft stayed a draft forever). It
+  // is one-directional on purpose: once finalized, an invoice is a real document with a number
+  // in circulation, so it can never be sent back to Draft. Omitting asDraft leaves the state
+  // as-is, so a plain edit of an existing draft keeps it a draft.
+  const finalizingDraft = doc.state === InvoiceState.Draft && input.asDraft === false;
+
+  // Recompute payment-driven state for anything that is not (still) an explicit draft. A draft
+  // being finalized this call falls through to the payment computation below and lands on
+  // Pending / PartiallyPaid / Paid according to what has been paid against it.
+  if (doc.state !== InvoiceState.Draft || finalizingDraft) {
     doc.state = computePaymentState({
       amountPaid: doc.amountPaid,
       grandTotal: calc.grandTotal,
@@ -311,25 +331,41 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   }
   if (input.billTo) doc.billTo = input.billTo;
   if (input.shipTo) doc.shipTo = input.shipTo;
+  if (input.issueDate) doc.issueDate = new Date(input.issueDate);
   if (input.dueDate) doc.dueDate = new Date(input.dueDate);
   if (input.terms !== undefined) doc.terms = input.terms;
   if (input.notes !== undefined) doc.notes = input.notes;
+
+  // By this point the state block above has run, so doc.state already reflects what this save
+  // will persist — Draft only if it is staying a draft.
+  const willBeDraft = doc.state === InvoiceState.Draft;
 
   // Reminder. Omitting the key leaves it alone; null clears it.
   if (input.reminderThresholdMinutes !== undefined) {
     if (input.reminderThresholdMinutes === null) {
       doc.set('reminder', undefined);
     } else {
-      // The clock restarts from now rather than from creation. Someone changing this is
-      // saying "remind me in an hour", and measuring from a creation date days ago would
-      // either fire instantly or never, neither of which is what they asked for. Clearing
-      // `sent` is part of the same intent: a new interval means a new reminder is owed.
+      // The reminder is anchored to the due date (set just above, so doc.dueDate is current):
+      // it fires `thresholdMinutes` after the invoice falls due. Clearing `sent` is part of the
+      // same intent — a new interval means a new reminder is owed.
+      //
+      // While the invoice is still a draft, or has no due date, the interval is remembered but
+      // dueAt stays unset, so the countdown does not begin until the invoice is issued with a
+      // date to fire after.
       doc.set('reminder', {
         thresholdMinutes: input.reminderThresholdMinutes,
-        dueAt: new Date(Date.now() + input.reminderThresholdMinutes * 60_000),
+        dueAt: willBeDraft ? undefined : reminderDueAt(doc.dueDate, input.reminderThresholdMinutes),
         sent: false,
       });
     }
+  }
+
+  // Finalizing an invoice that already carries a reminder interval is what starts its clock,
+  // even when this save did not touch the reminder field. Measured from the due date, so the
+  // reminder fires once the invoice is actually overdue rather than a span after it went live.
+  if (finalizingDraft && doc.reminder?.thresholdMinutes && !doc.reminder.dueAt) {
+    doc.set('reminder.dueAt', reminderDueAt(doc.dueDate, doc.reminder.thresholdMinutes));
+    doc.set('reminder.sent', false);
   }
 
   await doc.save();

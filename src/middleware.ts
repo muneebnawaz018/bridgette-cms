@@ -80,6 +80,8 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/invoices/:path*',
+    '/terms/:path*',
+    '/terms',
     '/users/:path*',
     '/settings/:path*',
     '/profile/:path*',

@@ -27,6 +27,12 @@ export const env = {
   accessTokenTtl: optional('JWT_ACCESS_TTL', '1h'),
   refreshTokenTtl: optional('JWT_REFRESH_TTL', '7d'),
   /**
+   * Canonical Super Admin contact address, shown as the billing/terms contact. Read from the
+   * seed config, not the live DB row: it stays the intended mailbox even if the account's own
+   * profile email is later changed to a personal address.
+   */
+  superAdminEmail: optional('SUPER_ADMIN_EMAIL'),
+  /**
    * Public origin of this deployment. Every link we email is built from it: the invite
    * sign-in link, the password reset link, and the "open invoice" button on reminders.
    *

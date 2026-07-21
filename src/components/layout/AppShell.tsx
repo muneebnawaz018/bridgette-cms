@@ -23,6 +23,7 @@ import { useSignOut } from '@/components/auth/useSignOut';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { colors, gradients } from '@/lib/colors';
 import { displayFont } from '@/lib/theme';
+import { COMPANY } from '@/modules/legal/company';
 
 const RAIL = 268;
 // Rail shows from tablet up; below this the hamburger + drawer take over.
@@ -143,7 +144,10 @@ function RailContent({
             <ListItemIcon sx={{ minWidth: 38, color: 'inherit' }}>
               <LogoutRounded fontSize="small" />
             </ListItemIcon>
-            <ListItemText primary="Sign out" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.925rem' }} />
+            <ListItemText
+              primary="Sign out"
+              primaryTypographyProps={{ fontWeight: 600, fontSize: '0.925rem' }}
+            />
           </ListItemButton>
         </List>
       </Box>
@@ -333,6 +337,25 @@ export function AppShell({
           sx={{ flexGrow: 1, px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2.5, md: 3.5 } }}
         >
           <Box sx={{ maxWidth: 1520, mx: 'auto', width: '100%' }}>{children}</Box>
+        </Box>
+
+        {/* Footer — one line: copyright with the Terms & Policies link folded into it. The link
+            points at the system terms (/terms); the legal text lives there, this is the pointer. */}
+        <Box
+          component="footer"
+          sx={{
+            px: { xs: 2, sm: 3, md: 4 },
+            py: 2,
+            borderTop: `1px solid ${colors.surface.border}`,
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            © {new Date().getFullYear()} {COMPANY}. All rights reserved. ·{' '}
+            <AppLink href="/terms" style={{ fontWeight: 600 }}>
+              Terms &amp; Policies
+            </AppLink>
+          </Typography>
         </Box>
       </Box>
     </Box>

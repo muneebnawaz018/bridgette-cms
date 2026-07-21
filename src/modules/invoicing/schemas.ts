@@ -27,6 +27,7 @@ export const createInvoiceSchema = z.object({
   taxRate: z.number().nonnegative().optional(),
   applyTax: z.boolean().optional(),
   paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+  issueDate: z.string().datetime().optional(),
   dueDate: z.string().datetime().optional(),
   terms: z.string().optional(),
   notes: z.string().optional(),

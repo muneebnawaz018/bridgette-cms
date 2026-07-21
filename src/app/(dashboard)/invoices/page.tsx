@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
@@ -20,9 +21,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
-import { InvoiceDetailsModal } from '@/components/invoices/InvoiceDetailsModal';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
-import { InvoiceFormDialog } from '@/components/invoices/InvoiceFormDialog';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
@@ -102,8 +101,8 @@ export default function InvoicesPage() {
   const [type, setType] = useState<'' | InvoiceType>('');
   // Defaults to the last 7 days, per the agreed filter. Clearing both dates shows everything.
   const [range, setRange] = useState({ from: daysAgo(7), to: today() });
+  const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
 
   // Preselect the type filter from ?type=tax|cash|pk (e.g. clicked from a dashboard card).
@@ -143,7 +142,6 @@ export default function InvoicesPage() {
   ];
 
   // Details modal (row click)
-  const [detailId, setDetailId] = useState<string | null>(null);
 
   // Record-payment dialog. The modal owns the form and the request; the page only says which
   // invoice is being paid.
@@ -257,7 +255,7 @@ export default function InvoicesPage() {
               <Button
                 variant="contained"
                 startIcon={<AddRounded />}
-                onClick={() => setCreateOpen(true)}
+                onClick={() => router.push('/invoices/new')}
               >
                 New invoice
               </Button>
@@ -299,18 +297,10 @@ export default function InvoicesPage() {
           rowCount={rowCount}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
-          onRowClick={setDetailId}
+          onRowClick={(rowId) => router.push(`/invoices/${rowId}`)}
           columnVisibilityModel={columnVisibility}
         />
       </Paper>
-
-      <InvoiceDetailsModal id={detailId} onClose={() => setDetailId(null)} />
-
-      <InvoiceFormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSaved={() => void mutate()}
-      />
 
       <ExportInvoicesModal
         open={exportOpen}

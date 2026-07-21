@@ -108,3 +108,32 @@ body {
     animation: none !important;
   }
 }
+
+/*
+ * Print isolation for "Download PDF" (the Terms page uses window.print).
+ *
+ * Everything is hidden, then only the marked region and its descendants are shown and lifted
+ * to the top-left of the page — so the printed PDF is just that region, without the app's
+ * sidebar, top bar, or any button carrying the `.no-print` class. This is the standard
+ * no-dependency route to a design-faithful PDF.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-region,
+  .print-region * {
+    visibility: visible;
+  }
+  .print-region {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

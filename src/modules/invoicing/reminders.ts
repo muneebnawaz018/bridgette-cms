@@ -25,6 +25,22 @@ export const REMINDER_PRESETS: readonly ReminderPreset[] = [
   { minutes: 10080, label: '1 week' },
 ];
 
+/**
+ * When a reminder should fire: `thresholdMinutes` after the invoice's due date. The countdown
+ * runs from the due date, not from creation — an unpaid invoice is chased once it is actually
+ * overdue, not a fixed span after it was raised.
+ *
+ * Returns undefined when there is no due date to measure from: a reminder needs one to anchor
+ * to, so without it the sweep never picks the invoice up.
+ */
+export function reminderDueAt(
+  dueDate: Date | null | undefined,
+  thresholdMinutes: number,
+): Date | undefined {
+  if (!dueDate) return undefined;
+  return new Date(dueDate.getTime() + thresholdMinutes * 60_000);
+}
+
 const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
 
 /**
