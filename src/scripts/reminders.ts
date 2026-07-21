@@ -19,6 +19,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 
 dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.development' });
 dotenv.config({ path: '.env' });
 
 const [, , command = 'list', target] = process.argv;

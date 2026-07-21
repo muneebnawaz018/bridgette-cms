@@ -14,15 +14,30 @@ function optional(name: string, fallback = ''): string {
   return process.env[name] ?? fallback;
 }
 
+function requireSecret(name: string): string {
+  const v = required(name);
+  if (process.env.NODE_ENV === 'production') {
+    if (v.length < 32) {
+      throw new Error(
+        `${name} must be at least 32 characters in production (use \`openssl rand -base64 48\`)`,
+      );
+    }
+    if (/change|placeholder|example|secret|test/i.test(v)) {
+      throw new Error(`${name} still looks like a placeholder — set a strong random value`);
+    }
+  }
+  return v;
+}
+
 export const env = {
   get mongoUri() {
     return required('MONGODB_URI');
   },
   get jwtAccessSecret() {
-    return required('JWT_ACCESS_SECRET');
+    return requireSecret('JWT_ACCESS_SECRET');
   },
   get jwtRefreshSecret() {
-    return required('JWT_REFRESH_SECRET');
+    return requireSecret('JWT_REFRESH_SECRET');
   },
   accessTokenTtl: optional('JWT_ACCESS_TTL', '1h'),
   refreshTokenTtl: optional('JWT_REFRESH_TTL', '7d'),

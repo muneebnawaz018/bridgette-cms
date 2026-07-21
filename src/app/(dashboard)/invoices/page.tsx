@@ -30,7 +30,7 @@ import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { apiPost, apiDelete } from '@/lib/api/client';
-import { today, daysAgo } from '@/lib/format/date';
+import { monthStart, monthEnd } from '@/lib/format/date';
 import { formatMoney } from '@/lib/format/money';
 
 interface InvoiceRow {
@@ -100,8 +100,9 @@ export default function InvoicesPage() {
   const [searchInput, setSearchInput] = useState('');
   const search = useDebounced(searchInput);
   const [type, setType] = useState<'' | InvoiceType>('');
-  // Defaults to the last 7 days, per the agreed filter. Clearing both dates shows everything.
-  const [range, setRange] = useState({ from: daysAgo(7), to: today() });
+  // Defaults to the whole current month (1st → last day, whatever its length). Clearing both
+  // dates shows everything.
+  const [range, setRange] = useState({ from: monthStart(), to: monthEnd() });
   const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({

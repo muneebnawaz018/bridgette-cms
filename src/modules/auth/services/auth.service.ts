@@ -295,7 +295,9 @@ export async function refreshSession(ctx: RequestContext = {}): Promise<SessionU
   if (!token) throw new Error('No refresh token');
 
   const payload = await verifyRefreshToken(token);
-  const stored = await RefreshToken.findOne({ jti: payload.jti, revokedAt: null });
+  // Bind to the subject too (not jti alone), so a token minted with a mismatched sub — only
+  // possible if the signing secret leaked — cannot rotate against another user's session.
+  const stored = await RefreshToken.findOne({ jti: payload.jti, userId: payload.sub, revokedAt: null });
   if (!stored) throw new Error('Refresh token revoked');
   if (stored.expiresAt.getTime() < Date.now()) throw new Error('Refresh token expired');
   const match = await bcrypt.compare(token, stored.tokenHash);

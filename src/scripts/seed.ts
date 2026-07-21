@@ -20,7 +20,11 @@ import { UserStatus } from '../modules/auth/enums';
 
 // .env.local first: dotenv keeps the first value it sees, so it wins over .env, which is the
 // same precedence Next.js itself applies.
+// dotenv keeps the first value it sees, so this is highest-precedence first. `.env.development`
+// is the app's dev file (Next loads it for `next dev`); `.env.local`/`.env` stay supported so
+// the script works whatever the project uses.
 dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.development' });
 dotenv.config({ path: '.env' });
 
 async function main() {

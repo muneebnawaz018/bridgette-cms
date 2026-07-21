@@ -8,12 +8,19 @@ const party = z.object({
   address: z.string().optional(),
 });
 
+// Sane ceilings so a fat-fingered amount (e.g. a pasted 1e21) can't book an invoice whose
+// total dwarfs the whole business and skews every dashboard aggregate. Generous: a billion
+// per unit and a million units still clear any real line.
+const MAX_UNIT_PRICE = 1_000_000_000;
+const MAX_QUANTITY = 1_000_000;
+const MAX_AMOUNT = 1_000_000_000;
+
 const item = z.object({
   description: z.string().min(1),
-  quantity: z.number().nonnegative(),
-  unitPrice: z.number().nonnegative(),
+  quantity: z.number().nonnegative().max(MAX_QUANTITY, 'Quantity is too large'),
+  unitPrice: z.number().nonnegative().max(MAX_UNIT_PRICE, 'Unit price is too large'),
   taxable: z.boolean().optional(),
-  discount: z.number().nonnegative().optional(),
+  discount: z.number().nonnegative().max(MAX_AMOUNT, 'Discount is too large').optional(),
 });
 
 export const createInvoiceSchema = z.object({
@@ -22,8 +29,8 @@ export const createInvoiceSchema = z.object({
   billTo: party,
   shipTo: party.optional(),
   items: z.array(item).min(1, 'At least one line item is required'),
-  shippingHandlingTariff: z.number().nonnegative().optional(),
-  invoiceDiscount: z.number().nonnegative().optional(),
+  shippingHandlingTariff: z.number().nonnegative().max(MAX_AMOUNT, 'Amount is too large').optional(),
+  invoiceDiscount: z.number().nonnegative().max(MAX_AMOUNT, 'Discount is too large').optional(),
   // A fraction, not a percentage (0.0875 = 8.75%). Capped at 1 so a stray 50 can't book a
   // 5000% tax; the form already limits its percentage input to 100.
   taxRate: z.number().nonnegative().max(1, 'Tax rate cannot exceed 100%').optional(),
@@ -36,8 +43,8 @@ export const createInvoiceSchema = z.object({
   reminderThresholdMinutes: z.number().int().positive().optional(),
   asDraft: z.boolean().optional(), // save as Draft instead of finalizing to Pending
   // type-specific
-  cashReceived: z.number().nonnegative().optional(),
-  advancePayment: z.number().nonnegative().optional(),
+  cashReceived: z.number().nonnegative().max(MAX_AMOUNT, 'Amount is too large').optional(),
+  advancePayment: z.number().nonnegative().max(MAX_AMOUNT, 'Amount is too large').optional(),
 });
 
 export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
@@ -73,10 +80,12 @@ export const invoiceFormSchema = z.object({
         description: z.string().trim().min(1, 'Describe this line'),
         quantity: z
           .number({ invalid_type_error: 'Enter a number' })
-          .positive('Quantity must be more than zero'),
+          .positive('Quantity must be more than zero')
+          .max(MAX_QUANTITY, 'Quantity is too large'),
         unitPrice: z
           .number({ invalid_type_error: 'Enter a number' })
-          .nonnegative('Price cannot be negative'),
+          .nonnegative('Price cannot be negative')
+          .max(MAX_UNIT_PRICE, 'Price is too large'),
       }),
     )
     .min(1, 'Add at least one line item'),

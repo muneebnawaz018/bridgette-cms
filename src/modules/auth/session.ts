@@ -49,9 +49,15 @@ async function liveAccount(userId: string): Promise<SessionUser | null> {
  * Is this device's session still active? Signing out one device, all others, or everywhere
  * revokes the refresh token row, and an admin disabling someone does the same. The JWT stays
  * cryptographically valid through all of that, so the row is the only thing that knows.
+ *
+ * The row is matched on BOTH jti and userId. Access tokens are only checked for jti existence
+ * (they carry no stored hash to compare against), so without the userId bind, anyone able to
+ * mint a signed token — e.g. if the signing secret leaked — could set `sub` to a victim and
+ * reuse any live jti to impersonate them. Requiring the jti's row to belong to `sub` closes
+ * that: a legitimate token's jti was issued for its own user, so this never rejects real ones.
  */
-async function deviceSessionIsLive(jti: string): Promise<boolean> {
-  const stored = await RefreshToken.findOne({ jti, revokedAt: null }).select('_id').lean();
+async function deviceSessionIsLive(jti: string, userId: string): Promise<boolean> {
+  const stored = await RefreshToken.findOne({ jti, userId, revokedAt: null }).select('_id').lean();
   return Boolean(stored);
 }
 
@@ -79,7 +85,7 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
         await connectDb();
         const [account, deviceLive] = await Promise.all([
           liveAccount(payload.sub),
-          deviceSessionIsLive(payload.jti),
+          deviceSessionIsLive(payload.jti, payload.sub),
         ]);
         return deviceLive ? account : null;
       }
@@ -95,7 +101,7 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
       await connectDb();
       const [account, deviceLive] = await Promise.all([
         liveAccount(payload.sub),
-        deviceSessionIsLive(payload.jti),
+        deviceSessionIsLive(payload.jti, payload.sub),
       ]);
       return deviceLive ? account : null;
     } catch {

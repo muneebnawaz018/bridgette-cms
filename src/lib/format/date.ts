@@ -76,3 +76,18 @@ export function daysAgo(n: number): string {
   d.setDate(d.getDate() - n);
   return toDateInput(d);
 }
+
+/** First day of the current month as YYYY-MM-DD. */
+export function monthStart(): string {
+  const d = new Date();
+  return toDateInput(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+/**
+ * Last day of the current month as YYYY-MM-DD. Day 0 of the next month is the last day of
+ * this one, so 28/29/30/31 all resolve correctly (February and leap years included).
+ */
+export function monthEnd(): string {
+  const d = new Date();
+  return toDateInput(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+}
