@@ -15,14 +15,25 @@ export const GET = handle<Ctx>(async (_req, { params }) => {
 
   const base64 = proof.data.slice(proof.data.indexOf(',') + 1);
   const bytes = Buffer.from(base64, 'base64');
-  const contentType = proof.contentType || 'image/jpeg';
   const filename = (proof.name || 'proof.jpg').replace(/["\r\n]/g, '');
+
+  // Defence in depth on top of the write-time allowlist: only known raster types are served
+  // inline; anything else is handed back as an opaque download rather than rendered. The CSP
+  // neutralises any active content that ever reaches here, and nosniff stops the browser from
+  // second-guessing the declared type.
+  const INLINE_IMAGE = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+  const declared = (proof.contentType || 'image/jpeg').toLowerCase();
+  const inlineable = INLINE_IMAGE.has(declared);
+  const contentType = inlineable ? declared : 'application/octet-stream';
+  const disposition = inlineable ? 'inline' : 'attachment';
 
   return new NextResponse(bytes, {
     status: 200,
     headers: {
       'Content-Type': contentType,
-      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Disposition': `${disposition}; filename="${filename}"`,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; img-src 'self' data:; sandbox",
       // Private: the image can carry account details; never let a shared cache hold it.
       'Cache-Control': 'private, max-age=300',
     },

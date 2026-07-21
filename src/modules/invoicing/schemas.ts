@@ -24,7 +24,9 @@ export const createInvoiceSchema = z.object({
   items: z.array(item).min(1, 'At least one line item is required'),
   shippingHandlingTariff: z.number().nonnegative().optional(),
   invoiceDiscount: z.number().nonnegative().optional(),
-  taxRate: z.number().nonnegative().optional(),
+  // A fraction, not a percentage (0.0875 = 8.75%). Capped at 1 so a stray 50 can't book a
+  // 5000% tax; the form already limits its percentage input to 100.
+  taxRate: z.number().nonnegative().max(1, 'Tax rate cannot exceed 100%').optional(),
   applyTax: z.boolean().optional(),
   paymentMethod: z.nativeEnum(PaymentMethod).optional(),
   issueDate: z.string().datetime().optional(),

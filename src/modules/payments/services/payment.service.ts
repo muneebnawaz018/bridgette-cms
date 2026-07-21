@@ -55,9 +55,17 @@ export async function recordPayment(
   if (invoice.isDeleted) throw new Error('Cannot record payment on a deleted invoice');
   if (invoice.isArchived) throw new Error('Cannot record payment on an archived invoice');
 
-  // Block overpayment unless explicitly allowed.
-  const projected = round2(invoice.amountPaid + input.amount);
-  if (!input.allowOverpay && projected > invoice.grandTotal) {
+  // Block overpayment unless explicitly allowed — atomically. A plain read-then-check let two
+  // concurrent payments both see the same stale amountPaid, both pass, and together overshoot
+  // grandTotal (measured: two 60s booked 120 against a 100 invoice). The guard is a conditional
+  // $inc instead: only the writer whose amount still fits wins. recalcInvoice below resets
+  // amountPaid to the true ledger sum, so this increment is purely the concurrency gate.
+  const amount = round2(input.amount);
+  const guard = input.allowOverpay
+    ? { _id: invoice._id }
+    : { _id: invoice._id, $expr: { $lte: [{ $add: ['$amountPaid', amount] }, '$grandTotal'] } };
+  const reserved = await Invoice.findOneAndUpdate(guard, { $inc: { amountPaid: amount } });
+  if (!reserved) {
     throw new Error(
       `Payment exceeds balance due (${nonNegative(invoice.grandTotal - invoice.amountPaid)} remaining)`,
     );
@@ -65,7 +73,7 @@ export async function recordPayment(
 
   const payment = await Payment.create({
     invoiceId,
-    amount: round2(input.amount),
+    amount,
     currency: invoice.currency,
     method: input.method,
     reference: input.reference,

@@ -2,11 +2,32 @@ import { z } from 'zod';
 import { PaymentMethod } from '@/modules/invoicing/enums';
 import { proofRequired, MAX_PROOF_BYTES } from './methodFields';
 
-/** An attached proof of payment: a compressed image, stored as a base64 data URL. */
+/**
+ * An attached proof of payment: a compressed image, stored as a base64 data URL.
+ *
+ * Both the data-URL mime and the declared `contentType` are pinned to a raster-image
+ * allowlist. Without that, `data:text/html;…` or a scriptable `image/svg+xml` passed the old
+ * `startsWith('data:')` check, got stored verbatim, and the proof route served them back
+ * inline — stored XSS on the app origin the moment someone opened the proof. The client only
+ * ever produces JPEG, so this rejects nothing a real upload sends.
+ */
+const PROOF_DATA_URL = /^data:image\/(png|jpe?g|webp|gif|heic);base64,[A-Za-z0-9+/]+=*$/i;
+const PROOF_CONTENT_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+]);
 const proofSchema = z.object({
-  data: z.string().min(1).startsWith('data:', 'Proof must be an image data URL'),
+  data: z.string().min(1).regex(PROOF_DATA_URL, 'Proof must be a PNG, JPEG, WEBP, GIF or HEIC image'),
   name: z.string().min(1).max(200),
-  contentType: z.string().min(1).max(100),
+  contentType: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine((t) => PROOF_CONTENT_TYPES.has(t.toLowerCase()), 'Unsupported image type'),
   size: z.number().int().nonnegative(),
 });
 
