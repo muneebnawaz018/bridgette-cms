@@ -1,4 +1,4 @@
-import type { FilterQuery } from 'mongoose';
+import { Types, type FilterQuery } from 'mongoose';
 import { Permission, can, type SessionUser } from '@/modules/auth';
 import type { InvoiceDoc } from './models/invoice.model';
 import type { InvoiceView } from './schemas';
@@ -23,7 +23,12 @@ export function invoiceVisibilityFilter(
 ): FilterQuery<InvoiceDoc> {
   const isAdmin = can(session.role, Permission.InvoiceViewAllArchived);
   // Non-admins are scoped to their own invoices in every view; admins are unrestricted.
-  const owner: FilterQuery<InvoiceDoc> = isAdmin ? {} : { createdBy: session.userId };
+  // `createdBy` is stored as an ObjectId. This filter feeds `Invoice.aggregate` (list + stats),
+  // and Mongoose does NOT cast aggregation `$match` against the schema the way `find()` does —
+  // so a raw string id silently matches nothing and a non-admin sees an empty list. Cast it here.
+  const owner: FilterQuery<InvoiceDoc> = isAdmin
+    ? {}
+    : { createdBy: new Types.ObjectId(session.userId) };
 
   if (view === 'all') {
     // Everything this session may see. Admins: every invoice. Others: their own, minus deleted.

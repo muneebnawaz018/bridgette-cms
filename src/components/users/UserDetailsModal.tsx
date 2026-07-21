@@ -25,6 +25,7 @@ import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/countries';
 import { ROLE_LABEL } from '@/lib/format/labels';
+import { redA } from '@/lib/colors';
 
 interface UserDetail {
   _id: string;
@@ -160,38 +161,53 @@ export function UserDetailsModal({
         <Typography color="error">Could not load this user.</Typography>
       ) : (
         <Stack spacing={2.5}>
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            spacing={2.5}
-            alignItems={{ xs: 'flex-start', sm: 'center' }}
+          {/* Identity band — avatar + role/status. The tinted full-width surface fills what was
+              an awkward empty top-right, and the chips read as proper badges rather than tiny pills. */}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: 'center',
+              textAlign: { xs: 'center', sm: 'left' },
+              gap: 2.5,
+              p: 2,
+              borderRadius: 2,
+              bgcolor: redA(0.05),
+              border: 1,
+              borderColor: 'divider',
+            }}
           >
             <AvatarPicker
               src={user.avatarUrl}
               fallback={(user.name || user.email).charAt(0).toUpperCase()}
               title={user.name}
-              size={96}
+              size={88}
               canEdit={canEditUser}
               uploading={uploading}
               onPick={pickAvatar}
             />
 
-            <Box sx={{ minWidth: 0 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                flexWrap="wrap"
+                useFlexGap
+                justifyContent={{ xs: 'center', sm: 'flex-start' }}
+                sx={{ '& .MuiChip-root': { height: 28, borderRadius: 1.5, fontSize: '0.8rem' } }}
+              >
                 <Chip
                   label={ROLE_LABEL[user.role] ?? user.role}
                   color="primary"
                   variant="outlined"
-                  size="small"
                   sx={{ fontWeight: 700 }}
                 />
                 <StatusChip label={user.status} tone={userStatusTone[user.status] ?? 'neutral'} />
-                {user.isProtected && <Chip label="Protected" size="small" variant="outlined" />}
-              </Box>
-              {user.jobTitle && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  {user.jobTitle}
-                </Typography>
-              )}
+                {user.isProtected && <Chip label="Protected" variant="outlined" />}
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {user.jobTitle || 'No job title set'}
+              </Typography>
               {canEditUser && hasPhoto && (
                 <Button
                   onClick={() => setConfirmRemove(true)}
@@ -205,13 +221,10 @@ export function UserDetailsModal({
                 </Button>
               )}
             </Box>
-          </Stack>
-
-          <Divider />
+          </Box>
 
           <Grid container spacing={1}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Field label="Job title" value={user.jobTitle || 'Not set'} />
               <Field label="Phone" value={formatPhone(user.phone) || 'Not set'} />
               <Field label="Email verified" value={user.emailVerified ? 'Yes' : 'No'} />
             </Grid>

@@ -53,7 +53,7 @@ export function DataTable<T extends GridValidRowModel>({
   columns,
   loading,
   getRowId,
-  height = { xs: 'auto', md: 560 },
+  height,
   columnVisibilityModel,
   rowCount,
   paginationModel,
@@ -67,12 +67,22 @@ export function DataTable<T extends GridValidRowModel>({
   // size to its rows below md leaves one scroll: the page's own.
   const compact = useMediaQuery('(max-width:899.95px)');
 
+  // Size the box to the rows it actually shows, so a full page of 10 fits without an inner
+  // scrollbar. A fixed 560px box was shorter than 10 default-height rows plus header and
+  // footer (~628px), which is what produced the extra vertical scroll. Capped at the viewport
+  // so a larger "rows per page" (25/50) scrolls the page rather than growing without bound; a
+  // short last page shrinks to fit instead of leaving an empty gap. `height` still overrides.
+  const DGRID = { row: 52, header: 56, footer: 54, pad: 2 };
+  const shownRows = Math.max(1, rows.length || paginationModel?.pageSize || DEFAULT_PAGE_SIZE);
+  const fitPx = DGRID.header + shownRows * DGRID.row + DGRID.footer + DGRID.pad;
+  const boxHeight = height ?? (compact ? 'auto' : `min(${fitPx}px, calc(100dvh - 200px))`);
+
   // Rows loading asks for the one app-wide overlay. The grid's own indicator stays off: it
   // drew a second, smaller spinner in the table's top-left while the overlay was already up.
   useGlobalLoading(Boolean(loading));
 
   return (
-    <Box sx={{ height, width: '100%' }}>
+    <Box sx={{ height: boxHeight, width: '100%' }}>
       <DataGrid
         rows={rows as GridValidRowModel[]}
         columns={columns as GridColDef<GridValidRowModel>[]}

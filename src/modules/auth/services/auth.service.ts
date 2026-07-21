@@ -374,7 +374,20 @@ export async function forgotPassword(email: string): Promise<void> {
   await issueOtp(String(user._id), OtpPurpose.ResetPassword, RESET_TTL_MIN, token);
   const link = `${env.appUrl}/reset-password?uid=${user._id}&code=${token}`;
   const mail = resetPasswordEmail(user.name, link);
-  await sendMail({ to: user.email, ...mail });
+
+  // A send failure must not escape this function. The unknown-address branch above returns
+  // silently, so if a real address let the mailer throw, the route would answer 200 for
+  // "no such account" and 500 for a genuine one — the exact existence oracle this flow avoids.
+  // Report it like createUser/resendInvite do and still resolve.
+  try {
+    await sendMail({ to: user.email, ...mail });
+  } catch (err) {
+    logger.error('password reset email failed to send', {
+      userId: String(user._id),
+      email: user.email,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /** Complete forgot-password: verify token, set new password, kill all sessions. */
