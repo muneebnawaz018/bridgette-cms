@@ -30,6 +30,7 @@ import { apiPost } from '@/lib/api/client';
 import { formatMoney } from '@/lib/format/money';
 import { REMINDER_PRESETS } from '@/modules/invoicing/reminders';
 import { AppLink } from '@/components/ui/AppLink';
+import { DateField } from '@/components/form/DateField';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
 /*
@@ -43,9 +44,9 @@ import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/e
  */
 
 const TYPE_OPTIONS = [
-  { value: InvoiceType.Tax, label: 'Tax (US, taxed)' },
-  { value: InvoiceType.Cash, label: 'Cash (US, no tax)' },
-  { value: InvoiceType.PK, label: 'PK (Pakistan)' },
+  { value: InvoiceType.Tax, label: 'US Tax (taxed)' },
+  { value: InvoiceType.Cash, label: 'US Cash (no tax)' },
+  { value: InvoiceType.PK, label: 'Pakistan (PKR)' },
 ];
 
 interface DraftItem {
@@ -134,7 +135,17 @@ export default function NewInvoicePage() {
       items: f.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
     }));
 
-  const canSubmit = Boolean(form.billName) && form.items.length > 0 && !dueDateMissing;
+  // A draft may be incomplete — it just needs a customer name (and a due date if a reminder is
+  // set). A live invoice may not: every line must be filled in and the total must be positive,
+  // otherwise "Create invoice" would issue a numbered document with blank lines or a zero total.
+  const nameFilled = Boolean(form.billName.trim());
+  const itemsValid =
+    form.items.length > 0 &&
+    form.items.every(
+      (it) => it.description.trim() !== '' && Number(it.quantity) > 0 && Number(it.unitPrice) >= 0,
+    );
+  const canDraft = nameFilled && !dueDateMissing;
+  const canFinalizeNew = nameFilled && itemsValid && preview.grandTotal > 0 && !dueDateMissing;
 
   // Tax line names its rate: "Tax (8.75%)". Trailing zeros trimmed.
   const taxRowLabel =
@@ -190,8 +201,10 @@ export default function NewInvoicePage() {
     }
     enqueueSnackbar(asDraft ? 'Draft saved' : 'Invoice created', { variant: 'success' });
     // Land on the new invoice's own page — the same layout, now in view mode.
-    if (res.data?._id) router.push(`/invoices/${res.data._id}`);
-    else router.push('/invoices');
+    // replace, not push: drop /invoices/new from history so Back from the new invoice returns
+    // to the invoices table, not to an empty create form.
+    if (res.data?._id) router.replace(`/invoices/${res.data._id}`);
+    else router.replace('/invoices');
   }
 
   if (!canCreate) return <NoAccess message="You do not have permission to create invoices." />;
@@ -242,7 +255,7 @@ export default function NewInvoicePage() {
           <Button
             variant="outlined"
             onClick={() => submit(true)}
-            disabled={saving || !canSubmit}
+            disabled={saving || !canDraft}
             startIcon={<SaveAsRounded />}
           >
             Save as draft
@@ -250,7 +263,7 @@ export default function NewInvoicePage() {
           <Button
             variant="contained"
             onClick={() => submit(false)}
-            disabled={saving || !canSubmit}
+            disabled={saving || !canFinalizeNew}
             startIcon={<ReceiptLongRounded />}
           >
             Create invoice
@@ -449,24 +462,16 @@ export default function NewInvoicePage() {
             </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={2}>
-              <TextField
+              <DateField
                 label="Invoice date"
-                size="small"
-                type="date"
                 value={form.issueDate}
-                onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
+                onChange={(v) => setForm((f) => ({ ...f, issueDate: v }))}
                 disabled={saving}
               />
-              <TextField
+              <DateField
                 label="Due date"
-                size="small"
-                type="date"
                 value={form.dueDate}
-                onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
+                onChange={(v) => setForm((f) => ({ ...f, dueDate: v }))}
                 disabled={saving}
                 error={dueDateMissing}
                 helperText={

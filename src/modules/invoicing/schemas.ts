@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InvoiceType, Currency, PaymentMethod } from './enums';
+import { InvoiceType, InvoiceState, Currency, PaymentMethod } from './enums';
 
 const party = z.object({
   name: z.string().min(1),
@@ -104,6 +104,7 @@ export const listInvoiceSchema = z
     page: z.coerce.number().int().positive().optional(),
     limit: z.coerce.number().int().positive().optional(),
     type: z.nativeEnum(InvoiceType).optional(),
+    state: z.nativeEnum(InvoiceState).optional(),
     search: z.string().optional(),
     view: invoiceViewSchema.optional(),
     from: dateOnly.optional(),
@@ -122,6 +123,7 @@ export const exportInvoiceSchema = z
   .object({
     format: exportFormatSchema,
     type: z.nativeEnum(InvoiceType).optional(),
+    state: z.nativeEnum(InvoiceState).optional(),
     search: z.string().optional(),
     view: invoiceViewSchema.optional(),
     from: dateOnly.optional(),

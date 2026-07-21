@@ -24,7 +24,8 @@ import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
+import { StatusChip, invoiceStateTone, invoiceStateLabel } from '@/components/ui/StatusChip';
+import { invoiceTypeLabel } from '@/lib/format/labels';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
@@ -141,9 +142,9 @@ export default function InvoicesPage() {
 
   const typeOptions: { value: string; label: string }[] = [
     { value: '', label: 'All types' },
-    { value: InvoiceType.Tax, label: 'Tax' },
-    { value: InvoiceType.Cash, label: 'Cash' },
-    { value: InvoiceType.PK, label: 'PK' },
+    { value: InvoiceType.Tax, label: invoiceTypeLabel(InvoiceType.Tax) },
+    { value: InvoiceType.Cash, label: invoiceTypeLabel(InvoiceType.Cash) },
+    { value: InvoiceType.PK, label: invoiceTypeLabel(InvoiceType.PK) },
   ];
 
   // Details modal (row click)
@@ -203,7 +204,14 @@ export default function InvoicesPage() {
         </Typography>
       ),
     },
-    { field: 'type', headerName: 'Type', width: 90, headerAlign: 'center', align: 'center' },
+    {
+      field: 'type',
+      headerName: 'Type',
+      width: 110,
+      headerAlign: 'center',
+      align: 'center',
+      valueGetter: (_v, r) => invoiceTypeLabel(r.type),
+    },
     {
       field: 'state',
       headerName: 'State',
@@ -212,7 +220,10 @@ export default function InvoicesPage() {
       headerAlign: 'center',
       align: 'center',
       renderCell: (p) => (
-        <StatusChip label={p.value} tone={invoiceStateTone[p.value] ?? 'neutral'} />
+        <StatusChip
+          label={invoiceStateLabel(p.value)}
+          tone={invoiceStateTone[p.value] ?? 'neutral'}
+        />
       ),
     },
     {

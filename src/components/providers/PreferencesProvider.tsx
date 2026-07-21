@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/lib/pagination';
 
 /**
@@ -49,7 +51,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  return <Ctx.Provider value={{ pageSize, setPageSize }}>{children}</Ctx.Provider>;
+  // LocalizationProvider powers every DateField (MUI DatePicker) in the dashboard, which all
+  // render under this provider.
+  return (
+    <Ctx.Provider value={{ pageSize, setPageSize }}>
+      <LocalizationProvider dateAdapter={AdapterDayjs}>{children}</LocalizationProvider>
+    </Ctx.Provider>
+  );
 }
 
 export function usePreferences(): PreferencesContext {

@@ -26,14 +26,23 @@ import { colors, gradients, redA } from '@/lib/colors';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { displayFont } from '@/lib/theme';
 import { formatMonth } from '@/lib/format/date';
-import { ROLE_LABEL } from '@/lib/format/labels';
+import { formatMoney } from '@/lib/format/money';
+import { ROLE_LABEL, invoiceTypeLabel } from '@/lib/format/labels';
 
 // Outline button styling for use on the dark gradient quick-actions panel.
+//
+// The hover selector matches the theme's own `&:not(.Mui-disabled):hover` specificity — without
+// it the theme's outlined-hover (a light fill) wins and turns the white label invisible on the
+// dark panel.
 const onDarkButtonSx = {
   color: colors.onDark.text,
   borderColor: colors.onDark.border,
   bgcolor: colors.onDark.fill,
-  '&:hover': { bgcolor: colors.onDark.fillHover, borderColor: colors.onDark.borderHover },
+  '&:not(.Mui-disabled):hover': {
+    color: colors.onDark.text,
+    bgcolor: colors.onDark.fillHover,
+    borderColor: colors.onDark.borderHover,
+  },
 } as const;
 
 interface TypeTotals {
@@ -81,9 +90,6 @@ const stateChip: Record<string, { bg: string; fg: string }> = {
   paid: { bg: colors.status.successBg, fg: colors.status.success },
   overdue: { bg: colors.status.errorBg, fg: colors.status.error },
 };
-
-const money = (n: number) =>
-  n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function StateChip({ state, sx }: { state: string; sx?: SxProps<Theme> }) {
   const c = stateChip[state] ?? stateChip.draft;
@@ -179,8 +185,10 @@ function TypeStatCard({
         />
       </Box>
 
+      {/* Collected is the headline — "how much has come in" reads clearer than "Outstanding".
+          The amount still owed sits below with the progress. */}
       <Typography variant="overline" color="text.secondary">
-        Outstanding
+        Collected
       </Typography>
       <Typography
         className="tnum"
@@ -189,21 +197,16 @@ function TypeStatCard({
           fontWeight: 700,
           fontSize: '2.15rem',
           lineHeight: 1.05,
-          color: t.outstanding > 0 ? colors.status.error : colors.ink[900],
+          color: colors.ink[900],
         }}
       >
-        {money(t.outstanding)}
+        {formatMoney(currency, paid)}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        of {formatMoney(currency, t.invoiced)} invoiced
       </Typography>
 
       <Box sx={{ mt: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-          <Typography variant="caption" color="text.secondary">
-            Invoiced
-          </Typography>
-          <Typography variant="caption" className="tnum" sx={{ fontWeight: 700 }}>
-            {money(t.invoiced)}
-          </Typography>
-        </Box>
         <LinearProgress
           variant="determinate"
           value={ratio}
@@ -214,9 +217,26 @@ function TypeStatCard({
             '& .MuiLinearProgress-bar': { borderRadius: 3, backgroundColor: colors.status.success },
           }}
         />
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
-          {ratio}% collected
-        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: 1,
+            mt: 0.75,
+          }}
+        >
+          <Typography
+            variant="caption"
+            className="tnum"
+            sx={{ fontWeight: 600, color: t.outstanding > 0 ? 'error.main' : 'text.secondary' }}
+          >
+            {formatMoney(currency, t.outstanding)} unpaid
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+            {ratio}% collected
+          </Typography>
+        </Box>
       </Box>
     </Paper>
   );
@@ -227,7 +247,8 @@ export default function DashboardPage() {
   const canCreateInvoice = useCan(Permission.InvoiceCreate);
   const canCreateUser = useCan(Permission.UserCreate);
   const { data: stats } = useApi<Stats>('/api/dashboard/stats');
-  const { data: recentData } = useApi<{ items: RecentInvoice[] }>('/api/invoices?limit=6');
+  // Just a preview — the two most recent. "View all" is the way to the full list.
+  const { data: recentData } = useApi<{ items: RecentInvoice[] }>('/api/invoices?limit=2');
   const recent = recentData?.items ?? [];
   const s = stats?.byState ?? {};
   const name = email
@@ -267,7 +288,7 @@ export default function DashboardPage() {
         {TYPES.map((t) => (
           <Grid size={{ xs: 12, md: 4 }} key={t.key}>
             <TypeStatCard
-              label={t.label}
+              label={invoiceTypeLabel(t.key)}
               currency={t.currency}
               icon={t.icon}
               totals={stats?.byType[t.key]}
@@ -378,7 +399,7 @@ export default function DashboardPage() {
                         flexShrink: 0,
                       }}
                     >
-                      {inv.currency} {money(Number(inv.grandTotal))}
+                      {formatMoney(inv.currency, Number(inv.grandTotal))}
                     </Typography>
                   </Box>
                 ))}

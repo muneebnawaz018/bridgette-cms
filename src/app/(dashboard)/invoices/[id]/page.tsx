@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AppLink } from '@/components/ui/AppLink';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Grid from '@mui/material/Grid2';
@@ -29,7 +29,11 @@ import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import { calcInvoice } from '@/modules/invoicing/calc';
 import { useCan } from '@/components/auth/SessionProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { StatusChip, invoiceStateTone } from '@/components/ui/StatusChip';
+import { StatusChip, invoiceStateTone, invoiceStateLabel } from '@/components/ui/StatusChip';
+import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
+import { DateField } from '@/components/form/DateField';
+import Link from '@mui/material/Link';
+import { paymentFieldLabel } from '@/modules/payments/methodFields';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
 import { useApi } from '@/lib/api/useApi';
 import { apiPatch } from '@/lib/api/client';
@@ -49,9 +53,12 @@ function reminderSummary(
 ): string {
   if (!reminder?.thresholdMinutes) return '—';
   const label = `${reminderLabel(reminder.thresholdMinutes)} after due date`;
+  // Compact date+time (no seconds) so it stays on one line.
+  const fmt = (d: Date) => d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
   if (reminder.sent) {
-    const when = reminder.sentAt ? new Date(reminder.sentAt).toLocaleString() : 'already';
-    return `${label} · sent ${when}`;
+    return reminder.sentAt
+      ? `${label} · sent ${fmt(new Date(reminder.sentAt))}`
+      : `${label} · sent`;
   }
   // No dueAt means the clock has not started: either a draft holding its interval until
   // finalized, or a finalized invoice with no due date to fire after.
@@ -61,7 +68,7 @@ function reminderSummary(
     return label;
   }
   const due = new Date(reminder.dueAt);
-  return `${label} · ${due.getTime() <= Date.now() ? 'due now' : `due ${due.toLocaleString()}`}`;
+  return due.getTime() <= Date.now() ? `${label} · due now` : `${label} · ${fmt(due)}`;
 }
 
 interface Party {
@@ -115,6 +122,10 @@ interface Payment {
   method: string;
   reference?: string;
   paidAt: string;
+  /** Method-specific fields, keyed as in PAYMENT_METHOD_FIELDS. */
+  details?: Record<string, string>;
+  /** Present (without the image bytes) when a proof was attached. */
+  proof?: { name?: string; contentType?: string; size?: number };
 }
 
 interface EditItem {
@@ -162,8 +173,12 @@ function toForm(inv: Invoice): EditForm {
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
   const canEdit = useCan(Permission.InvoiceEdit);
+  // Editing a finalized invoice is admin-only; drafts can still be edited by anyone who may edit.
+  // InvoiceViewAllArchived is the admin marker used everywhere else (see visibility).
+  const canAdminEdit = useCan(Permission.InvoiceViewAllArchived);
   const canPay = useCan(Permission.PaymentRecord);
 
   const { data: invoice, isLoading, error, mutate } = useApi<Invoice>(`/api/invoices/${id}`);
@@ -180,8 +195,8 @@ export default function InvoiceDetailPage() {
   // The record-payment modal owns its own form and request.
   const [payOpen, setPayOpen] = useState(false);
 
-  // The app-wide overlay is already up (useApi drives it); rendering a second one here would
-  // sit inside the page and leave the sidebar and top bar uncovered.
+  // The app-wide overlay is already up (useApi drives it via loadingBus); rendering a second
+  // loader here would sit inside the page and leave the sidebar and top bar uncovered.
   if (isLoading && !invoice) return null;
   if (error || !invoice) return <Alert severity="error">This invoice could not be loaded.</Alert>;
 
@@ -248,6 +263,12 @@ export default function InvoiceDetailPage() {
     setConfirmFinalize(null);
     if (res.ok) {
       enqueueSnackbar(finalize ? 'Invoice finalized' : 'Invoice updated', { variant: 'success' });
+      // Finalizing turns a draft into a live invoice — leave the editor and drop back to the
+      // invoices table, where it now appears in the active list.
+      if (finalize) {
+        router.push('/invoices');
+        return;
+      }
       setForm(null);
       void mutate();
     } else {
@@ -280,16 +301,19 @@ export default function InvoiceDetailPage() {
             useFlexGap
           >
             <Chip size="small" label={invoice.type.toUpperCase()} variant="outlined" />
-            <StatusChip label={invoice.state} tone={invoiceStateTone[invoice.state] ?? 'neutral'} />
+            <StatusChip
+              label={invoiceStateLabel(invoice.state)}
+              tone={invoiceStateTone[invoice.state] ?? 'neutral'}
+            />
             <Typography variant="body2" color="text.secondary">
               {invoice.currency}
             </Typography>
           </Stack>
         </Box>
         <Stack direction="row" spacing={1}>
-          {!form && canEdit && !locked && (
+          {!form && !locked && (isDraft ? canEdit : canAdminEdit) && (
             <Button
-              variant="outlined"
+              variant="contained"
               startIcon={<EditRounded />}
               onClick={() => setForm(toForm(invoice))}
             >
@@ -304,6 +328,18 @@ export default function InvoiceDetailPage() {
             >
               Record payment
             </Button>
+          )}
+          {/* Same actions in an overflow menu, per request — a compact route to Record payment
+              that also holds any future per-invoice actions. */}
+          {!form && (
+            <RowActionsMenu
+              ariaLabel="Invoice actions"
+              actions={
+                canPay && !locked && invoice.state !== 'paid' && invoice.state !== 'draft'
+                  ? [{ label: 'Record payment', onClick: () => setPayOpen(true) }]
+                  : []
+              }
+            />
           )}
           {form && (
             <>
@@ -488,11 +524,15 @@ export default function InvoiceDetailPage() {
             {!form ? (
               <Stack spacing={0.5}>
                 <Typography sx={{ fontWeight: 600 }}>{invoice.billTo?.name ?? '—'}</Typography>
-                {invoice.billTo?.email && (
-                  <Typography variant="body2" color="text.secondary">
-                    {invoice.billTo.email}
-                  </Typography>
-                )}
+                {/* Email is optional — show a clear placeholder rather than an empty gap so it
+                    reads as "none on file", not "we forgot to load it". */}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={invoice.billTo?.email ? undefined : { fontStyle: 'italic' }}
+                >
+                  {invoice.billTo?.email || 'No email provided'}
+                </Typography>
                 {invoice.billTo?.phone && (
                   <Typography variant="body2" color="text.secondary">
                     {invoice.billTo.phone}
@@ -628,24 +668,16 @@ export default function InvoiceDetailPage() {
               </Stack>
             ) : (
               <Stack spacing={2}>
-                <TextField
+                <DateField
                   label="Invoice date"
-                  size="small"
-                  type="date"
                   value={form.issueDate}
-                  onChange={(e) => setForm((f) => (f ? { ...f, issueDate: e.target.value } : f))}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
+                  onChange={(v) => setForm((f) => (f ? { ...f, issueDate: v } : f))}
                   disabled={saving}
                 />
-                <TextField
+                <DateField
                   label="Due date"
-                  size="small"
-                  type="date"
                   value={form.dueDate}
-                  onChange={(e) => setForm((f) => (f ? { ...f, dueDate: e.target.value } : f))}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
+                  onChange={(v) => setForm((f) => (f ? { ...f, dueDate: v } : f))}
                   disabled={saving}
                   error={dueDateMissing}
                   helperText={
@@ -702,16 +734,59 @@ export default function InvoiceDetailPage() {
                 No payments recorded.
               </Typography>
             ) : (
-              <Stack divider={<Divider flexItem />}>
+              <Stack divider={<Divider flexItem />} spacing={0.5}>
                 {payments.map((p) => (
-                  <Box key={p._id} sx={{ display: 'flex', alignItems: 'baseline', gap: 1, py: 1 }}>
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 600 }} className="tnum">
-                        {money(p.amount, p.currency)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {paymentMethodLabel(p.method)} · {new Date(p.paidAt).toLocaleDateString()}
-                      </Typography>
+                  <Box key={p._id} sx={{ py: 1.25 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }} className="tnum">
+                          {money(p.amount, p.currency)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: 'block' }}
+                        >
+                          {paymentMethodLabel(p.method)} · {new Date(p.paidAt).toLocaleDateString()}
+                        </Typography>
+                        {/* Method-specific details captured with the payment. */}
+                        {p.details && Object.keys(p.details).length > 0 && (
+                          <Stack spacing={0.25} sx={{ mt: 0.75 }}>
+                            {Object.entries(p.details).map(([k, v]) => (
+                              <Typography key={k} variant="caption" color="text.secondary">
+                                <Box
+                                  component="span"
+                                  sx={{ color: 'text.primary', fontWeight: 600 }}
+                                >
+                                  {paymentFieldLabel(p.method, k)}:
+                                </Box>{' '}
+                                {v}
+                              </Typography>
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
+                      {/* Always occupy the proof slot so the row layout is consistent — a link when
+                          there is proof, a muted "No proof" (cash) when there is not. */}
+                      {p.proof ? (
+                        <Link
+                          href={`/api/invoices/${id}/payments/${p._id}/proof`}
+                          target="_blank"
+                          rel="noopener"
+                          variant="body2"
+                          sx={{ fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          View proof
+                        </Link>
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color="text.disabled"
+                          sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          No proof
+                        </Typography>
+                      )}
                     </Box>
                   </Box>
                 ))}
@@ -762,10 +837,11 @@ function Row({
 }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
         {label}
       </Typography>
       <Typography
+        variant="body2"
         className="tnum"
         sx={{
           fontWeight: strong ? 700 : 500,

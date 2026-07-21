@@ -38,6 +38,19 @@ export const invoiceStateTone: Record<string, Tone> = {
   overdue: 'error',
 };
 
+/** Human label for an invoice state — the stored value is camelCase (`partiallyPaid`). */
+const INVOICE_STATE_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  pending: 'Pending',
+  partiallyPaid: 'Partially paid',
+  paid: 'Paid',
+  overdue: 'Overdue',
+};
+
+export function invoiceStateLabel(state: string): string {
+  return INVOICE_STATE_LABEL[state] ?? state;
+}
+
 /** Same idea for account status, so the user table and the user card agree on the colours. */
 export const userStatusTone: Record<string, Tone> = {
   active: 'success',

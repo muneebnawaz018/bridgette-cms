@@ -3,6 +3,19 @@ import { Currency, PaymentMethod } from '@/modules/invoicing/enums';
 
 const { Schema, model, models } = mongoose;
 
+// Proof of payment — a client-compressed JPEG kept as a base64 data URL. Stored inline rather
+// than in external object storage: this app has none configured, and a bounded (~3MB) image per
+// payment sits comfortably within a Mongo document.
+const proofSchema = new Schema(
+  {
+    data: { type: String, required: true },
+    name: { type: String },
+    contentType: { type: String },
+    size: { type: Number },
+  },
+  { _id: false },
+);
+
 const paymentSchema = new Schema(
   {
     invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true, index: true },
@@ -12,6 +25,10 @@ const paymentSchema = new Schema(
     reference: { type: String },
     account: { type: String },
     notes: { type: String },
+    // Method-specific fields, keyed as in PAYMENT_METHOD_FIELDS. Free-form object rather than a
+    // column per possibility; only ever written whole at creation, never patched.
+    details: { type: Schema.Types.Mixed },
+    proof: { type: proofSchema },
     paidAt: { type: Date, default: Date.now },
     recordedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },

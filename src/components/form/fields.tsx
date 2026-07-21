@@ -72,6 +72,8 @@ export const TextInput = memo(function TextInput({
   required,
   placeholder,
   type,
+  inputMode,
+  maxLength,
   multiline,
   minRows,
   autoFocus,
@@ -87,6 +89,9 @@ export const TextInput = memo(function TextInput({
   required?: boolean;
   placeholder?: string;
   type?: string;
+  /** Numeric keypad without losing leading zeros (stays a text input). */
+  inputMode?: 'numeric' | 'decimal' | 'tel';
+  maxLength?: number;
   multiline?: boolean;
   minRows?: number;
   autoFocus?: boolean;
@@ -101,8 +106,11 @@ export const TextInput = memo(function TextInput({
       type={type}
       value={value}
       onChange={(e) => {
-        setValue(e.target.value);
-        onChange(name, e.target.value);
+        // A numeric field keeps digits only, so a pasted "ref: 12" cannot slip letters in.
+        const next =
+          inputMode === 'numeric' ? e.target.value.replace(/[^\d]/g, '') : e.target.value;
+        setValue(next);
+        onChange(name, next);
       }}
       onBlur={onBlur ? () => onBlur(name) : undefined}
       error={error}
@@ -114,6 +122,7 @@ export const TextInput = memo(function TextInput({
       multiline={multiline}
       minRows={minRows}
       autoFocus={autoFocus}
+      slotProps={{ htmlInput: { inputMode, maxLength } }}
     />
   );
 });

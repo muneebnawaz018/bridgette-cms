@@ -3,7 +3,7 @@ import type { PipelineStage } from 'mongoose';
 import { connectDb } from '@/lib/db/connection';
 import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
-import { Permission, assertCan, type SessionUser } from '@/modules/auth';
+import { Permission, assertCan, can, type SessionUser } from '@/modules/auth';
 import { Invoice, type InvoiceDoc } from '../models/invoice.model';
 import { InvoiceState, DEFAULT_CURRENCY } from '../enums';
 import { computePaymentState } from '../state';
@@ -106,10 +106,11 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
  */
 function invoiceMatch(
   actor: SessionUser,
-  query: Pick<ListInvoiceInput, 'view' | 'type' | 'search' | 'from' | 'to'>,
+  query: Pick<ListInvoiceInput, 'view' | 'type' | 'state' | 'search' | 'from' | 'to'>,
 ): Record<string, unknown> {
   const match: Record<string, unknown> = { ...invoiceVisibilityFilter(actor, query.view) };
   if (query.type) match.type = query.type;
+  if (query.state) match.state = query.state;
 
   if (query.search?.trim()) {
     const rx = new RegExp(escapeRegex(query.search.trim()), 'i');
@@ -277,6 +278,12 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   if (!canViewInvoice(actor, doc)) throw new Error('Forbidden: invoice not visible');
   if (doc.isDeleted) throw new Error('Deleted invoices cannot be edited');
   if (doc.isArchived) throw new Error('Archived invoices cannot be edited');
+  // Once an invoice is finalized (out of Draft), only an administrator may edit it — a live,
+  // numbered document should not change under whoever raised it. Drafts stay freely editable,
+  // and finalizing a draft (Draft + asDraft:false) still passes here because it is Draft now.
+  if (doc.state !== InvoiceState.Draft && !can(actor.role, Permission.InvoiceViewAllArchived)) {
+    throw new Error('Forbidden: only an administrator can edit a finalized invoice');
+  }
 
   const type = input.type ?? doc.type;
   const items =

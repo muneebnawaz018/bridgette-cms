@@ -31,3 +31,13 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
 
 export const paymentMethodLabel = (method: string | undefined): string =>
   (method && PAYMENT_METHOD_LABEL[method]) || method || '—';
+
+/** Invoice types as people should read them. Keys are the `InvoiceType` enum values. */
+export const INVOICE_TYPE_LABEL: Record<string, string> = {
+  tax: 'US Tax',
+  cash: 'US Cash',
+  pk: 'Pakistan',
+};
+
+export const invoiceTypeLabel = (type: string | undefined): string =>
+  (type && INVOICE_TYPE_LABEL[type]) || type || '—';

@@ -73,7 +73,13 @@ export const GET = handle(async (req) => {
     body = JSON.stringify(
       {
         exportedAt: new Date().toISOString(),
-        filters: { view: query.view ?? 'active', type: query.type, from: query.from, to: query.to },
+        filters: {
+          view: query.view ?? 'active',
+          type: query.type,
+          state: query.state,
+          from: query.from,
+          to: query.to,
+        },
         total,
         truncated,
         // Objects rather than positional arrays — JSON consumers want named fields.

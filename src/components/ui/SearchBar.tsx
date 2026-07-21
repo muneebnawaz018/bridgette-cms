@@ -11,7 +11,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Popover from '@mui/material/Popover';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
+import { DateField } from '@/components/form/DateField';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import FilterListRounded from '@mui/icons-material/FilterListRounded';
@@ -113,27 +113,19 @@ function DateRangeFilter({ config }: { config: DateRangeConfig }) {
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         slotProps={{ paper: { sx: { mt: 1, p: 2, borderRadius: '12px', width: 268 } } }}
       >
-        {/* max/min cross-bind the fields, so an end-before-start range can't be picked. */}
+        {/* maxDate/minDate cross-bind the fields, so an end-before-start range can't be picked. */}
         <Stack spacing={2}>
-          <TextField
+          <DateField
             label="Start date"
-            type="date"
-            size="small"
             value={from}
-            onChange={(e) => onChange({ from: e.target.value, to })}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ max: to || undefined }}
-            fullWidth
+            onChange={(v) => onChange({ from: v, to })}
+            maxDate={to || undefined}
           />
-          <TextField
+          <DateField
             label="End date"
-            type="date"
-            size="small"
             value={to}
-            onChange={(e) => onChange({ from, to: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ min: from || undefined }}
-            fullWidth
+            onChange={(v) => onChange({ from, to: v })}
+            minDate={from || undefined}
           />
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button

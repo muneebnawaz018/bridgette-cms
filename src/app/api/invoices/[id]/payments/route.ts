@@ -15,7 +15,10 @@ export const GET = handle<Ctx>(async (_req, { params }) => {
 
 // POST /api/invoices/:id/payments — record a payment, recompute balance + state.
 export const POST = handle<Ctx>(async (req, { params }) => {
-  assertBodySize(req);
+  // Payments can carry a base64 proof image (~a few hundred KB after client compression, up to
+  // a few MB), so this route allows a larger body than the default JSON cap. Still well under
+  // the platform request limit.
+  assertBodySize(req, 5_000_000);
   const actor = await requireWrite(Permission.PaymentRecord);
   const { id } = await params;
   const body = recordPaymentSchema.parse(await req.json());

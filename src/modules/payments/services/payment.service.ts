@@ -71,12 +71,18 @@ export async function recordPayment(
     reference: input.reference,
     account: input.account,
     notes: input.notes,
+    details: input.details,
+    proof: input.proof,
     paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
     recordedBy: actor.userId,
   });
 
   await recalcInvoice(invoiceId);
-  return payment.toObject();
+  // Never echo the (large) proof image back on the create response — the ledger reload fetches
+  // the light list, and the proof is served on demand by getPaymentProof.
+  const obj = payment.toObject();
+  if (obj.proof) obj.proof = { ...obj.proof, data: '' };
+  return obj;
 }
 
 /** List payments for an invoice (respects invoice archive visibility). */
@@ -88,5 +94,40 @@ export async function listPayments(actor: SessionUser, invoiceId: string) {
   if (!invoice) throw new Error('Invoice not found');
   if (!canViewInvoice(actor, invoice)) throw new Error('Forbidden: invoice not visible');
 
-  return Payment.find({ invoiceId }).sort({ paidAt: -1 }).lean<PaymentDoc[]>();
+  // Exclude the heavy proof image bytes; the list only needs to know a proof exists (name/size).
+  // The bytes are streamed on demand by getPaymentProof.
+  return Payment.find({ invoiceId })
+    .select('-proof.data')
+    .sort({ paidAt: -1 })
+    .lean<PaymentDoc[]>();
+}
+
+export interface PaymentProof {
+  data: string;
+  name?: string;
+  contentType?: string;
+  size?: number;
+}
+
+/**
+ * The stored proof image for one payment, enforcing the same invoice visibility as the ledger.
+ * Returns the base64 data URL and its metadata; the route decodes it to bytes.
+ */
+export async function getPaymentProof(
+  actor: SessionUser,
+  invoiceId: string,
+  paymentId: string,
+): Promise<PaymentProof> {
+  assertCan(actor.role, Permission.InvoiceView);
+  await connectDb();
+
+  const invoice = await Invoice.findById(invoiceId).lean();
+  if (!invoice) throw new Error('Invoice not found');
+  if (!canViewInvoice(actor, invoice)) throw new Error('Forbidden: invoice not visible');
+
+  const payment = await Payment.findOne({ _id: paymentId, invoiceId })
+    .select('proof')
+    .lean<{ proof?: PaymentProof }>();
+  if (!payment?.proof?.data) throw new Error('Proof not found');
+  return payment.proof;
 }

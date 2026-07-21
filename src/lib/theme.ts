@@ -4,7 +4,7 @@ import { createTheme, type Shadows } from '@mui/material/styles';
 import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRounded';
 // Registers the MuiDataGrid slot on the theme's `components` map for type-checking.
 import type {} from '@mui/x-data-grid/themeAugmentation';
-import { colors, redA, shadowA } from '@/lib/colors';
+import { colors, gradients, redA, shadowA } from '@/lib/colors';
 
 /**
  * `wide` (1024px) is the point where a half-width card stops feeling cramped, so two-up
@@ -116,10 +116,20 @@ export const theme = createTheme({
         sizeLarge: { paddingBlock: 11, fontSize: '0.975rem' },
         contained: { boxShadow: softShadows[1] },
         containedPrimary: {
+          // The brand gradient, so every primary CTA carries the identity instead of a flat red.
+          backgroundImage: gradients.brand,
           boxShadow: `0 2px 8px ${redA(0.3)}`,
           '&:not(.Mui-disabled):hover': {
-            backgroundColor: colors.brand.redDark,
-            boxShadow: `0 4px 14px ${redA(0.38)}`,
+            backgroundImage: gradients.brand,
+            filter: 'brightness(0.94)',
+            boxShadow: `0 6px 18px ${redA(0.42)}`,
+          },
+          // MUI only greys the background-color when disabled; the gradient image would stay
+          // painted over it and leave the button looking active-but-faded. Drop it so a disabled
+          // primary reads as plainly disabled.
+          '&.Mui-disabled': {
+            backgroundImage: 'none',
+            boxShadow: 'none',
           },
         },
         outlined: {

@@ -163,7 +163,7 @@ export function Modal({
               {title}
             </Typography>
             {description && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.5 }}>
                 {description}
               </Typography>
             )}

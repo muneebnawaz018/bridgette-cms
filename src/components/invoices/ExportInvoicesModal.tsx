@@ -9,6 +9,8 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import { DateField } from '@/components/form/DateField';
 import Stepper from '@mui/material/Stepper';
 import Step from '@mui/material/Step';
 import StepLabel from '@mui/material/StepLabel';
@@ -51,7 +53,17 @@ const FORMATS: { value: ExportFormat; label: string; blurb: string; icon: ReactN
   },
 ];
 
-const STEPS = ['Format', 'Dates', 'Preview'];
+const STEPS = ['Format', 'Filters', 'Preview'];
+
+/** Status filter for the export — 'all' means every state. */
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'partiallyPaid', label: 'Partially paid' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'overdue', label: 'Overdue' },
+] as const;
 
 interface PreviewRow {
   _id: string;
@@ -81,6 +93,7 @@ export function ExportInvoicesModal({
   const [format, setFormat] = useState<ExportFormat | null>(null);
   const [step, setStep] = useState(0);
   const [range, setRange] = useState({ from: daysAgo(7), to: today() });
+  const [status, setStatus] = useState<string>('all');
   const [downloading, setDownloading] = useState(false);
 
   // Every open starts clean — a stale format/step from last time is never what you want.
@@ -89,6 +102,7 @@ export function ExportInvoicesModal({
     setFormat(null);
     setStep(0);
     setRange({ from: daysAgo(7), to: today() });
+    setStatus('all');
   }, [open]);
 
   const invalidRange = Boolean(range.from && range.to && range.from > range.to);
@@ -97,11 +111,12 @@ export function ExportInvoicesModal({
   const filterParams = useMemo(() => {
     const p = new URLSearchParams({ view });
     if (type) p.set('type', type);
+    if (status !== 'all') p.set('state', status);
     if (search) p.set('search', search);
     if (range.from) p.set('from', range.from);
     if (range.to) p.set('to', range.to);
     return p;
-  }, [view, type, search, range.from, range.to]);
+  }, [view, type, status, search, range.from, range.to]);
 
   const countParams = new URLSearchParams(filterParams);
   countParams.set('page', '1');
@@ -176,7 +191,7 @@ export function ExportInvoicesModal({
       open={open}
       onClose={onClose}
       title="Export invoices"
-      description="Pick a format and date range, then review."
+      description="Pick a format, then filter by status and date, and review."
       icon={<FileDownloadRounded />}
       maxWidth="md"
       fullScreenOnMobile
@@ -304,27 +319,39 @@ export function ExportInvoicesModal({
         </Stack>
       )}
 
-      {/* Step 2 — dates, with a live count of what they match. */}
+      {/* Step 2 — status + dates, with a live count of what they match. */}
       {step === 1 && (
         <Stack spacing={2.5}>
+          <TextField
+            select
+            label="Status"
+            size="medium"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            fullWidth
+            InputLabelProps={{ shrink: true }}
+            helperText="Limit the export to one invoice status, or export them all."
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <MenuItem key={o.value} value={o.value}>
+                {o.label}
+              </MenuItem>
+            ))}
+          </TextField>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
+            <DateField
               label="Start date"
-              type="date"
+              size="medium"
               value={range.from}
-              onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ max: range.to || undefined }}
-              fullWidth
+              onChange={(v) => setRange((r) => ({ ...r, from: v }))}
+              maxDate={range.to || undefined}
             />
-            <TextField
+            <DateField
               label="End date"
-              type="date"
+              size="medium"
               value={range.to}
-              onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ min: range.from || undefined }}
-              fullWidth
+              onChange={(v) => setRange((r) => ({ ...r, to: v }))}
+              minDate={range.from || undefined}
             />
           </Stack>
 
