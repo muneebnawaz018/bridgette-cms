@@ -20,8 +20,9 @@ function ResetForm() {
   const [form, setForm] = useState({ password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
 
-  const set = (k: 'password' | 'confirm') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set =
+    (k: 'password' | 'confirm') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,8 +52,22 @@ function ResetForm() {
   return (
     <form onSubmit={submit}>
       <Stack spacing={2}>
-        <PasswordField label="New password" value={form.password} onChange={set('password')} required fullWidth disabled={loading} />
-        <PasswordField label="Confirm password" value={form.confirm} onChange={set('confirm')} required fullWidth disabled={loading} />
+        <PasswordField
+          label="New password"
+          value={form.password}
+          onChange={set('password')}
+          required
+          fullWidth
+          disabled={loading}
+        />
+        <PasswordField
+          label="Confirm password"
+          value={form.confirm}
+          onChange={set('confirm')}
+          required
+          fullWidth
+          disabled={loading}
+        />
         <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
           {loading ? 'Saving…' : 'Reset password'}
         </SubmitButton>

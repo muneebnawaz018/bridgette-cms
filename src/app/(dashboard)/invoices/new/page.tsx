@@ -129,12 +129,18 @@ export default function NewInvoicePage() {
   );
 
   const setLine = (i: number, patch: Partial<DraftItem>) =>
-    setForm((f) => ({ ...f, items: f.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }));
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
+    }));
 
   const canSubmit = Boolean(form.billName) && form.items.length > 0 && !dueDateMissing;
 
   // Tax line names its rate: "Tax (8.75%)". Trailing zeros trimmed.
-  const taxRowLabel = taxable && Number(form.taxPercent) > 0 ? `Tax (${Number(Number(form.taxPercent).toFixed(2))}%)` : 'Tax';
+  const taxRowLabel =
+    taxable && Number(form.taxPercent) > 0
+      ? `Tax (${Number(Number(form.taxPercent).toFixed(2))}%)`
+      : 'Tax';
 
   async function submit(asDraft: boolean) {
     // Validate against the same schema the create dialog used, so the two entry points cannot
@@ -194,24 +200,59 @@ export default function NewInvoicePage() {
     <Box className="rise-in">
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2.5 }}>
-        <IconButton onClick={() => router.push('/invoices')} aria-label="Back to invoices" sx={{ mr: 0.5 }}>
+        <IconButton
+          onClick={() => router.push('/invoices')}
+          aria-label="Back to invoices"
+          sx={{ mr: 0.5 }}
+        >
           <ArrowBackRounded />
         </IconButton>
         <Box sx={{ flexGrow: 1, minWidth: 200 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>New invoice</Typography>
-          <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+            New invoice
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mt: 0.75 }}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+          >
             <Chip size="small" label={form.type.toUpperCase()} variant="outlined" />
-            <Typography variant="body2" color="text.secondary">{currency}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {currency}
+            </Typography>
           </Stack>
         </Box>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          <Button variant="outlined" color="inherit" onClick={() => router.push('/invoices')} disabled={saving} startIcon={<CloseRounded />}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
+        >
+          <Button
+            variant="outlined"
+            color="inherit"
+            onClick={() => router.push('/invoices')}
+            disabled={saving}
+            startIcon={<CloseRounded />}
+          >
             Cancel
           </Button>
-          <Button variant="outlined" onClick={() => submit(true)} disabled={saving || !canSubmit} startIcon={<SaveAsRounded />}>
+          <Button
+            variant="outlined"
+            onClick={() => submit(true)}
+            disabled={saving || !canSubmit}
+            startIcon={<SaveAsRounded />}
+          >
             Save as draft
           </Button>
-          <Button variant="contained" onClick={() => submit(false)} disabled={saving || !canSubmit} startIcon={<ReceiptLongRounded />}>
+          <Button
+            variant="contained"
+            onClick={() => submit(false)}
+            disabled={saving || !canSubmit}
+            startIcon={<ReceiptLongRounded />}
+          >
             Create invoice
           </Button>
         </Stack>
@@ -224,7 +265,9 @@ export default function NewInvoicePage() {
         {/* Row 1 left — line items only; tax moved to Totals, where it belongs with the sum. */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Line items</Typography>
+            <Typography variant="h6" gutterBottom>
+              Line items
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={1.5}>
               {form.items.map((line, i) => (
@@ -242,21 +285,53 @@ export default function NewInvoicePage() {
                     />
                   </Grid>
                   <Grid size={{ xs: 5, sm: 2 }}>
-                    <TextField label="Qty" size="small" type="number" value={line.quantity} onChange={(e) => setLine(i, { quantity: Number(e.target.value) })} fullWidth disabled={saving} />
+                    <TextField
+                      label="Qty"
+                      size="small"
+                      type="number"
+                      value={line.quantity}
+                      onChange={(e) => setLine(i, { quantity: Number(e.target.value) })}
+                      fullWidth
+                      disabled={saving}
+                    />
                   </Grid>
                   <Grid size={{ xs: 5, sm: 3 }}>
-                    <TextField label="Unit price" size="small" type="number" value={line.unitPrice} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} fullWidth disabled={saving} />
+                    <TextField
+                      label="Unit price"
+                      size="small"
+                      type="number"
+                      value={line.unitPrice}
+                      onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })}
+                      fullWidth
+                      disabled={saving}
+                    />
                   </Grid>
                   <Grid size={{ xs: 2, sm: 1 }}>
-                    <IconButton aria-label="Remove line" size="small" disabled={saving || form.items.length === 1} onClick={() => setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))}>
+                    <IconButton
+                      aria-label="Remove line"
+                      size="small"
+                      disabled={saving || form.items.length === 1}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
+                      }
+                    >
                       <DeleteOutlineRounded fontSize="small" />
                     </IconButton>
                   </Grid>
                 </Grid>
               ))}
-              {errors.items && <Typography variant="caption" color="error">{errors.items}</Typography>}
+              {errors.items && (
+                <Typography variant="caption" color="error">
+                  {errors.items}
+                </Typography>
+              )}
               <Box>
-                <Button size="small" startIcon={<AddRounded />} disabled={saving} onClick={() => setForm((f) => ({ ...f, items: [...f.items, blankItem()] }))}>
+                <Button
+                  size="small"
+                  startIcon={<AddRounded />}
+                  disabled={saving}
+                  onClick={() => setForm((f) => ({ ...f, items: [...f.items, blankItem()] }))}
+                >
                   Add line
                 </Button>
               </Box>
@@ -267,16 +342,48 @@ export default function NewInvoicePage() {
         {/* Row 1 right — customer + type together: both identify who and what this invoice is. */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Bill to</Typography>
+            <Typography variant="h6" gutterBottom>
+              Bill to
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={2}>
-              <TextField select label="Invoice type" size="small" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as InvoiceType }))} fullWidth disabled={saving} helperText="Sets the numbering series, currency and tax rules. Cannot be changed later.">
+              <TextField
+                select
+                label="Invoice type"
+                size="small"
+                value={form.type}
+                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as InvoiceType }))}
+                fullWidth
+                disabled={saving}
+                helperText="Sets the numbering series, currency and tax rules. Cannot be changed later."
+              >
                 {TYPE_OPTIONS.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                  <MenuItem key={o.value} value={o.value}>
+                    {o.label}
+                  </MenuItem>
                 ))}
               </TextField>
-              <TextField label="Name" size="small" value={form.billName} onChange={(e) => setForm((f) => ({ ...f, billName: e.target.value }))} error={Boolean(errors.billToName)} helperText={errors.billToName} fullWidth required disabled={saving} />
-              <TextField label="Email" size="small" value={form.billEmail} onChange={(e) => setForm((f) => ({ ...f, billEmail: e.target.value }))} error={Boolean(errors.billToEmail)} helperText={errors.billToEmail} fullWidth disabled={saving} />
+              <TextField
+                label="Name"
+                size="small"
+                value={form.billName}
+                onChange={(e) => setForm((f) => ({ ...f, billName: e.target.value }))}
+                error={Boolean(errors.billToName)}
+                helperText={errors.billToName}
+                fullWidth
+                required
+                disabled={saving}
+              />
+              <TextField
+                label="Email"
+                size="small"
+                value={form.billEmail}
+                onChange={(e) => setForm((f) => ({ ...f, billEmail: e.target.value }))}
+                error={Boolean(errors.billToEmail)}
+                helperText={errors.billToEmail}
+                fullWidth
+                disabled={saving}
+              />
             </Stack>
           </Paper>
         </Grid>
@@ -284,19 +391,43 @@ export default function NewInvoicePage() {
         {/* Row 2 left — totals, now including the tax controls that drive the tax line. */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Totals</Typography>
+            <Typography variant="h6" gutterBottom>
+              Totals
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={2}>
               {(policy === 'optional' || taxable) && (
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                   {policy === 'optional' && (
-                    <TextField select size="small" label="Apply tax" value={form.applyTax ? 'yes' : 'no'} onChange={(e) => setForm((f) => ({ ...f, applyTax: e.target.value === 'yes' }))} sx={{ width: { xs: '100%', sm: 180 } }} disabled={saving}>
+                    <TextField
+                      select
+                      size="small"
+                      label="Apply tax"
+                      value={form.applyTax ? 'yes' : 'no'}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, applyTax: e.target.value === 'yes' }))
+                      }
+                      sx={{ width: { xs: '100%', sm: 180 } }}
+                      disabled={saving}
+                    >
                       <MenuItem value="no">No</MenuItem>
                       <MenuItem value="yes">Yes</MenuItem>
                     </TextField>
                   )}
                   {taxable && (
-                    <TextField size="small" label="Tax rate %" type="number" value={form.taxPercent} onChange={(e) => setForm((f) => ({ ...f, taxPercent: Number(e.target.value) }))} error={Boolean(errors.taxRate)} helperText={errors.taxRate} sx={{ width: { xs: '100%', sm: 180 } }} disabled={saving} />
+                    <TextField
+                      size="small"
+                      label="Tax rate %"
+                      type="number"
+                      value={form.taxPercent}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, taxPercent: Number(e.target.value) }))
+                      }
+                      error={Boolean(errors.taxRate)}
+                      helperText={errors.taxRate}
+                      sx={{ width: { xs: '100%', sm: 180 } }}
+                      disabled={saving}
+                    />
                   )}
                 </Stack>
               )}
@@ -313,10 +444,21 @@ export default function NewInvoicePage() {
         {/* Row 2 right — schedule, terms and notes. */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Details</Typography>
+            <Typography variant="h6" gutterBottom>
+              Details
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={2}>
-              <TextField label="Invoice date" size="small" type="date" value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} disabled={saving} />
+              <TextField
+                label="Invoice date"
+                size="small"
+                type="date"
+                value={form.issueDate}
+                onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                disabled={saving}
+              />
               <TextField
                 label="Due date"
                 size="small"
@@ -327,7 +469,9 @@ export default function NewInvoicePage() {
                 InputLabelProps={{ shrink: true }}
                 disabled={saving}
                 error={dueDateMissing}
-                helperText={dueDateMissing ? 'A reminder fires after the due date — set one.' : undefined}
+                helperText={
+                  dueDateMissing ? 'A reminder fires after the due date — set one.' : undefined
+                }
               />
               <TextField
                 select
@@ -341,14 +485,27 @@ export default function NewInvoicePage() {
               >
                 <MenuItem value="">No reminder</MenuItem>
                 {REMINDER_PRESETS.map((p) => (
-                  <MenuItem key={p.minutes} value={String(p.minutes)}>{p.label}</MenuItem>
+                  <MenuItem key={p.minutes} value={String(p.minutes)}>
+                    {p.label}
+                  </MenuItem>
                 ))}
               </TextField>
-              <TextField label="Notes" size="small" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} fullWidth multiline minRows={4} disabled={saving} />
+              <TextField
+                label="Notes"
+                size="small"
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                fullWidth
+                multiline
+                minRows={4}
+                disabled={saving}
+              />
               {/* Terms are the company-wide policy, not a per-invoice free-text field — the
                   link is all this needs. */}
               <Box sx={{ pt: 0.5 }}>
-                <AppLink href="/billing-terms" style={{ fontWeight: 600 }}>View billing terms &amp; policies →</AppLink>
+                <AppLink href="/billing-terms" style={{ fontWeight: 600 }}>
+                  View billing terms &amp; policies →
+                </AppLink>
               </Box>
             </Stack>
           </Paper>
@@ -361,8 +518,12 @@ export default function NewInvoicePage() {
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography className="tnum" sx={{ fontWeight: strong ? 700 : 500, textAlign: 'right' }}>{value}</Typography>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography className="tnum" sx={{ fontWeight: strong ? 700 : 500, textAlign: 'right' }}>
+        {value}
+      </Typography>
     </Box>
   );
 }

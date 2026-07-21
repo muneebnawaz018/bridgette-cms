@@ -22,7 +22,13 @@ import type { LegalDoc } from '@/modules/legal/types';
  * and this page's own controls (`.no-print`) and lifts the `.print-region` to the page, so the
  * browser's Save-as-PDF produces exactly what is on screen with no extra dependency.
  */
-export function LegalDocument({ doc, showContact = true }: { doc: LegalDoc; showContact?: boolean }) {
+export function LegalDocument({
+  doc,
+  showContact = true,
+}: {
+  doc: LegalDoc;
+  showContact?: boolean;
+}) {
   const router = useRouter();
 
   // Contact line — the Super Admin's email, resolved live so it tracks whoever currently holds
@@ -31,7 +37,7 @@ export function LegalDocument({ doc, showContact = true }: { doc: LegalDoc; show
   const { data } = useApi<{ email: string | null }>(showContact ? '/api/company/contact' : null, {
     globalLoading: false,
   });
-  const contactEmail = showContact ? data?.email ?? null : null;
+  const contactEmail = showContact ? (data?.email ?? null) : null;
   const contactNumber = doc.sections.length + 1;
 
   return (
@@ -44,10 +50,18 @@ export function LegalDocument({ doc, showContact = true }: { doc: LegalDoc; show
           <ArrowBackRounded />
         </IconButton>
         <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>{doc.title}</Typography>
-          <Typography variant="body2" color="text.secondary">{doc.subtitle}</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+            {doc.title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {doc.subtitle}
+          </Typography>
         </Box>
-        <Button variant="contained" startIcon={<FileDownloadRounded />} onClick={() => window.print()}>
+        <Button
+          variant="contained"
+          startIcon={<FileDownloadRounded />}
+          onClick={() => window.print()}
+        >
           Download PDF
         </Button>
       </Box>
@@ -55,9 +69,15 @@ export function LegalDocument({ doc, showContact = true }: { doc: LegalDoc; show
       <Paper className="print-region" sx={{ p: { xs: 3, md: 5 } }}>
         {/* Document header — shown on screen and in the PDF. */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>{doc.title}</Typography>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{doc.company}</Typography>
-          <Typography variant="body2" color="text.secondary">{doc.effective}</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+            {doc.title}
+          </Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            {doc.company}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {doc.effective}
+          </Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7, mb: 3 }}>
           {doc.intro}
@@ -81,7 +101,12 @@ export function LegalDocument({ doc, showContact = true }: { doc: LegalDoc; show
                     </Typography>
                     <Stack spacing={1}>
                       {clause.paragraphs.map((p, i) => (
-                        <Typography key={i} variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                        <Typography
+                          key={i}
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ lineHeight: 1.7 }}
+                        >
                           {p}
                         </Typography>
                       ))}
@@ -103,7 +128,13 @@ export function LegalDocument({ doc, showContact = true }: { doc: LegalDoc; show
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7 }}>
                 Questions about these terms should be sent to {doc.company}
                 {contactEmail ? (
-                  <> at <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{contactEmail}</Box></>
+                  <>
+                    {' '}
+                    at{' '}
+                    <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {contactEmail}
+                    </Box>
+                  </>
                 ) : null}
                 . We aim to respond within a reasonable time on business days.
               </Typography>

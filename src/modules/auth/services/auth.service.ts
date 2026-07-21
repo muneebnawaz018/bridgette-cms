@@ -182,7 +182,9 @@ export async function login(
 
   if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
     const minutes = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000));
-    throw new Error(`Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`);
+    throw new Error(
+      `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+    );
   }
 
   const ok = await verifyPassword(input.password, user.passwordHash);

@@ -39,7 +39,15 @@ export function BrandLoader({
 
   const art = (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <Box sx={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center' }}>
+      <Box
+        sx={{
+          position: 'relative',
+          width: size,
+          height: size,
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
         {/* Pulsing red halo */}
         <Box
           data-loader-halo
@@ -51,7 +59,11 @@ export function BrandLoader({
             animation: 'loader-halo 2.2s ease-in-out infinite',
           }}
         />
-        <CircularProgress size={size} thickness={2.6} sx={{ color: 'primary.main', position: 'absolute' }} />
+        <CircularProgress
+          size={size}
+          thickness={2.6}
+          sx={{ color: 'primary.main', position: 'absolute' }}
+        />
         <Box
           data-loader-breathe
           sx={{
@@ -70,7 +82,15 @@ export function BrandLoader({
         </Box>
       </Box>
       {showLabel && (
-        <Typography sx={{ fontFamily: displayFont, fontWeight: 600, letterSpacing: 3, color: 'text.secondary', fontSize: '0.9rem' }}>
+        <Typography
+          sx={{
+            fontFamily: displayFont,
+            fontWeight: 600,
+            letterSpacing: 3,
+            color: 'text.secondary',
+            fontSize: '0.9rem',
+          }}
+        >
           {label ?? 'BRIDGETTE'}
         </Typography>
       )}

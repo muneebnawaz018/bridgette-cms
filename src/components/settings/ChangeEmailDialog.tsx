@@ -59,7 +59,10 @@ export function ChangeEmailDialog({
     e.preventDefault();
     setBusy(true);
     if (step === 'request') {
-      const res = await apiPost('/api/auth/email/request', { newEmail: newEmail.trim(), currentPassword: password });
+      const res = await apiPost('/api/auth/email/request', {
+        newEmail: newEmail.trim(),
+        currentPassword: password,
+      });
       setBusy(false);
       if (res.ok) {
         enqueueSnackbar('Verification code sent to the new email', { variant: 'success' });
@@ -82,7 +85,8 @@ export function ChangeEmailDialog({
     }
   }
 
-  const canSubmit = step === 'request' ? Boolean(newEmail.trim() && password) : code.trim().length >= 4;
+  const canSubmit =
+    step === 'request' ? Boolean(newEmail.trim() && password) : code.trim().length >= 4;
 
   return (
     <Modal
@@ -100,11 +104,23 @@ export function ChangeEmailDialog({
       actions={
         <>
           {step === 'verify' && (
-            <Button onClick={() => setStep('request')} disabled={busy} variant="outlined" color="inherit" startIcon={<ArrowBackRounded />}>
+            <Button
+              onClick={() => setStep('request')}
+              disabled={busy}
+              variant="outlined"
+              color="inherit"
+              startIcon={<ArrowBackRounded />}
+            >
               Back
             </Button>
           )}
-          <Button onClick={close} disabled={busy} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+          <Button
+            onClick={close}
+            disabled={busy}
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseRounded />}
+          >
             Cancel
           </Button>
           <SubmitButton
@@ -124,8 +140,25 @@ export function ChangeEmailDialog({
         {step === 'request' ? (
           <Stack spacing={2}>
             <TextField label="Current email" value={currentEmail} fullWidth disabled />
-            <TextField label="New email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required fullWidth disabled={busy} autoFocus />
-            <PasswordField label="Current password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth disabled={busy} autoComplete="current-password" />
+            <TextField
+              label="New email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              required
+              fullWidth
+              disabled={busy}
+              autoFocus
+            />
+            <PasswordField
+              label="Current password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              fullWidth
+              disabled={busy}
+              autoComplete="current-password"
+            />
           </Stack>
         ) : (
           <Stack spacing={1.5}>
@@ -137,7 +170,11 @@ export function ChangeEmailDialog({
               fullWidth
               disabled={busy}
               autoFocus
-              inputProps={{ inputMode: 'numeric', maxLength: 6, style: { letterSpacing: 6, fontSize: '1.1rem' } }}
+              inputProps={{
+                inputMode: 'numeric',
+                maxLength: 6,
+                style: { letterSpacing: 6, fontSize: '1.1rem' },
+              }}
             />
             <Typography variant="caption" color="text.secondary">
               The code expires in 15 minutes. Check spam if it does not arrive.

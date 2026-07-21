@@ -18,7 +18,13 @@ export function StatusChip({ label, tone }: { label: string; tone: Tone }) {
     <Chip
       label={label}
       size="small"
-      sx={{ bgcolor: c.bg, color: c.fg, fontWeight: 600, borderRadius: 2, '& .MuiChip-label': { px: 1 } }}
+      sx={{
+        bgcolor: c.bg,
+        color: c.fg,
+        fontWeight: 600,
+        borderRadius: 2,
+        '& .MuiChip-label': { px: 1 },
+      }}
     />
   );
 }

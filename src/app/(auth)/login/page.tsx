@@ -23,8 +23,9 @@ export default function LoginPage() {
   const [captchaNeeded, setCaptchaNeeded] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
-  const set = (k: 'email' | 'password') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set =
+    (k: 'email' | 'password') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
 
   // Warm the dashboard while the password is still being typed, so signing in doesn't wait
   // on a cold route.

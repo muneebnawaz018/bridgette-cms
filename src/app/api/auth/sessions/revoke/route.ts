@@ -1,9 +1,5 @@
 import { handle, ok } from '@/lib/api/respond';
-import {
-  revokeOtherSessions,
-  revokeAllSessions,
-  revokeSessionsSchema,
-} from '@/modules/auth';
+import { revokeOtherSessions, revokeAllSessions, revokeSessionsSchema } from '@/modules/auth';
 import { requireSessionWrite } from '@/lib/security/guard';
 import { assertBodySize } from '@/lib/api/bodyLimit';
 

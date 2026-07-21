@@ -1,5 +1,10 @@
 import 'server-only';
-import { requirePermission, requireSession, type Permission, type SessionUser } from '@/modules/auth';
+import {
+  requirePermission,
+  requireSession,
+  type Permission,
+  type SessionUser,
+} from '@/modules/auth';
 import { enforce, LIMITS, type RateLimitRule } from '@/lib/security/rateLimit';
 
 /**

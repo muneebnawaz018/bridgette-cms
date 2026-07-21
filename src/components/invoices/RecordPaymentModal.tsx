@@ -130,11 +130,22 @@ export function RecordPaymentModal({
       busy={saving}
       actions={
         <>
-          <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+          <Button
+            onClick={close}
+            disabled={saving}
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseRounded />}
+          >
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}
-          <Button variant="contained" onClick={submit} disabled={saving} startIcon={<PaymentsRounded />}>
+          <Button
+            variant="contained"
+            onClick={submit}
+            disabled={saving}
+            startIcon={<PaymentsRounded />}
+          >
             Record
           </Button>
         </>

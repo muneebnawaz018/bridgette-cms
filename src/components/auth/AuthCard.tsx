@@ -19,7 +19,11 @@ const HIGHLIGHTS = [
  * login, forgot / reset / set-password. On mobile the panel is hidden and a compact logo
  * sits above the form.
  */
-export function AuthCard({ title, subtitle, children }: {
+export function AuthCard({
+  title,
+  subtitle,
+  children,
+}: {
   title: string;
   subtitle?: string;
   children: ReactNode;
@@ -41,8 +45,28 @@ export function AuthCard({ title, subtitle, children }: {
         }}
       >
         {/* Decorative soft washes + oversized watermark mark */}
-        <Box sx={{ position: 'absolute', top: -140, right: -120, width: 420, height: 420, borderRadius: '50%', background: `radial-gradient(circle, ${whiteA(0.16)}, transparent 70%)` }} />
-        <Box sx={{ position: 'absolute', bottom: -160, left: -100, width: 380, height: 380, borderRadius: '50%', background: `radial-gradient(circle, ${blackA(0.35)}, transparent 70%)` }} />
+        <Box
+          sx={{
+            position: 'absolute',
+            top: -140,
+            right: -120,
+            width: 420,
+            height: 420,
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${whiteA(0.16)}, transparent 70%)`,
+          }}
+        />
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: -160,
+            left: -100,
+            width: 380,
+            height: 380,
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${blackA(0.35)}, transparent 70%)`,
+          }}
+        />
         <Box
           aria-hidden
           sx={{
@@ -55,7 +79,11 @@ export function AuthCard({ title, subtitle, children }: {
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/icon-512.png" alt="" style={{ width: '100%', filter: 'grayscale(1) brightness(3)' }} />
+          <img
+            src="/brand/icon-512.png"
+            alt=""
+            style={{ width: '100%', filter: 'grayscale(1) brightness(3)' }}
+          />
         </Box>
 
         <Box sx={{ position: 'relative' }}>
@@ -66,7 +94,9 @@ export function AuthCard({ title, subtitle, children }: {
           <Typography variant="h3" sx={{ color: colors.onDark.text, fontWeight: 800 }}>
             Billing, payments, and customers in one place.
           </Typography>
-          <Typography sx={{ mt: 2, mb: 3.5, color: whiteA(0.82), fontSize: '1.02rem', lineHeight: 1.6 }}>
+          <Typography
+            sx={{ mt: 2, mb: 3.5, color: whiteA(0.82), fontSize: '1.02rem', lineHeight: 1.6 }}
+          >
             The Bridgette Enterprises portal for secure invoicing and day-to-day operations.
           </Typography>
           <Stack spacing={1.6}>

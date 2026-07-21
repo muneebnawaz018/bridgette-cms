@@ -15,8 +15,7 @@ export const SYSTEM_TERMS: LegalDoc = {
   subtitle: `How the ${PORTAL_NAME} may be used, and the rules that apply to every account.`,
   company: COMPANY,
   effective: 'Effective 1 January 2026',
-  intro:
-    `These Terms & Policies govern access to and use of the ${PORTAL_NAME} ("the Portal"), the internal management system operated by ${COMPANY} ("we", "us", "our"). They apply to everyone granted an account. By signing in and using the Portal you agree to them. If you do not agree, do not use the Portal.`,
+  intro: `These Terms & Policies govern access to and use of the ${PORTAL_NAME} ("the Portal"), the internal management system operated by ${COMPANY} ("we", "us", "our"). They apply to everyone granted an account. By signing in and using the Portal you agree to them. If you do not agree, do not use the Portal.`,
   sections: [
     {
       title: '1. Definitions',

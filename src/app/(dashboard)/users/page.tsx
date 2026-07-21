@@ -41,7 +41,6 @@ interface UserRow {
   createdAt: string;
 }
 
-
 // What to shed as the grid narrows. Name + status + actions always survive; the photo and
 // job title go first, role next, contact last, so three columns remain at phone width.
 // Module-level so the hook's memo identity holds across renders.
@@ -96,7 +95,10 @@ export default function UsersPage() {
   const [searchInput, setSearchInput] = useState('');
   const search = useDebounced(searchInput);
   const [roleFilter, setRoleFilter] = useState<'' | Role>('');
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize,
+  });
 
   useEffect(() => {
     setPaginationModel((m) => (m.page === 0 ? m : { ...m, page: 0 }));
@@ -107,10 +109,15 @@ export default function UsersPage() {
     setPaginationModel((m) => (m.pageSize === pageSize ? m : { page: 0, pageSize }));
   }, [pageSize]);
 
-  const params = new URLSearchParams({ page: String(paginationModel.page + 1), limit: String(paginationModel.pageSize) });
+  const params = new URLSearchParams({
+    page: String(paginationModel.page + 1),
+    limit: String(paginationModel.pageSize),
+  });
   if (search) params.set('search', search);
   if (roleFilter) params.set('role', roleFilter);
-  const { data, isLoading, mutate } = useApi<{ items: UserRow[]; total: number }>(`/api/auth/users?${params.toString()}`);
+  const { data, isLoading, mutate } = useApi<{ items: UserRow[]; total: number }>(
+    `/api/auth/users?${params.toString()}`,
+  );
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
 
@@ -241,7 +248,14 @@ export default function UsersPage() {
           </Box>
         ),
       },
-      { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 150, headerAlign: 'center', align: 'center' },
+      {
+        field: 'name',
+        headerName: 'Name',
+        flex: 1.2,
+        minWidth: 150,
+        headerAlign: 'center',
+        align: 'center',
+      },
       {
         field: 'jobTitle',
         headerName: 'Job title',
@@ -251,7 +265,14 @@ export default function UsersPage() {
         align: 'center',
         valueGetter: (_v, r) => r.jobTitle || '—',
       },
-      { field: 'email', headerName: 'Email', flex: 1.8, minWidth: 200, headerAlign: 'center', align: 'center' },
+      {
+        field: 'email',
+        headerName: 'Email',
+        flex: 1.8,
+        minWidth: 200,
+        headerAlign: 'center',
+        align: 'center',
+      },
       {
         field: 'role',
         headerName: 'Role',
@@ -378,8 +399,8 @@ export default function UsersPage() {
         title="Deactivate this user?"
         description={
           <>
-            {toDeactivate?.name} will lose access right away and any active sessions end.
-            You can reactivate them later. Users are never deleted.
+            {toDeactivate?.name} will lose access right away and any active sessions end. You can
+            reactivate them later. Users are never deleted.
           </>
         }
         confirmLabel="Deactivate"

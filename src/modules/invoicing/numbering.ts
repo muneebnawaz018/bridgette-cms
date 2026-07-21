@@ -24,7 +24,10 @@ function periodParts(date: Date): { yy: string; mm: string } {
  *
  * Format: `TAX-26-06-0001`.
  */
-export async function issueInvoiceNumber(type: InvoiceType, date: Date = new Date()): Promise<string> {
+export async function issueInvoiceNumber(
+  type: InvoiceType,
+  date: Date = new Date(),
+): Promise<string> {
   await connectDb();
   const { yy, mm } = periodParts(date);
   const key = `${PREFIX[type]}-${yy}-${mm}`;

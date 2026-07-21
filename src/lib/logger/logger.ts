@@ -25,11 +25,7 @@ const base = pino({
       }),
 });
 
-function line(
-  level: 'info' | 'warn' | 'error',
-  message: string,
-  meta?: unknown,
-): void {
+function line(level: 'info' | 'warn' | 'error', message: string, meta?: unknown): void {
   if (meta !== undefined) base[level]({ meta }, message);
   else base[level](message);
 }

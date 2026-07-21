@@ -50,7 +50,12 @@ function SetPasswordForm() {
 
   // Values live in a ref: typing then costs no render, matching how the user dialog works.
   // Nothing here re-renders on keystroke — only on blur that changes an error, or on submit.
-  const valuesRef = useRef<FormValues>({ email: initialEmail, code: '', password: '', confirm: '' });
+  const valuesRef = useRef<FormValues>({
+    email: initialEmail,
+    code: '',
+    password: '',
+    confirm: '',
+  });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -174,7 +179,10 @@ function SetPasswordForm() {
 
 export default function SetPasswordPage() {
   return (
-    <AuthCard title="Verify your account" subtitle="Enter the code we emailed you and choose a password">
+    <AuthCard
+      title="Verify your account"
+      subtitle="Enter the code we emailed you and choose a password"
+    >
       <Suspense fallback={<BrandLoader label="Loading…" />}>
         <SetPasswordForm />
       </Suspense>

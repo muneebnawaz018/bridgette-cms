@@ -27,8 +27,9 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
   const [saving, setSaving] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
 
-  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setPw((p) => ({ ...p, [k]: e.target.value }));
+  const set =
+    (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setPw((p) => ({ ...p, [k]: e.target.value }));
 
   const filled = pw.current && pw.next && pw.confirm;
 
@@ -49,7 +50,10 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
       return;
     }
     setSaving(true);
-    const res = await apiPost('/api/auth/password', { currentPassword: pw.current, newPassword: pw.next });
+    const res = await apiPost('/api/auth/password', {
+      currentPassword: pw.current,
+      newPassword: pw.next,
+    });
     setSaving(false);
     if (res.ok) {
       enqueueSnackbar('Password changed', { variant: 'success' });
@@ -72,10 +76,23 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
         busy={saving}
         actions={
           <>
-            <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+            <Button
+              onClick={close}
+              disabled={saving}
+              variant="outlined"
+              color="inherit"
+              startIcon={<CloseRounded />}
+            >
               Cancel
             </Button>
-            <SubmitButton type="submit" form={FORM_ID} variant="contained" loading={saving} disabled={!filled} startIcon={<SaveRounded />}>
+            <SubmitButton
+              type="submit"
+              form={FORM_ID}
+              variant="contained"
+              loading={saving}
+              disabled={!filled}
+              startIcon={<SaveRounded />}
+            >
               Save
             </SubmitButton>
           </>
@@ -83,9 +100,34 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
       >
         <form id={FORM_ID} onSubmit={submit}>
           <Stack spacing={2}>
-            <PasswordField label="Current password" value={pw.current} onChange={set('current')} required fullWidth disabled={saving} autoComplete="current-password" autoFocus />
-            <PasswordField label="New password" value={pw.next} onChange={set('next')} required fullWidth disabled={saving} autoComplete="new-password" />
-            <PasswordField label="Confirm new password" value={pw.confirm} onChange={set('confirm')} required fullWidth disabled={saving} autoComplete="new-password" />
+            <PasswordField
+              label="Current password"
+              value={pw.current}
+              onChange={set('current')}
+              required
+              fullWidth
+              disabled={saving}
+              autoComplete="current-password"
+              autoFocus
+            />
+            <PasswordField
+              label="New password"
+              value={pw.next}
+              onChange={set('next')}
+              required
+              fullWidth
+              disabled={saving}
+              autoComplete="new-password"
+            />
+            <PasswordField
+              label="Confirm new password"
+              value={pw.confirm}
+              onChange={set('confirm')}
+              required
+              fullWidth
+              disabled={saving}
+              autoComplete="new-password"
+            />
           </Stack>
         </form>
       </Modal>

@@ -2,16 +2,16 @@
 
 ## Stack
 
-| Concern | Choice | Reason |
-| --- | --- | --- |
-| Framework | Next.js (App Router) | Server components + server actions keep all money math and validation on the server, which the spec requires. |
-| Database | MongoDB + Mongoose | Flexible documents suit invoices with embedded line items and per-invoice snapshots. |
-| Auth | Session-based (NextAuth or custom) | RBAC; current scope 2 roles (Admin, Accountant/Manager), 2 future roles; configurable session timeout; optional 2FA. |
-| Validation | Zod (shared client/server schemas) | Single source of truth for input shapes. No form library (no react-hook-form) — plain controlled inputs validated with Zod. |
-| UI components | MUI (`@mui/material` + `@mui/x-data-grid`) | Ready-made components and data tables — less setup. Tables use MUI DataGrid. |
-| CSS | Tailwind (preflight off) | Utility styling alongside MUI; preflight disabled so it doesn't fight MUI's baseline. |
-| PDF | React-PDF or Puppeteer/Playwright | Three separate templates; must render consistently across readers. |
-| File storage | S3-compatible bucket (not in DB) | Attachments up to XLSX/DOCX; store metadata in Mongo, bytes in object storage. |
+| Concern       | Choice                                     | Reason                                                                                                                      |
+| ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Framework     | Next.js (App Router)                       | Server components + server actions keep all money math and validation on the server, which the spec requires.               |
+| Database      | MongoDB + Mongoose                         | Flexible documents suit invoices with embedded line items and per-invoice snapshots.                                        |
+| Auth          | Session-based (NextAuth or custom)         | RBAC; current scope 2 roles (Admin, Accountant/Manager), 2 future roles; configurable session timeout; optional 2FA.        |
+| Validation    | Zod (shared client/server schemas)         | Single source of truth for input shapes. No form library (no react-hook-form) — plain controlled inputs validated with Zod. |
+| UI components | MUI (`@mui/material` + `@mui/x-data-grid`) | Ready-made components and data tables — less setup. Tables use MUI DataGrid.                                                |
+| CSS           | Tailwind (preflight off)                   | Utility styling alongside MUI; preflight disabled so it doesn't fight MUI's baseline.                                       |
+| PDF           | React-PDF or Puppeteer/Playwright          | Three separate templates; must render consistently across readers.                                                          |
+| File storage  | S3-compatible bucket (not in DB)           | Attachments up to XLSX/DOCX; store metadata in Mongo, bytes in object storage.                                              |
 
 ## Guiding principles (from the spec)
 
@@ -21,7 +21,7 @@
 4. **Financial records are archived, never hard-deleted.** Drafts can be deleted; issued/paid invoices are cancelled/voided and stay in history.
 5. **Everything financial is audited.** Append-only audit log records who/what/when/old/new/reason.
 6. **Nothing is deleted, only archived.** Invoices (and users) are never removed. A bad invoice is archived with who/when/reason.
-7. **Every list query is paginated and role-scoped.** All data fetching goes through a shared paginate helper (page/limit + total). The role-based visibility filter — e.g. archived invoices only for Admin+ or the creator — is applied to the DB query *before* pagination, never in the UI.
+7. **Every list query is paginated and role-scoped.** All data fetching goes through a shared paginate helper (page/limit + total). The role-based visibility filter — e.g. archived invoices only for Admin+ or the creator — is applied to the DB query _before_ pagination, never in the UI.
 
 ## Modular structure — features are self-contained and injectable
 

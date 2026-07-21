@@ -33,7 +33,6 @@ import { ChangeEmailDialog } from '@/components/settings/ChangeEmailDialog';
 import { SessionsCard } from '@/components/settings/SessionsCard';
 import { ROLE_LABEL } from '@/lib/format/labels';
 
-
 /** Shared header height for the two top cards, so their first divider lines up exactly
  *  regardless of how tall each header's own content happens to be. Sized to the tallest
  *  header (the 56px avatar) — anything more just adds dead space above the divider. */
@@ -42,10 +41,16 @@ const CARD_HEADER_MIN_H = 60;
 function InfoField({ label, value }: { label: string; value: string }) {
   return (
     <Box sx={{ py: 0.5 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+      >
         {label}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{value}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        {value}
+      </Typography>
     </Box>
   );
 }
@@ -104,23 +109,50 @@ export default function SettingsPage() {
         {/* Identity */}
         <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ minHeight: CARD_HEADER_MIN_H }}>
-              <Avatar src={me?.avatarUrl ?? undefined} sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontWeight: 700, fontSize: 24, flexShrink: 0 }}>
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="center"
+              sx={{ minHeight: CARD_HEADER_MIN_H }}
+            >
+              <Avatar
+                src={me?.avatarUrl ?? undefined}
+                sx={{
+                  width: 56,
+                  height: 56,
+                  bgcolor: 'primary.main',
+                  fontWeight: 700,
+                  fontSize: 24,
+                  flexShrink: 0,
+                }}
+              >
                 {displayName.charAt(0).toUpperCase()}
               </Avatar>
               <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }} noWrap>{displayName}</Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }} noWrap>
+                  {displayName}
+                </Typography>
                 {/* No role badge here — Role is already one of the fields below. */}
-                <Typography color="text.secondary" noWrap sx={{ mt: 0.25 }}>{email}</Typography>
+                <Typography color="text.secondary" noWrap sx={{ mt: 0.25 }}>
+                  {email}
+                </Typography>
               </Box>
             </Stack>
 
             <Divider sx={{ my: 2 }} />
             <Grid container spacing={2}>
-              <Grid size={6}><InfoField label="Role" value={ROLE_LABEL[role] ?? role} /></Grid>
-              <Grid size={6}><InfoField label="Status" value={me?.status ?? 'Unknown'} /></Grid>
-              <Grid size={6}><InfoField label="Member since" value={formatDate(me?.createdAt)} /></Grid>
-              <Grid size={6}><InfoField label="Last login" value={formatDateTime(me?.lastLoginAt, 'Never')} /></Grid>
+              <Grid size={6}>
+                <InfoField label="Role" value={ROLE_LABEL[role] ?? role} />
+              </Grid>
+              <Grid size={6}>
+                <InfoField label="Status" value={me?.status ?? 'Unknown'} />
+              </Grid>
+              <Grid size={6}>
+                <InfoField label="Member since" value={formatDate(me?.createdAt)} />
+              </Grid>
+              <Grid size={6}>
+                <InfoField label="Last login" value={formatDateTime(me?.lastLoginAt, 'Never')} />
+              </Grid>
             </Grid>
 
             <Divider sx={{ my: 2 }} />
@@ -156,7 +188,13 @@ export default function SettingsPage() {
                   href={l.href}
                   startIcon={l.icon}
                   color="inherit"
-                  sx={{ justifyContent: 'flex-start', py: 1, px: 1.5, fontWeight: 600, '&:hover': { bgcolor: 'action.hover' } }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    py: 1,
+                    px: 1.5,
+                    fontWeight: 600,
+                    '&:hover': { bgcolor: 'action.hover' },
+                  }}
                 >
                   {l.label}
                 </Button>
@@ -168,7 +206,9 @@ export default function SettingsPage() {
         {/* Security */}
         <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Security</Typography>
+            <Typography variant="h6" gutterBottom>
+              Security
+            </Typography>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
               Update your password or email address, or send yourself a reset link.
             </Typography>
@@ -180,16 +220,33 @@ export default function SettingsPage() {
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: 1.5,
-                '& > .MuiButton-root': { flexGrow: 1, flexBasis: { xs: '100%', sm: 'auto' }, whiteSpace: 'nowrap' },
+                '& > .MuiButton-root': {
+                  flexGrow: 1,
+                  flexBasis: { xs: '100%', sm: 'auto' },
+                  whiteSpace: 'nowrap',
+                },
               }}
             >
-              <Button variant="contained" startIcon={<LockResetRounded />} onClick={() => setPwOpen(true)}>
+              <Button
+                variant="contained"
+                startIcon={<LockResetRounded />}
+                onClick={() => setPwOpen(true)}
+              >
                 Change password
               </Button>
-              <Button variant="outlined" startIcon={<AlternateEmailRounded />} onClick={() => setEmailOpen(true)}>
+              <Button
+                variant="outlined"
+                startIcon={<AlternateEmailRounded />}
+                onClick={() => setEmailOpen(true)}
+              >
                 Change email
               </Button>
-              <Button variant="outlined" startIcon={<MailRounded />} onClick={sendResetLink} disabled={sendingReset}>
+              <Button
+                variant="outlined"
+                startIcon={<MailRounded />}
+                onClick={sendResetLink}
+                disabled={sendingReset}
+              >
                 {sendingReset ? 'Sending…' : 'Forgot password'}
               </Button>
             </Box>
@@ -199,18 +256,33 @@ export default function SettingsPage() {
         {/* Preferences */}
         <Grid size={{ xs: 12, wide: 6 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Preferences</Typography>
+            <Typography variant="h6" gutterBottom>
+              Preferences
+            </Typography>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
               Rows shown per page in every table across the app.
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+              }}
+            >
               <Typography sx={{ fontWeight: 600 }}>Rows per page</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <FormControl size="small" sx={{ minWidth: 96 }}>
-                  <Select value={pageSize} disabled={savingPref} onChange={(e) => changeRowsPerPage(Number(e.target.value))}>
+                  <Select
+                    value={pageSize}
+                    disabled={savingPref}
+                    onChange={(e) => changeRowsPerPage(Number(e.target.value))}
+                  >
                     {PAGE_SIZE_OPTIONS.map((n) => (
-                      <MenuItem key={n} value={n}>{n}</MenuItem>
+                      <MenuItem key={n} value={n}>
+                        {n}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -226,7 +298,12 @@ export default function SettingsPage() {
       </Grid>
 
       <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
-      <ChangeEmailDialog open={emailOpen} onClose={() => setEmailOpen(false)} currentEmail={email} onChanged={() => undefined} />
+      <ChangeEmailDialog
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        currentEmail={email}
+        onChanged={() => undefined}
+      />
     </Box>
   );
 }

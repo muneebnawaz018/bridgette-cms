@@ -50,7 +50,9 @@ function SessionRow({
 }) {
   const revoked = s.status === 'revoked';
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.5, opacity: revoked ? 0.72 : 1 }}>
+    <Box
+      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.5, opacity: revoked ? 0.72 : 1 }}
+    >
       <Box
         sx={{
           display: 'grid',
@@ -70,7 +72,9 @@ function SessionRow({
           <Typography sx={{ fontWeight: 600 }} noWrap>
             {s.device}
           </Typography>
-          {s.current && <Chip label="This device" size="small" color="primary" variant="outlined" />}
+          {s.current && (
+            <Chip label="This device" size="small" color="primary" variant="outlined" />
+          )}
           {revoked && <Chip label="Revoked" size="small" color="default" variant="outlined" />}
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
@@ -120,7 +124,9 @@ export function SessionsCard() {
           curr
             ? {
                 sessions: curr.sessions.map((s) =>
-                  s.id === id ? { ...s, status: 'revoked' as const, revokedAt: new Date().toISOString() } : s,
+                  s.id === id
+                    ? { ...s, status: 'revoked' as const, revokedAt: new Date().toISOString() }
+                    : s,
                 ),
               }
             : curr,
@@ -134,7 +140,16 @@ export function SessionsCard() {
 
   return (
     <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          flexWrap: 'wrap',
+          mb: 0.5,
+        }}
+      >
         <Typography variant="h6">Active sessions</Typography>
         <Button
           size="small"
@@ -172,7 +187,15 @@ export function SessionsCard() {
 
       {revoked.length > 0 && (
         <Box sx={{ mt: 2.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, color: 'text.secondary' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              mb: 0.5,
+              color: 'text.secondary',
+            }}
+          >
             <HistoryRounded fontSize="small" />
             <Typography variant="subtitle2" color="text.secondary">
               Recently revoked

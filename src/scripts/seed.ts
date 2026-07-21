@@ -64,7 +64,9 @@ async function main() {
   // tripping the unique index halfway through.
   const clash = await User.findOne({ email, _id: { $ne: existing._id } });
   if (clash) {
-    throw new Error(`${email} already belongs to another account — change SUPER_ADMIN_EMAIL or remove that user`);
+    throw new Error(
+      `${email} already belongs to another account — change SUPER_ADMIN_EMAIL or remove that user`,
+    );
   }
 
   const emailChanged = existing.email !== email;
@@ -86,9 +88,13 @@ async function main() {
   const matches = await verifyPassword(password, after!.passwordHash as string);
 
   console.log(`Super Admin updated: ${after!.email}${emailChanged ? ' (email changed)' : ''}`);
-  console.log(`  status=${after!.status} verified=${after!.emailVerified} mustSetPassword=${after!.mustSetPassword}`);
+  console.log(
+    `  status=${after!.status} verified=${after!.emailVerified} mustSetPassword=${after!.mustSetPassword}`,
+  );
   console.log(`  phone=${after!.phone ?? '(not set)'}`);
-  console.log(`  password check: ${matches ? 'PASS — stored hash matches the env password' : 'FAIL'}`);
+  console.log(
+    `  password check: ${matches ? 'PASS — stored hash matches the env password' : 'FAIL'}`,
+  );
   console.log(`  total users: ${await User.countDocuments({})}`);
 
   if (!matches) {

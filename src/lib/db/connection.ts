@@ -103,4 +103,3 @@ export async function connectDb(): Promise<typeof mongoose> {
 
   return cache.conn;
 }
-

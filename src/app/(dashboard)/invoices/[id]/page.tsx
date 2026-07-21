@@ -167,7 +167,9 @@ export default function InvoiceDetailPage() {
   const canPay = useCan(Permission.PaymentRecord);
 
   const { data: invoice, isLoading, error, mutate } = useApi<Invoice>(`/api/invoices/${id}`);
-  const { data: payments, mutate: mutatePayments } = useApi<Payment[]>(`/api/invoices/${id}/payments`);
+  const { data: payments, mutate: mutatePayments } = useApi<Payment[]>(
+    `/api/invoices/${id}/payments`,
+  );
 
   const [form, setForm] = useState<EditForm | null>(null); // non-null == form
   // null = no confirm open; true = finalizing this draft; false = a plain save. Carrying the
@@ -207,7 +209,9 @@ export default function InvoiceDetailPage() {
     });
 
   const setLine = (i: number, patch: Partial<EditItem>) =>
-    setForm((f) => (f ? { ...f, items: f.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) } : f));
+    setForm((f) =>
+      f ? { ...f, items: f.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) } : f,
+    );
 
   // The tax line names its own rate, so "Tax  USD 1.49" reads as "Tax (8.75%)  USD 1.49".
   // Editing takes the live percentage from the form; viewing derives it from the stored
@@ -255,31 +259,61 @@ export default function InvoiceDetailPage() {
     <Box className="rise-in">
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2.5 }}>
-        <IconButton component={AppLink} href="/invoices" aria-label="Back to invoices" sx={{ mr: 0.5 }}>
+        <IconButton
+          component={AppLink}
+          href="/invoices"
+          aria-label="Back to invoices"
+          sx={{ mr: 0.5 }}
+        >
           <ArrowBackRounded />
         </IconButton>
         <Box sx={{ flexGrow: 1, minWidth: 200 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>{invoice.number}</Typography>
-          <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+            {invoice.number}
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mt: 0.75 }}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+          >
             <Chip size="small" label={invoice.type.toUpperCase()} variant="outlined" />
             <StatusChip label={invoice.state} tone={invoiceStateTone[invoice.state] ?? 'neutral'} />
-            <Typography variant="body2" color="text.secondary">{invoice.currency}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {invoice.currency}
+            </Typography>
           </Stack>
         </Box>
         <Stack direction="row" spacing={1}>
           {!form && canEdit && !locked && (
-            <Button variant="outlined" startIcon={<EditRounded />} onClick={() => setForm(toForm(invoice))}>
+            <Button
+              variant="outlined"
+              startIcon={<EditRounded />}
+              onClick={() => setForm(toForm(invoice))}
+            >
               Edit
             </Button>
           )}
           {!form && canPay && !locked && invoice.state !== 'paid' && invoice.state !== 'draft' && (
-            <Button variant="contained" startIcon={<PaymentsRounded />} onClick={() => setPayOpen(true)}>
+            <Button
+              variant="contained"
+              startIcon={<PaymentsRounded />}
+              onClick={() => setPayOpen(true)}
+            >
               Record payment
             </Button>
           )}
           {form && (
             <>
-              <Button variant="outlined" color="inherit" onClick={() => setForm(null)} disabled={saving} startIcon={<CloseRounded />}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={() => setForm(null)}
+                disabled={saving}
+                startIcon={<CloseRounded />}
+              >
                 Cancel
               </Button>
               {isDraft ? (
@@ -318,8 +352,16 @@ export default function InvoiceDetailPage() {
         </Stack>
       </Box>
 
-      {invoice.isDeleted && <Alert severity="error" sx={{ mb: 2 }}>This invoice is deleted. Reason: {invoice.deleteReason || 'none given'}</Alert>}
-      {invoice.isArchived && !invoice.isDeleted && <Alert severity="warning" sx={{ mb: 2 }}>This invoice is archived. Reason: {invoice.archiveReason || 'none given'}</Alert>}
+      {invoice.isDeleted && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          This invoice is deleted. Reason: {invoice.deleteReason || 'none given'}
+        </Alert>
+      )}
+      {invoice.isArchived && !invoice.isDeleted && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          This invoice is archived. Reason: {invoice.archiveReason || 'none given'}
+        </Alert>
+      )}
 
       {/* Flat grid so paired cards share a row and stretch to equal height: Line items ↔ Bill
           to, then Totals ↔ Details. Payments spans the full width below. */}
@@ -327,7 +369,9 @@ export default function InvoiceDetailPage() {
         {/* Row 1 left — line items. Tax controls live with Totals now, not here. */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Line items</Typography>
+            <Typography variant="h6" gutterBottom>
+              Line items
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
 
             {!form ? (
@@ -335,7 +379,9 @@ export default function InvoiceDetailPage() {
                 {invoice.items.map((it, i) => (
                   <Box key={i} sx={{ display: 'flex', gap: 2, py: 1.2, alignItems: 'baseline' }}>
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{it.description || '—'}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {it.description || '—'}
+                      </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {it.quantity} × {money(it.unitPrice, invoice.currency)}
                         {it.discount ? ` · less ${money(it.discount, invoice.currency)}` : ''}
@@ -352,23 +398,78 @@ export default function InvoiceDetailPage() {
                 {form.items.map((line, i) => (
                   <Grid container spacing={1} key={i} alignItems="center">
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField label="Description" size="small" value={line.description} onChange={(e) => setLine(i, { description: e.target.value })} fullWidth disabled={saving} />
+                      <TextField
+                        label="Description"
+                        size="small"
+                        value={line.description}
+                        onChange={(e) => setLine(i, { description: e.target.value })}
+                        fullWidth
+                        disabled={saving}
+                      />
                     </Grid>
                     <Grid size={{ xs: 5, sm: 2 }}>
-                      <TextField label="Qty" size="small" type="number" value={line.quantity} onChange={(e) => setLine(i, { quantity: Number(e.target.value) })} fullWidth disabled={saving} />
+                      <TextField
+                        label="Qty"
+                        size="small"
+                        type="number"
+                        value={line.quantity}
+                        onChange={(e) => setLine(i, { quantity: Number(e.target.value) })}
+                        fullWidth
+                        disabled={saving}
+                      />
                     </Grid>
                     <Grid size={{ xs: 5, sm: 3 }}>
-                      <TextField label="Unit price" size="small" type="number" value={line.unitPrice} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} fullWidth disabled={saving} />
+                      <TextField
+                        label="Unit price"
+                        size="small"
+                        type="number"
+                        value={line.unitPrice}
+                        onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })}
+                        fullWidth
+                        disabled={saving}
+                      />
                     </Grid>
                     <Grid size={{ xs: 2, sm: 1 }}>
-                      <IconButton aria-label="Remove line" size="small" disabled={saving || form.items.length === 1} onClick={() => setForm((f) => (f ? { ...f, items: f.items.filter((_, idx) => idx !== i) } : f))}>
+                      <IconButton
+                        aria-label="Remove line"
+                        size="small"
+                        disabled={saving || form.items.length === 1}
+                        onClick={() =>
+                          setForm((f) =>
+                            f ? { ...f, items: f.items.filter((_, idx) => idx !== i) } : f,
+                          )
+                        }
+                      >
                         <DeleteOutlineRounded fontSize="small" />
                       </IconButton>
                     </Grid>
                   </Grid>
                 ))}
                 <Box>
-                  <Button size="small" startIcon={<AddRounded />} disabled={saving} onClick={() => setForm((f) => (f ? { ...f, items: [...f.items, { description: '', quantity: 1, unitPrice: 0, taxable: true, discount: 0 }] } : f))}>
+                  <Button
+                    size="small"
+                    startIcon={<AddRounded />}
+                    disabled={saving}
+                    onClick={() =>
+                      setForm((f) =>
+                        f
+                          ? {
+                              ...f,
+                              items: [
+                                ...f.items,
+                                {
+                                  description: '',
+                                  quantity: 1,
+                                  unitPrice: 0,
+                                  taxable: true,
+                                  discount: 0,
+                                },
+                              ],
+                            }
+                          : f,
+                      )
+                    }
+                  >
                     Add line
                   </Button>
                 </Box>
@@ -380,19 +481,48 @@ export default function InvoiceDetailPage() {
         {/* Row 1 right — bill-to. */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Bill to</Typography>
+            <Typography variant="h6" gutterBottom>
+              Bill to
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             {!form ? (
               <Stack spacing={0.5}>
                 <Typography sx={{ fontWeight: 600 }}>{invoice.billTo?.name ?? '—'}</Typography>
-                {invoice.billTo?.email && <Typography variant="body2" color="text.secondary">{invoice.billTo.email}</Typography>}
-                {invoice.billTo?.phone && <Typography variant="body2" color="text.secondary">{invoice.billTo.phone}</Typography>}
-                {invoice.billTo?.address && <Typography variant="body2" color="text.secondary">{invoice.billTo.address}</Typography>}
+                {invoice.billTo?.email && (
+                  <Typography variant="body2" color="text.secondary">
+                    {invoice.billTo.email}
+                  </Typography>
+                )}
+                {invoice.billTo?.phone && (
+                  <Typography variant="body2" color="text.secondary">
+                    {invoice.billTo.phone}
+                  </Typography>
+                )}
+                {invoice.billTo?.address && (
+                  <Typography variant="body2" color="text.secondary">
+                    {invoice.billTo.address}
+                  </Typography>
+                )}
               </Stack>
             ) : (
               <Stack spacing={2}>
-                <TextField label="Name" size="small" value={form.billName} onChange={(e) => setForm((f) => (f ? { ...f, billName: e.target.value } : f))} fullWidth required disabled={saving} />
-                <TextField label="Email" size="small" value={form.billEmail} onChange={(e) => setForm((f) => (f ? { ...f, billEmail: e.target.value } : f))} fullWidth disabled={saving} />
+                <TextField
+                  label="Name"
+                  size="small"
+                  value={form.billName}
+                  onChange={(e) => setForm((f) => (f ? { ...f, billName: e.target.value } : f))}
+                  fullWidth
+                  required
+                  disabled={saving}
+                />
+                <TextField
+                  label="Email"
+                  size="small"
+                  value={form.billEmail}
+                  onChange={(e) => setForm((f) => (f ? { ...f, billEmail: e.target.value } : f))}
+                  fullWidth
+                  disabled={saving}
+                />
               </Stack>
             )}
           </Paper>
@@ -401,29 +531,68 @@ export default function InvoiceDetailPage() {
         {/* Row 2 left — totals, with the tax controls that drive the tax line. */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Totals</Typography>
+            <Typography variant="h6" gutterBottom>
+              Totals
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={2}>
               {form && (policy === 'optional' || policy === 'always' || form.applyTax) && (
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                   {policy === 'optional' && (
-                    <TextField select size="small" label="Apply tax" value={form.applyTax ? 'yes' : 'no'} onChange={(e) => setForm((f) => (f ? { ...f, applyTax: e.target.value === 'yes' } : f))} sx={{ width: { xs: '100%', sm: 180 } }} disabled={saving}>
+                    <TextField
+                      select
+                      size="small"
+                      label="Apply tax"
+                      value={form.applyTax ? 'yes' : 'no'}
+                      onChange={(e) =>
+                        setForm((f) => (f ? { ...f, applyTax: e.target.value === 'yes' } : f))
+                      }
+                      sx={{ width: { xs: '100%', sm: 180 } }}
+                      disabled={saving}
+                    >
                       <MenuItem value="no">No</MenuItem>
                       <MenuItem value="yes">Yes</MenuItem>
                     </TextField>
                   )}
                   {(policy === 'always' || (policy === 'optional' && form.applyTax)) && (
-                    <TextField size="small" label="Tax rate %" type="number" value={form.taxPercent} onChange={(e) => setForm((f) => (f ? { ...f, taxPercent: Number(e.target.value) } : f))} sx={{ width: { xs: '100%', sm: 180 } }} disabled={saving} />
+                    <TextField
+                      size="small"
+                      label="Tax rate %"
+                      type="number"
+                      value={form.taxPercent}
+                      onChange={(e) =>
+                        setForm((f) => (f ? { ...f, taxPercent: Number(e.target.value) } : f))
+                      }
+                      sx={{ width: { xs: '100%', sm: 180 } }}
+                      disabled={saving}
+                    />
                   )}
                 </Stack>
               )}
               <Stack spacing={1}>
-                <Row label="Subtotal" value={money(preview ? preview.subtotal : invoice.subtotal, invoice.currency)} />
-                <Row label={taxRowLabel} value={money(preview ? preview.taxAmount : invoice.taxAmount, invoice.currency)} />
+                <Row
+                  label="Subtotal"
+                  value={money(preview ? preview.subtotal : invoice.subtotal, invoice.currency)}
+                />
+                <Row
+                  label={taxRowLabel}
+                  value={money(preview ? preview.taxAmount : invoice.taxAmount, invoice.currency)}
+                />
                 <Divider />
-                <Row label="Grand total" value={money(preview ? preview.grandTotal : invoice.grandTotal, invoice.currency)} strong />
+                <Row
+                  label="Grand total"
+                  value={money(preview ? preview.grandTotal : invoice.grandTotal, invoice.currency)}
+                  strong
+                />
                 {!form && <Row label="Paid" value={money(invoice.amountPaid, invoice.currency)} />}
-                {!form && <Row label="Balance due" value={money(invoice.balanceDue, invoice.currency)} strong danger={invoice.balanceDue > 0} />}
+                {!form && (
+                  <Row
+                    label="Balance due"
+                    value={money(invoice.balanceDue, invoice.currency)}
+                    strong
+                    danger={invoice.balanceDue > 0}
+                  />
+                )}
               </Stack>
             </Stack>
           </Paper>
@@ -432,21 +601,43 @@ export default function InvoiceDetailPage() {
         {/* Row 2 right — schedule, terms and notes. */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: { xs: 2.5, md: 2.75 }, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Details</Typography>
+            <Typography variant="h6" gutterBottom>
+              Details
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             {!form ? (
               <Stack spacing={1}>
-                <Row label="Invoice date" value={invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : '—'} />
-                <Row label="Due date" value={invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—'} />
-                <Row label="Reminder" value={reminderSummary(invoice.reminder, isDraft, Boolean(invoice.dueDate))} />
+                <Row
+                  label="Invoice date"
+                  value={invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : '—'}
+                />
+                <Row
+                  label="Due date"
+                  value={invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—'}
+                />
+                <Row
+                  label="Reminder"
+                  value={reminderSummary(invoice.reminder, isDraft, Boolean(invoice.dueDate))}
+                />
                 <Row label="Notes" value={invoice.notes || '—'} />
                 <Box sx={{ pt: 1 }}>
-                  <AppLink href="/billing-terms" style={{ fontWeight: 600 }}>View billing terms &amp; policies →</AppLink>
+                  <AppLink href="/billing-terms" style={{ fontWeight: 600 }}>
+                    View billing terms &amp; policies →
+                  </AppLink>
                 </Box>
               </Stack>
             ) : (
               <Stack spacing={2}>
-                <TextField label="Invoice date" size="small" type="date" value={form.issueDate} onChange={(e) => setForm((f) => (f ? { ...f, issueDate: e.target.value } : f))} fullWidth InputLabelProps={{ shrink: true }} disabled={saving} />
+                <TextField
+                  label="Invoice date"
+                  size="small"
+                  type="date"
+                  value={form.issueDate}
+                  onChange={(e) => setForm((f) => (f ? { ...f, issueDate: e.target.value } : f))}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  disabled={saving}
+                />
                 <TextField
                   label="Due date"
                   size="small"
@@ -457,7 +648,9 @@ export default function InvoiceDetailPage() {
                   InputLabelProps={{ shrink: true }}
                   disabled={saving}
                   error={dueDateMissing}
-                  helperText={dueDateMissing ? 'A reminder fires after the due date — set one.' : undefined}
+                  helperText={
+                    dueDateMissing ? 'A reminder fires after the due date — set one.' : undefined
+                  }
                 />
                 <TextField
                   select
@@ -471,13 +664,26 @@ export default function InvoiceDetailPage() {
                 >
                   <MenuItem value="">No reminder</MenuItem>
                   {REMINDER_PRESETS.map((p) => (
-                    <MenuItem key={p.minutes} value={String(p.minutes)}>{p.label}</MenuItem>
+                    <MenuItem key={p.minutes} value={String(p.minutes)}>
+                      {p.label}
+                    </MenuItem>
                   ))}
                 </TextField>
-                <TextField label="Notes" size="small" value={form.notes} onChange={(e) => setForm((f) => (f ? { ...f, notes: e.target.value } : f))} fullWidth multiline minRows={4} disabled={saving} />
+                <TextField
+                  label="Notes"
+                  size="small"
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => (f ? { ...f, notes: e.target.value } : f))}
+                  fullWidth
+                  multiline
+                  minRows={4}
+                  disabled={saving}
+                />
                 {/* Terms are the company-wide policy, not a per-invoice field — link only. */}
                 <Box sx={{ pt: 0.5 }}>
-                  <AppLink href="/billing-terms" style={{ fontWeight: 600 }}>View billing terms &amp; policies →</AppLink>
+                  <AppLink href="/billing-terms" style={{ fontWeight: 600 }}>
+                    View billing terms &amp; policies →
+                  </AppLink>
                 </Box>
               </Stack>
             )}
@@ -487,17 +693,25 @@ export default function InvoiceDetailPage() {
         {/* Payments — full width below the paired cards. */}
         <Grid size={12}>
           <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
-            <Typography variant="h6" gutterBottom>Payments</Typography>
+            <Typography variant="h6" gutterBottom>
+              Payments
+            </Typography>
             <Divider sx={{ mb: 1.5 }} />
             {!payments || payments.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">No payments recorded.</Typography>
+              <Typography variant="body2" color="text.secondary">
+                No payments recorded.
+              </Typography>
             ) : (
               <Stack divider={<Divider flexItem />}>
                 {payments.map((p) => (
                   <Box key={p._id} sx={{ display: 'flex', alignItems: 'baseline', gap: 1, py: 1 }}>
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 600 }} className="tnum">{money(p.amount, p.currency)}</Typography>
-                      <Typography variant="caption" color="text.secondary">{paymentMethodLabel(p.method)} · {new Date(p.paidAt).toLocaleDateString()}</Typography>
+                      <Typography sx={{ fontWeight: 600 }} className="tnum">
+                        {money(p.amount, p.currency)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {paymentMethodLabel(p.method)} · {new Date(p.paidAt).toLocaleDateString()}
+                      </Typography>
                     </Box>
                   </Box>
                 ))}
@@ -535,11 +749,30 @@ export default function InvoiceDetailPage() {
   );
 }
 
-function Row({ label, value, strong, danger }: { label: string; value: string; strong?: boolean; danger?: boolean }) {
+function Row({
+  label,
+  value,
+  strong,
+  danger,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  danger?: boolean;
+}) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography className="tnum" sx={{ fontWeight: strong ? 700 : 500, color: danger ? 'error.main' : 'text.primary', textAlign: 'right' }}>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography
+        className="tnum"
+        sx={{
+          fontWeight: strong ? 700 : 500,
+          color: danger ? 'error.main' : 'text.primary',
+          textAlign: 'right',
+        }}
+      >
         {value}
       </Typography>
     </Box>

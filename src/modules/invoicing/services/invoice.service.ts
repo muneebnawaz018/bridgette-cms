@@ -55,9 +55,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     input.reminderThresholdMinutes != null
       ? {
           thresholdMinutes: input.reminderThresholdMinutes,
-          dueAt: input.asDraft
-            ? undefined
-            : reminderDueAt(dueDate, input.reminderThresholdMinutes),
+          dueAt: input.asDraft ? undefined : reminderDueAt(dueDate, input.reminderThresholdMinutes),
           sent: false,
         }
       : undefined;
@@ -86,7 +84,8 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     applyTax: input.applyTax ?? false,
     cashReceived: input.cashReceived,
     advancePayment: input.advancePayment,
-    remainingBalance: input.advancePayment != null ? calc.grandTotal - input.advancePayment : undefined,
+    remainingBalance:
+      input.advancePayment != null ? calc.grandTotal - input.advancePayment : undefined,
     paymentMethod: input.paymentMethod,
     issueDate,
     dueDate,
@@ -249,7 +248,12 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
     };
   }
 
-  return { total: row?.total?.[0]?.n ?? 0, byState, pipelineMonth: monthStart.toISOString(), byType };
+  return {
+    total: row?.total?.[0]?.n ?? 0,
+    byState,
+    pipelineMonth: monthStart.toISOString(),
+    byType,
+  };
 }
 
 /** Fetch one invoice, enforcing archive visibility. */
@@ -275,13 +279,15 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   if (doc.isArchived) throw new Error('Archived invoices cannot be edited');
 
   const type = input.type ?? doc.type;
-  const items = input.items ?? doc.items.map((it) => ({
-    description: it.description,
-    quantity: it.quantity,
-    unitPrice: it.unitPrice,
-    taxable: it.taxable ?? true,
-    discount: it.discount ?? 0,
-  }));
+  const items =
+    input.items ??
+    doc.items.map((it) => ({
+      description: it.description,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      taxable: it.taxable ?? true,
+      discount: it.discount ?? 0,
+    }));
 
   const calc = calcInvoice({
     type,

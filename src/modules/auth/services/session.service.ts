@@ -43,7 +43,8 @@ function describeDevice(ua?: string | null): string {
   const { browser, os, device } = new UAParser(ua).getResult();
 
   if (device.model) {
-    const vendor = device.vendor && !device.model.startsWith(device.vendor) ? `${device.vendor} ` : '';
+    const vendor =
+      device.vendor && !device.model.startsWith(device.vendor) ? `${device.vendor} ` : '';
     return `${vendor}${device.model}`.trim();
   }
 

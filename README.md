@@ -53,17 +53,17 @@ lifecycle: create, track payments, archive, and (planned) generate PDFs.
 
 ## Tech stack
 
-| Concern | Choice |
-| --- | --- |
-| Framework | Next.js 15 (App Router, RSC, Route Handlers) |
-| Language | TypeScript (strict) |
-| Database | MongoDB + Mongoose |
-| Auth | Custom JWT (access + rotating refresh) in httpOnly cookies |
-| Validation | Zod (shared client/server schemas) |
-| UI | MUI (`@mui/material`, `@mui/x-data-grid`) |
-| CSS | Tailwind (preflight off to coexist with MUI) |
-| Email | Nodemailer (SMTP) |
-| Password hashing | bcryptjs |
+| Concern          | Choice                                                     |
+| ---------------- | ---------------------------------------------------------- |
+| Framework        | Next.js 15 (App Router, RSC, Route Handlers)               |
+| Language         | TypeScript (strict)                                        |
+| Database         | MongoDB + Mongoose                                         |
+| Auth             | Custom JWT (access + rotating refresh) in httpOnly cookies |
+| Validation       | Zod (shared client/server schemas)                         |
+| UI               | MUI (`@mui/material`, `@mui/x-data-grid`)                  |
+| CSS              | Tailwind (preflight off to coexist with MUI)               |
+| Email            | Nodemailer (SMTP)                                          |
+| Password hashing | bcryptjs                                                   |
 
 > **Money:** amounts are handled as numbers rounded to 2 decimals via a shared money helper.
 > `Decimal128` storage at the DB edge is planned hardening.
@@ -91,11 +91,11 @@ Number format: `{TYPE}-{YY}-{MM}-{####}` (e.g. `TAX-26-06-0001`). The `####` cou
 `0001` at the start of every month** via an atomic per-(type, month) MongoDB counter, so
 concurrent users never receive the same number.
 
-| Type | Example | Currency | Sales tax | Purpose |
-| --- | --- | --- | --- | --- |
-| Tax | `TAX-26-06-0001` | USD | Always | US customers paying by account/bank transfer. Full invoice with line items, shipping/handling/tariff, sales tax, discount, balance due. |
-| Cash | `CASH-26-06-0001` | USD | Never | US customers, direct cash. Simplified: items, discount, cash received + change. |
-| PK | `PK-26-06-0001` | PKR | Optional | Pakistan operations. Advance + remaining balance. Payments recorded manually. |
+| Type | Example           | Currency | Sales tax | Purpose                                                                                                                                 |
+| ---- | ----------------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Tax  | `TAX-26-06-0001`  | USD      | Always    | US customers paying by account/bank transfer. Full invoice with line items, shipping/handling/tariff, sales tax, discount, balance due. |
+| Cash | `CASH-26-06-0001` | USD      | Never     | US customers, direct cash. Simplified: items, discount, cash received + change.                                                         |
+| PK   | `PK-26-06-0001`   | PKR      | Optional  | Pakistan operations. Advance + remaining balance. Payments recorded manually.                                                           |
 
 ## Invoice state model
 
@@ -114,13 +114,13 @@ Wrongly-created invoices are **archived** (with who/when/reason), never cancelle
 **Current scope:** Super Admin, Administrator, Accountant / Manager. Sales User and Read-Only User
 are defined in the model for later, not yet granted UI.
 
-| Role | Status | Capabilities |
-| --- | --- | --- |
-| Super Admin | current | Seeded, **undeletable**. Creates anyone (incl. Admins), assigns any role. All Admin powers. |
-| Administrator | current | Settings, numbering, taxes, all invoices, reports, audit. Creates non-admin users. **Cannot create Admins.** |
-| Accountant / Manager | current | Create/edit invoices, record payments, reports. **No user management.** |
-| Sales User | future | Create invoices, manage assigned customers, tracking. |
-| Read-Only User | future | View / search / print only. |
+| Role                 | Status  | Capabilities                                                                                                 |
+| -------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| Super Admin          | current | Seeded, **undeletable**. Creates anyone (incl. Admins), assigns any role. All Admin powers.                  |
+| Administrator        | current | Settings, numbering, taxes, all invoices, reports, audit. Creates non-admin users. **Cannot create Admins.** |
+| Accountant / Manager | current | Create/edit invoices, record payments, reports. **No user management.**                                      |
+| Sales User           | future  | Create invoices, manage assigned customers, tracking.                                                        |
+| Read-Only User       | future  | View / search / print only.                                                                                  |
 
 Authorization is a single source of truth: a `Role → Permission` matrix
 ([policy.ts](src/modules/auth/rbac/policy.ts)) exposed as `can()` / `assertCan()`. Every API route
@@ -189,50 +189,50 @@ seeded Super Admin credentials.
 
 Copy `.env.example` to `.env.local`:
 
-| Variable | Purpose |
-| --- | --- |
-| `MONGODB_URI` | MongoDB connection string |
-| `NEXT_PUBLIC_SITE_URL` | Base URL (used in emailed links) |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Token signing secrets (long random strings) |
-| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Token lifetimes (e.g. `15m`, `7d`) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Email transport |
-| `SUPER_ADMIN_NAME` / `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | Seeded Super Admin |
+| Variable                                                                            | Purpose                                     |
+| ----------------------------------------------------------------------------------- | ------------------------------------------- |
+| `MONGODB_URI`                                                                       | MongoDB connection string                   |
+| `NEXT_PUBLIC_SITE_URL`                                                              | Base URL (used in emailed links)            |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`                                          | Token signing secrets (long random strings) |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL`                                                | Token lifetimes (e.g. `15m`, `7d`)          |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Email transport                             |
+| `SUPER_ADMIN_NAME` / `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`                   | Seeded Super Admin                          |
 
 `.env.local` is gitignored — never commit it.
 
 ## Scripts
 
-| Script | Description |
-| --- | --- |
-| `npm run dev` | Start the dev server (hot reload) |
-| `npm run build` | Production build |
-| `npm run start` | Run the production build |
-| `npm run seed` | Seed the Super Admin (idempotent) |
-| `npm run lint` / `lint:md` | ESLint / markdownlint |
-| `npm run format` / `format:check` | Prettier |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run check` | typecheck + lint + md-lint + format check |
+| Script                            | Description                               |
+| --------------------------------- | ----------------------------------------- |
+| `npm run dev`                     | Start the dev server (hot reload)         |
+| `npm run build`                   | Production build                          |
+| `npm run start`                   | Run the production build                  |
+| `npm run seed`                    | Seed the Super Admin (idempotent)         |
+| `npm run lint` / `lint:md`        | ESLint / markdownlint                     |
+| `npm run format` / `format:check` | Prettier                                  |
+| `npm run typecheck`               | `tsc --noEmit`                            |
+| `npm run check`                   | typecheck + lint + md-lint + format check |
 
 ## API reference
 
 All routes return `{ ok, data }` or `{ ok: false, error }`. Auth is via httpOnly cookies. Invoice
 routes require the matching permission (`403` otherwise); unauthenticated calls get `401`.
 
-| Method | Route | Permission | Description |
-| --- | --- | --- | --- |
-| POST | `/api/auth/login` | — | Email + password → sets cookies |
-| POST | `/api/auth/logout` | session | Revoke refresh + clear cookies |
-| POST | `/api/auth/refresh` | — | Rotate tokens |
-| POST | `/api/auth/verify` | — | Onboarding: verify OTP + set password |
-| POST | `/api/auth/forgot` | — | Email a reset link |
-| POST | `/api/auth/reset` | — | Complete password reset |
-| GET | `/api/auth/me` | session | Current session + permissions |
-| POST | `/api/auth/users` | `UserCreate` / `UserCreateAdmin` | Create a user (emails OTP) |
-| GET | `/api/invoices` | `InvoiceView` | Paginated, role-scoped list |
-| POST | `/api/invoices` | `InvoiceCreate` | Create an invoice |
-| GET | `/api/invoices/:id` | `InvoiceView` | Get one (archive visibility enforced) |
-| PATCH | `/api/invoices/:id` | `InvoiceEdit` | Update + recompute totals |
-| POST | `/api/invoices/:id/archive` | `InvoiceArchive` | Archive with a reason |
+| Method | Route                       | Permission                       | Description                           |
+| ------ | --------------------------- | -------------------------------- | ------------------------------------- |
+| POST   | `/api/auth/login`           | —                                | Email + password → sets cookies       |
+| POST   | `/api/auth/logout`          | session                          | Revoke refresh + clear cookies        |
+| POST   | `/api/auth/refresh`         | —                                | Rotate tokens                         |
+| POST   | `/api/auth/verify`          | —                                | Onboarding: verify OTP + set password |
+| POST   | `/api/auth/forgot`          | —                                | Email a reset link                    |
+| POST   | `/api/auth/reset`           | —                                | Complete password reset               |
+| GET    | `/api/auth/me`              | session                          | Current session + permissions         |
+| POST   | `/api/auth/users`           | `UserCreate` / `UserCreateAdmin` | Create a user (emails OTP)            |
+| GET    | `/api/invoices`             | `InvoiceView`                    | Paginated, role-scoped list           |
+| POST   | `/api/invoices`             | `InvoiceCreate`                  | Create an invoice                     |
+| GET    | `/api/invoices/:id`         | `InvoiceView`                    | Get one (archive visibility enforced) |
+| PATCH  | `/api/invoices/:id`         | `InvoiceEdit`                    | Update + recompute totals             |
+| POST   | `/api/invoices/:id/archive` | `InvoiceArchive`                 | Archive with a reason                 |
 
 ## Security
 

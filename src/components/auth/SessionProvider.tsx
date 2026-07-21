@@ -12,7 +12,13 @@ export interface ClientSession {
 
 const SessionContext = createContext<ClientSession | null>(null);
 
-export function SessionProvider({ value, children }: { value: ClientSession; children: ReactNode }) {
+export function SessionProvider({
+  value,
+  children,
+}: {
+  value: ClientSession;
+  children: ReactNode;
+}) {
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

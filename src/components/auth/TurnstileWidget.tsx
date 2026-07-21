@@ -86,5 +86,7 @@ export function TurnstileWidget({ onToken }: { onToken: (token: string | null) =
   // Turnstile renders a fixed 300px iframe. The auth form column is ~272px at 320px, so the
   // widget overflowed the page horizontally whenever the challenge fired. overflowX:auto keeps
   // any residual width inside this box rather than scrolling the whole login page.
-  return <Box ref={hostRef} sx={{ display: 'flex', justifyContent: 'center', overflowX: 'auto' }} />;
+  return (
+    <Box ref={hostRef} sx={{ display: 'flex', justifyContent: 'center', overflowX: 'auto' }} />
+  );
 }

@@ -26,7 +26,6 @@ import { formatDate, formatDateTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/countries';
 import { ROLE_LABEL } from '@/lib/format/labels';
 
-
 interface UserDetail {
   _id: string;
   name: string;
@@ -47,7 +46,13 @@ interface UserDetail {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <Box sx={{ py: 0.75 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+      >
+        {label}
+      </Typography>
       <Typography variant="body1">{value}</Typography>
     </Box>
   );
@@ -76,7 +81,11 @@ export function UserDetailsModal({
   // keepPreviousData:false so a different user never briefly shows the last one's record;
   // useRetainedWhileClosing keeps this one on screen through the close animation instead of
   // flashing the error state.
-  const { data: liveUser, isLoading, mutate } = useApi<UserDetail>(id ? `/api/auth/users/${id}` : null, {
+  const {
+    data: liveUser,
+    isLoading,
+    mutate,
+  } = useApi<UserDetail>(id ? `/api/auth/users/${id}` : null, {
     keepPreviousData: false,
     // This modal draws its own loader inside the dialog, so it must not also raise the
     // app-wide overlay: that would be two loaders for one fetch.
@@ -114,7 +123,9 @@ export function UserDetailsModal({
       const dataUrl = await fileToAvatarDataUrl(file, 256);
       await saveAvatar(dataUrl);
     } catch (err) {
-      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', { variant: 'error' });
+      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', {
+        variant: 'error',
+      });
     }
   }
 
@@ -128,9 +139,15 @@ export function UserDetailsModal({
       busy={uploading}
       actions={
         <>
-          <Button onClick={onClose} variant="outlined" color="inherit" startIcon={<CloseRounded />}>Close</Button>
+          <Button onClick={onClose} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+            Close
+          </Button>
           {canEditUser && onEdit && user && (
-            <Button variant="contained" startIcon={<EditRounded />} onClick={() => onEdit(user._id)}>
+            <Button
+              variant="contained"
+              startIcon={<EditRounded />}
+              onClick={() => onEdit(user._id)}
+            >
               Edit
             </Button>
           )}
@@ -143,7 +160,11 @@ export function UserDetailsModal({
         <Typography color="error">Could not load this user.</Typography>
       ) : (
         <Stack spacing={2.5}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={2.5}
+            alignItems={{ xs: 'flex-start', sm: 'center' }}
+          >
             <AvatarPicker
               src={user.avatarUrl}
               fallback={(user.name || user.email).charAt(0).toUpperCase()}
@@ -156,7 +177,13 @@ export function UserDetailsModal({
 
             <Box sx={{ minWidth: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Chip label={ROLE_LABEL[user.role] ?? user.role} color="primary" variant="outlined" size="small" sx={{ fontWeight: 700 }} />
+                <Chip
+                  label={ROLE_LABEL[user.role] ?? user.role}
+                  color="primary"
+                  variant="outlined"
+                  size="small"
+                  sx={{ fontWeight: 700 }}
+                />
                 <StatusChip label={user.status} tone={userStatusTone[user.status] ?? 'neutral'} />
                 {user.isProtected && <Chip label="Protected" size="small" variant="outlined" />}
               </Box>
@@ -185,7 +212,7 @@ export function UserDetailsModal({
           <Grid container spacing={1}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <Field label="Job title" value={user.jobTitle || 'Not set'} />
-              <Field label="Phone" value={formatPhone(user.phone) || "Not set"} />
+              <Field label="Phone" value={formatPhone(user.phone) || 'Not set'} />
               <Field label="Email verified" value={user.emailVerified ? 'Yes' : 'No'} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -198,7 +225,11 @@ export function UserDetailsModal({
             <>
               <Divider />
               <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+                >
                   Internal notes
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>

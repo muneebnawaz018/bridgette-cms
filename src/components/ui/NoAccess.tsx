@@ -13,13 +13,7 @@ import LockRounded from '@mui/icons-material/LockRounded';
  * permission is not an error the user caused, so it reads as a calm statement rather than a
  * failure.
  */
-export function NoAccess({
-  title = 'No access',
-  message,
-}: {
-  title?: string;
-  message: string;
-}) {
+export function NoAccess({ title = 'No access', message }: { title?: string; message: string }) {
   return (
     <Box className="rise-in">
       <Paper sx={{ p: { xs: 4, md: 6 }, textAlign: 'center' }}>

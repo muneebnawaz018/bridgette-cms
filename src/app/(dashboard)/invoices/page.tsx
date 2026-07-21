@@ -103,7 +103,10 @@ export default function InvoicesPage() {
   const [range, setRange] = useState({ from: daysAgo(7), to: today() });
   const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize,
+  });
 
   // Preselect the type filter from ?type=tax|cash|pk (e.g. clicked from a dashboard card).
   useEffect(() => {
@@ -130,7 +133,9 @@ export default function InvoicesPage() {
   if (type) params.set('type', type);
   if (range.from) params.set('from', range.from);
   if (range.to) params.set('to', range.to);
-  const { data, isLoading, mutate } = useApi<{ items: InvoiceRow[]; total: number }>(`/api/invoices?${params.toString()}`);
+  const { data, isLoading, mutate } = useApi<{ items: InvoiceRow[]; total: number }>(
+    `/api/invoices?${params.toString()}`,
+  );
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
 
@@ -152,7 +157,12 @@ export default function InvoicesPage() {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const views: InvoiceView[] = ['active', 'archived', ...(canSeeDeleted ? (['deleted'] as const) : []), 'all'];
+  const views: InvoiceView[] = [
+    'active',
+    'archived',
+    ...(canSeeDeleted ? (['deleted'] as const) : []),
+    'all',
+  ];
 
   function openAction(kind: 'archive' | 'delete', row: InvoiceRow) {
     setAction({ kind, row });
@@ -169,7 +179,9 @@ export default function InvoicesPage() {
         : await apiDelete(`/api/invoices/${row._id}`, { reason });
     setBusy(false);
     if (res.ok) {
-      enqueueSnackbar(kind === 'archive' ? 'Invoice archived' : 'Invoice deleted', { variant: 'success' });
+      enqueueSnackbar(kind === 'archive' ? 'Invoice archived' : 'Invoice deleted', {
+        variant: 'success',
+      });
       setAction(null);
       void mutate();
     } else {
@@ -199,11 +211,37 @@ export default function InvoicesPage() {
       minWidth: 130,
       headerAlign: 'center',
       align: 'center',
-      renderCell: (p) => <StatusChip label={p.value} tone={invoiceStateTone[p.value] ?? 'neutral'} />,
+      renderCell: (p) => (
+        <StatusChip label={p.value} tone={invoiceStateTone[p.value] ?? 'neutral'} />
+      ),
     },
-    { field: 'billTo', headerName: 'Bill to', flex: 1.4, minWidth: 150, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => r.billTo?.name ?? 'No customer' },
-    { field: 'grandTotal', headerName: 'Total', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => formatMoney(r.currency, Number(r.grandTotal)) },
-    { field: 'balanceDue', headerName: 'Balance', flex: 1, minWidth: 120, headerAlign: 'center', align: 'center', valueGetter: (_v, r) => formatMoney(r.currency, Number(r.balanceDue)) },
+    {
+      field: 'billTo',
+      headerName: 'Bill to',
+      flex: 1.4,
+      minWidth: 150,
+      headerAlign: 'center',
+      align: 'center',
+      valueGetter: (_v, r) => r.billTo?.name ?? 'No customer',
+    },
+    {
+      field: 'grandTotal',
+      headerName: 'Total',
+      flex: 1,
+      minWidth: 120,
+      headerAlign: 'center',
+      align: 'center',
+      valueGetter: (_v, r) => formatMoney(r.currency, Number(r.grandTotal)),
+    },
+    {
+      field: 'balanceDue',
+      headerName: 'Balance',
+      flex: 1,
+      minWidth: 120,
+      headerAlign: 'center',
+      align: 'center',
+      valueGetter: (_v, r) => formatMoney(r.currency, Number(r.balanceDue)),
+    },
     {
       field: 'status',
       headerName: 'Status',
@@ -319,7 +357,11 @@ export default function InvoicesPage() {
       {/* Archive / delete, both require a reason */}
       <ConfirmDialog
         open={Boolean(action)}
-        title={action?.kind === 'delete' ? `Delete ${action.row.number}?` : `Archive ${action?.row.number ?? ''}?`}
+        title={
+          action?.kind === 'delete'
+            ? `Delete ${action.row.number}?`
+            : `Archive ${action?.row.number ?? ''}?`
+        }
         description={
           action?.kind === 'delete'
             ? 'Deleted invoices are hidden from everyone and stay visible to admins only, under the Deleted view. They are never removed from the database.'

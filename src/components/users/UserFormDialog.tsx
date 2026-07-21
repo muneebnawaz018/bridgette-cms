@@ -52,7 +52,6 @@ export interface EditableUser {
   isProtected?: boolean;
 }
 
-
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 interface FormValues {
@@ -365,7 +364,13 @@ export function UserFormDialog({
       busy={saving}
       actions={
         <>
-          <Button onClick={close} disabled={saving} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+          <Button
+            onClick={close}
+            disabled={saving}
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseRounded />}
+          >
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}

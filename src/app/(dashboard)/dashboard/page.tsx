@@ -49,7 +49,6 @@ interface Stats {
   byType: Record<string, TypeTotals>;
 }
 
-
 // The 3 invoice types + their fixed currency (Tax/Cash = USD, PK = PKR).
 const TYPES = [
   { key: 'tax', label: 'Tax', currency: 'USD', icon: <AccountBalanceRounded /> },
@@ -83,7 +82,8 @@ const stateChip: Record<string, { bg: string; fg: string }> = {
   overdue: { bg: colors.status.errorBg, fg: colors.status.error },
 };
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n: number) =>
+  n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function StateChip({ state, sx }: { state: string; sx?: SxProps<Theme> }) {
   const c = stateChip[state] ?? stateChip.draft;
@@ -92,14 +92,33 @@ function StateChip({ state, sx }: { state: string; sx?: SxProps<Theme> }) {
     <Chip
       label={label}
       size="small"
-      sx={{ bgcolor: c.bg, color: c.fg, fontWeight: 600, borderRadius: 2, '& .MuiChip-label': { px: 1 }, ...sx }}
+      sx={{
+        bgcolor: c.bg,
+        color: c.fg,
+        fontWeight: 600,
+        borderRadius: 2,
+        '& .MuiChip-label': { px: 1 },
+        ...sx,
+      }}
     />
   );
 }
 
 /** Per-invoice-type card: outstanding (hero number) + invoiced + a paid-progress bar.
  *  Clicking navigates to the invoices list with this type preselected. */
-function TypeStatCard({ label, currency, icon, totals, href }: { label: string; currency: string; icon: ReactNode; totals?: TypeTotals; href: string }) {
+function TypeStatCard({
+  label,
+  currency,
+  icon,
+  totals,
+  href,
+}: {
+  label: string;
+  currency: string;
+  icon: ReactNode;
+  totals?: TypeTotals;
+  href: string;
+}) {
   const t = totals ?? { count: 0, invoiced: 0, outstanding: 0 };
   const paid = Math.max(0, t.invoiced - t.outstanding);
   const ratio = t.invoiced > 0 ? Math.min(100, Math.round((paid / t.invoiced) * 100)) : 0;
@@ -119,37 +138,85 @@ function TypeStatCard({ label, currency, icon, totals, href }: { label: string; 
         overflow: 'hidden',
         transition: 'transform .2s ease, box-shadow .2s ease',
         '&:hover': { transform: 'translateY(-3px)', boxShadow: (th) => th.shadows[4] },
-        '&::before': { content: '""', position: 'absolute', insetInline: 0, top: 0, height: 3, background: gradients.brand },
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          insetInline: 0,
+          top: 0,
+          height: 3,
+          background: gradients.brand,
+        },
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-        <Box sx={{ width: 44, height: 44, borderRadius: 2.5, display: 'grid', placeItems: 'center', bgcolor: redA(0.1), color: 'primary.main' }}>
+        <Box
+          sx={{
+            width: 44,
+            height: 44,
+            borderRadius: 2.5,
+            display: 'grid',
+            placeItems: 'center',
+            bgcolor: redA(0.1),
+            color: 'primary.main',
+          }}
+        >
           {icon}
         </Box>
         <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: '1.05rem', lineHeight: 1.2 }}>{label}</Typography>
-          <Typography variant="caption" color="text.secondary">{t.count} invoice{t.count === 1 ? '' : 's'}</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: '1.05rem', lineHeight: 1.2 }}>
+            {label}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {t.count} invoice{t.count === 1 ? '' : 's'}
+          </Typography>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
-        <Chip label={currency} size="small" variant="outlined" sx={{ fontWeight: 700, color: colors.ink[500] }} />
+        <Chip
+          label={currency}
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 700, color: colors.ink[500] }}
+        />
       </Box>
 
-      <Typography variant="overline" color="text.secondary">Outstanding</Typography>
-      <Typography className="tnum" sx={{ fontFamily: displayFont, fontWeight: 700, fontSize: '2.15rem', lineHeight: 1.05, color: t.outstanding > 0 ? colors.status.error : colors.ink[900] }}>
+      <Typography variant="overline" color="text.secondary">
+        Outstanding
+      </Typography>
+      <Typography
+        className="tnum"
+        sx={{
+          fontFamily: displayFont,
+          fontWeight: 700,
+          fontSize: '2.15rem',
+          lineHeight: 1.05,
+          color: t.outstanding > 0 ? colors.status.error : colors.ink[900],
+        }}
+      >
         {money(t.outstanding)}
       </Typography>
 
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-          <Typography variant="caption" color="text.secondary">Invoiced</Typography>
-          <Typography variant="caption" className="tnum" sx={{ fontWeight: 700 }}>{money(t.invoiced)}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Invoiced
+          </Typography>
+          <Typography variant="caption" className="tnum" sx={{ fontWeight: 700 }}>
+            {money(t.invoiced)}
+          </Typography>
         </Box>
         <LinearProgress
           variant="determinate"
           value={ratio}
-          sx={{ height: 6, borderRadius: 3, bgcolor: colors.surface.subtle, '& .MuiLinearProgress-bar': { borderRadius: 3, backgroundColor: colors.status.success } }}
+          sx={{
+            height: 6,
+            borderRadius: 3,
+            bgcolor: colors.surface.subtle,
+            '& .MuiLinearProgress-bar': { borderRadius: 3, backgroundColor: colors.status.success },
+          }}
         />
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>{ratio}% collected</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
+          {ratio}% collected
+        </Typography>
       </Box>
     </Paper>
   );
@@ -163,14 +230,22 @@ export default function DashboardPage() {
   const { data: recentData } = useApi<{ items: RecentInvoice[] }>('/api/invoices?limit=6');
   const recent = recentData?.items ?? [];
   const s = stats?.byState ?? {};
-  const name = email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const name = email
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <Box className="rise-in">
       {/* Greeting */}
       <Box sx={{ mb: 3.5 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>Welcome back, {name}</Typography>
-        <Typography color="text.secondary" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>
+          Welcome back, {name}
+        </Typography>
+        <Typography
+          color="text.secondary"
+          sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+        >
           A snapshot of your invoices across all types.
           <Chip
             component="span"
@@ -191,7 +266,13 @@ export default function DashboardPage() {
       <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
         {TYPES.map((t) => (
           <Grid size={{ xs: 12, md: 4 }} key={t.key}>
-            <TypeStatCard label={t.label} currency={t.currency} icon={t.icon} totals={stats?.byType[t.key]} href={`/invoices?type=${t.key}`} />
+            <TypeStatCard
+              label={t.label}
+              currency={t.currency}
+              icon={t.icon}
+              totals={stats?.byType[t.key]}
+              href={`/invoices?type=${t.key}`}
+            />
           </Grid>
         ))}
       </Grid>
@@ -205,10 +286,25 @@ export default function DashboardPage() {
           {STATES.map((st) => (
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }} key={st.k}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: st.color, flexShrink: 0 }} />
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    bgcolor: st.color,
+                    flexShrink: 0,
+                  }}
+                />
                 <Box>
-                  <Typography className="tnum" sx={{ fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.1 }}>{s[st.k] ?? 0}</Typography>
-                  <Typography variant="caption" color="text.secondary">{st.label}</Typography>
+                  <Typography
+                    className="tnum"
+                    sx={{ fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.1 }}
+                  >
+                    {s[st.k] ?? 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {st.label}
+                  </Typography>
                 </Box>
               </Box>
             </Grid>
@@ -221,32 +317,67 @@ export default function DashboardPage() {
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-              <Typography variant="h6" sx={{ flexGrow: 1 }}>Recent invoices</Typography>
-              <Button component={AppLink} href="/invoices" size="small" endIcon={<ArrowForwardRounded fontSize="small" />}>
+              <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                Recent invoices
+              </Typography>
+              <Button
+                component={AppLink}
+                href="/invoices"
+                size="small"
+                endIcon={<ArrowForwardRounded fontSize="small" />}
+              >
                 View all
               </Button>
             </Box>
             {recent.length === 0 ? (
               <Box sx={{ py: 5, textAlign: 'center' }}>
                 <ReceiptLongRounded sx={{ fontSize: 40, color: colors.ink[300] }} />
-                <Typography color="text.secondary" sx={{ mt: 1 }}>No invoices yet.</Typography>
+                <Typography color="text.secondary" sx={{ mt: 1 }}>
+                  No invoices yet.
+                </Typography>
               </Box>
             ) : (
               <Stack divider={<Divider flexItem />}>
                 {recent.map((inv) => (
-                  <Box key={inv._id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.4 }}>
-                    <Avatar variant="rounded" sx={{ width: 38, height: 38, bgcolor: colors.surface.subtle, color: colors.ink[500], fontSize: '0.72rem', fontWeight: 700 }}>
+                  <Box
+                    key={inv._id}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.4 }}
+                  >
+                    <Avatar
+                      variant="rounded"
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        bgcolor: colors.surface.subtle,
+                        color: colors.ink[500],
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                      }}
+                    >
                       {inv.type.toUpperCase()}
                     </Avatar>
                     <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                      <Typography sx={{ fontWeight: 700 }} noWrap>{inv.number}</Typography>
-                      <Typography variant="body2" color="text.secondary" noWrap>{inv.billTo?.name ?? '—'}</Typography>
+                      <Typography sx={{ fontWeight: 700 }} noWrap>
+                        {inv.number}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {inv.billTo?.name ?? '—'}
+                      </Typography>
                     </Box>
                     <StateChip state={inv.state} sx={{ flexShrink: 0 }} />
                     {/* The hard 120px floor plus a non-shrinking chip pushed this row past its
                         card below ~380px. Drop the floor at xs — the amount is `noWrap`, so it
                         keeps itself on one line without reserving width the small screen lacks. */}
-                    <Typography className="tnum" noWrap sx={{ minWidth: { xs: 0, sm: 120 }, textAlign: 'right', fontWeight: 700, flexShrink: 0 }}>
+                    <Typography
+                      className="tnum"
+                      noWrap
+                      sx={{
+                        minWidth: { xs: 0, sm: 120 },
+                        textAlign: 'right',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
                       {inv.currency} {money(Number(inv.grandTotal))}
                     </Typography>
                   </Box>
@@ -258,21 +389,68 @@ export default function DashboardPage() {
 
         <Grid size={{ xs: 12, md: 4 }}>
           {/* Gradient quick-actions panel */}
-          <Paper sx={{ p: 3, height: '100%', border: 'none', color: colors.onDark.text, background: gradients.ink, position: 'relative', overflow: 'hidden' }}>
-            <Box sx={{ position: 'absolute', top: -80, right: -60, width: 220, height: 220, borderRadius: '50%', background: `radial-gradient(circle, ${redA(0.28)}, transparent 70%)` }} />
-            <Typography variant="h6" sx={{ color: colors.onDark.text, position: 'relative' }}>Quick actions</Typography>
-            <Typography variant="body2" sx={{ color: colors.onDark.textDim, mb: 2.5, position: 'relative' }}>Jump straight to what you need.</Typography>
+          <Paper
+            sx={{
+              p: 3,
+              height: '100%',
+              border: 'none',
+              color: colors.onDark.text,
+              background: gradients.ink,
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: -80,
+                right: -60,
+                width: 220,
+                height: 220,
+                borderRadius: '50%',
+                background: `radial-gradient(circle, ${redA(0.28)}, transparent 70%)`,
+              }}
+            />
+            <Typography variant="h6" sx={{ color: colors.onDark.text, position: 'relative' }}>
+              Quick actions
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ color: colors.onDark.textDim, mb: 2.5, position: 'relative' }}
+            >
+              Jump straight to what you need.
+            </Typography>
             <Stack spacing={1.5} sx={{ position: 'relative' }}>
               {canCreateInvoice && (
-                <Button component={AppLink} href="/invoices/new" variant="contained" fullWidth startIcon={<AddRounded />}>
+                <Button
+                  component={AppLink}
+                  href="/invoices/new"
+                  variant="contained"
+                  fullWidth
+                  startIcon={<AddRounded />}
+                >
                   Create invoice
                 </Button>
               )}
-              <Button component={AppLink} href="/invoices" fullWidth startIcon={<ReceiptLongRounded />} variant="outlined" sx={onDarkButtonSx}>
+              <Button
+                component={AppLink}
+                href="/invoices"
+                fullWidth
+                startIcon={<ReceiptLongRounded />}
+                variant="outlined"
+                sx={onDarkButtonSx}
+              >
                 View invoices
               </Button>
               {canCreateUser && (
-                <Button component={AppLink} href="/users" fullWidth startIcon={<GroupRounded />} variant="outlined" sx={onDarkButtonSx}>
+                <Button
+                  component={AppLink}
+                  href="/users"
+                  fullWidth
+                  startIcon={<GroupRounded />}
+                  variant="outlined"
+                  sx={onDarkButtonSx}
+                >
                   Manage users
                 </Button>
               )}

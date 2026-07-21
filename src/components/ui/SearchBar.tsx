@@ -83,7 +83,10 @@ function DateRangeFilter({ config }: { config: DateRangeConfig }) {
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
-        <DateRangeRounded fontSize="small" sx={{ color: 'text.secondary', mr: 0.75, flexShrink: 0 }} />
+        <DateRangeRounded
+          fontSize="small"
+          sx={{ color: 'text.secondary', mr: 0.75, flexShrink: 0 }}
+        />
         <Box
           component="span"
           sx={{
@@ -214,7 +217,17 @@ export function SearchBar({
     >
       {/* Search takes every spare pixel; minWidth:0 lets it shrink gracefully rather than
           forcing the filters to wrap. */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0, px: 1.75, minHeight: 48 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          flexGrow: 1,
+          minWidth: 0,
+          px: 1.75,
+          minHeight: 48,
+        }}
+      >
         <SearchRounded fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
         <InputBase
           value={value}
@@ -226,7 +239,12 @@ export function SearchBar({
           inputProps={{ 'aria-label': placeholder }}
         />
         {value && (
-          <IconButton size="small" aria-label="Clear search" onClick={() => onChange('')} sx={{ flexShrink: 0 }}>
+          <IconButton
+            size="small"
+            aria-label="Clear search"
+            onClick={() => onChange('')}
+            sx={{ flexShrink: 0 }}
+          >
             <CloseRounded fontSize="small" />
           </IconButton>
         )}
@@ -264,7 +282,9 @@ export function SearchBar({
               variant="standard"
               disableUnderline
               renderValue={(v) => f.options.find((o) => o.value === v)?.label ?? f.label}
-              startAdornment={<FilterListRounded fontSize="small" sx={{ color: 'text.secondary', mr: 0.75 }} />}
+              startAdornment={
+                <FilterListRounded fontSize="small" sx={{ color: 'text.secondary', mr: 0.75 }} />
+              }
               sx={{
                 // minWidth is only a floor — flexGrow is what fills the shared filter row.
                 minWidth: { xs: '100%', sm: 118, md: 150 },

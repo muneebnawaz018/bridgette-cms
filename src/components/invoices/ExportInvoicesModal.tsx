@@ -36,9 +36,19 @@ import type { InvoiceView, ExportFormat } from '@/modules/invoicing/schemas';
 const PREVIEW_ROWS = 10;
 
 const FORMATS: { value: ExportFormat; label: string; blurb: string; icon: ReactNode }[] = [
-  { value: 'csv', label: 'CSV', blurb: 'Opens anywhere. Best for import.', icon: <TableChartRounded /> },
+  {
+    value: 'csv',
+    label: 'CSV',
+    blurb: 'Opens anywhere. Best for import.',
+    icon: <TableChartRounded />,
+  },
   { value: 'xlsx', label: 'Excel', blurb: 'Formatted .xlsx workbook.', icon: <GridOnRounded /> },
-  { value: 'json', label: 'JSON', blurb: 'Structured, for developers.', icon: <DataObjectRounded /> },
+  {
+    value: 'json',
+    label: 'JSON',
+    blurb: 'Structured, for developers.',
+    icon: <DataObjectRounded />,
+  },
 ];
 
 const STEPS = ['Format', 'Dates', 'Preview'];
@@ -150,7 +160,9 @@ export function ExportInvoicesModal({
       );
       onClose();
     } catch (err) {
-      enqueueSnackbar(err instanceof Error ? err.message : 'The export failed', { variant: 'error' });
+      enqueueSnackbar(err instanceof Error ? err.message : 'The export failed', {
+        variant: 'error',
+      });
     } finally {
       setDownloading(false);
     }
@@ -171,18 +183,34 @@ export function ExportInvoicesModal({
       busy={downloading}
       actions={
         <>
-          <Button onClick={onClose} disabled={downloading} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+          <Button
+            onClick={onClose}
+            disabled={downloading}
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseRounded />}
+          >
             Cancel
           </Button>
           {step > 0 && (
-            <Button onClick={() => setStep((s) => s - 1)} disabled={downloading} variant="outlined" startIcon={<ArrowBackRounded />}>
+            <Button
+              onClick={() => setStep((s) => s - 1)}
+              disabled={downloading}
+              variant="outlined"
+              startIcon={<ArrowBackRounded />}
+            >
               Back
             </Button>
           )}
           {step < STEPS.length - 1 ? (
             // endIcon, not start: the arrow trails the label because it points at where the
             // step is going, which is the one place in these dialogs that reads better after.
-            <Button variant="contained" disabled={!canGoNext} onClick={() => setStep((s) => s + 1)} endIcon={<ArrowForwardRounded />}>
+            <Button
+              variant="contained"
+              disabled={!canGoNext}
+              onClick={() => setStep((s) => s + 1)}
+              endIcon={<ArrowForwardRounded />}
+            >
               Next
             </Button>
           ) : (
@@ -315,8 +343,8 @@ export function ExportInvoicesModal({
           )}
 
           <Typography variant="body2" color="text.secondary">
-            The export also keeps the filters already applied to the list, so only what you can
-            see is included.
+            The export also keeps the filters already applied to the list, so only what you can see
+            is included.
           </Typography>
         </Stack>
       )}
@@ -355,7 +383,9 @@ export function ExportInvoicesModal({
               <TableBody>
                 {preview.map((r) => (
                   <TableRow key={r._id} hover>
-                    <TableCell sx={{ fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap' }}>
+                    <TableCell
+                      sx={{ fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap' }}
+                    >
                       {r.number}
                     </TableCell>
                     <TableCell>{r.billTo?.name ?? 'No customer'}</TableCell>

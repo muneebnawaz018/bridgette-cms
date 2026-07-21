@@ -62,7 +62,13 @@ export default function ForgotPasswordPage() {
               fullWidth
               disabled={loading}
             />
-            <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
+            <SubmitButton
+              type="submit"
+              variant="contained"
+              size="large"
+              loading={loading}
+              fullWidth
+            >
               {loading ? 'Sending…' : 'Send reset link'}
             </SubmitButton>
             <MuiLink component={AppLink} href="/login" variant="body2" align="center">

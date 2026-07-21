@@ -8,7 +8,13 @@ import { colors, blackA, whiteA } from '@/lib/colors';
  * so its black half stays visible — beside the white "BRIDGETTE" wordmark. The raw
  * red/black logo can't sit on dark or gradient backgrounds, hence the badge treatment.
  */
-export function BrandLockup({ subtitle, size = 'md' }: { subtitle?: string; size?: 'sm' | 'md' | 'lg' }) {
+export function BrandLockup({
+  subtitle,
+  size = 'md',
+}: {
+  subtitle?: string;
+  size?: 'sm' | 'md' | 'lg';
+}) {
   const badge = { sm: 30, md: 38, lg: 46 }[size];
   const wordmark = { sm: '1.02rem', md: '1.22rem', lg: '1.55rem' }[size];
 
@@ -27,19 +33,39 @@ export function BrandLockup({ subtitle, size = 'md' }: { subtitle?: string; size
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/icon-512.png" alt="Bridgette Enterprises" style={{ width: badge * 0.72, height: badge * 0.72 }} />
+        <img
+          src="/brand/icon-512.png"
+          alt="Bridgette Enterprises"
+          style={{ width: badge * 0.72, height: badge * 0.72 }}
+        />
       </Box>
       <Box sx={{ lineHeight: 1 }}>
         <Typography
           component="span"
-          sx={{ display: 'block', fontFamily: displayFont, fontWeight: 700, letterSpacing: '0.14em', color: colors.brand.white, fontSize: wordmark, lineHeight: 1 }}
+          sx={{
+            display: 'block',
+            fontFamily: displayFont,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            color: colors.brand.white,
+            fontSize: wordmark,
+            lineHeight: 1,
+          }}
         >
           BRIDGETTE
         </Typography>
         {subtitle && (
           <Typography
             component="span"
-            sx={{ display: 'block', mt: 0.5, fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.22em', color: whiteA(0.5), textTransform: 'uppercase' }}
+            sx={{
+              display: 'block',
+              mt: 0.5,
+              fontSize: '0.62rem',
+              fontWeight: 600,
+              letterSpacing: '0.22em',
+              color: whiteA(0.5),
+              textTransform: 'uppercase',
+            }}
           >
             {subtitle}
           </Typography>

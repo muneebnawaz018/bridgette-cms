@@ -140,12 +140,26 @@ export function Modal({
           }}
         >
           {icon && (
-            <Box sx={{ display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 2, color: 'primary.main', bgcolor: 'action.hover', flexShrink: 0 }}>
+            <Box
+              sx={{
+                display: 'grid',
+                placeItems: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                color: 'primary.main',
+                bgcolor: 'action.hover',
+                flexShrink: 0,
+              }}
+            >
               {icon}
             </Box>
           )}
           <Box sx={{ minWidth: 0 }}>
-            <Typography component="h2" sx={{ fontWeight: 700, fontSize: { xs: '1.05rem', sm: '1.15rem' }, lineHeight: 1.3 }}>
+            <Typography
+              component="h2"
+              sx={{ fontWeight: 700, fontSize: { xs: '1.05rem', sm: '1.15rem' }, lineHeight: 1.3 }}
+            >
               {title}
             </Typography>
             {description && (
@@ -158,7 +172,9 @@ export function Modal({
       )}
 
       {children && (
-        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: title || icon ? 2 : 3 }}>{children}</DialogContent>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: title || icon ? 2 : 3 }}>
+          {children}
+        </DialogContent>
       )}
 
       {actions && (

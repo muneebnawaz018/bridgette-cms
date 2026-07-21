@@ -28,8 +28,14 @@ export function ProfileMenu() {
   return (
     <>
       {/* p:0 so the button is exactly the avatar — a 40x40 box matching the nav toggle. */}
-      <IconButton onClick={(e) => setAnchor(e.currentTarget)} size="small" sx={{ ml: 1, p: 0, flexShrink: 0 }}>
-        <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main', fontWeight: 700, fontSize: '1rem' }}>
+      <IconButton
+        onClick={(e) => setAnchor(e.currentTarget)}
+        size="small"
+        sx={{ ml: 1, p: 0, flexShrink: 0 }}
+      >
+        <Avatar
+          sx={{ width: 40, height: 40, bgcolor: 'primary.main', fontWeight: 700, fontSize: '1rem' }}
+        >
           {initial}
         </Avatar>
       </IconButton>

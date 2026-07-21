@@ -37,4 +37,5 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<Ap
 // input in the URL, and `send` already omits the Content-Type header when there is none.
 export const apiPost = <T = unknown>(path: string, body?: unknown) => send<T>('POST', path, body);
 export const apiPatch = <T = unknown>(path: string, body: unknown) => send<T>('PATCH', path, body);
-export const apiDelete = <T = unknown>(path: string, body?: unknown) => send<T>('DELETE', path, body);
+export const apiDelete = <T = unknown>(path: string, body?: unknown) =>
+  send<T>('DELETE', path, body);

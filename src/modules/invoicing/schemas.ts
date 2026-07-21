@@ -58,7 +58,11 @@ export const invoiceFormSchema = z.object({
     required_error: 'Pick an invoice type',
     invalid_type_error: 'Pick an invoice type',
   }),
-  billToName: z.string().trim().min(1, 'A customer name is required').max(160, 'That name is too long'),
+  billToName: z
+    .string()
+    .trim()
+    .min(1, 'A customer name is required')
+    .max(160, 'That name is too long'),
   // Optional, but a typo should still be caught rather than silently saved.
   billToEmail: z.union([z.literal(''), z.string().trim().email('Enter a valid email address')]),
   items: z

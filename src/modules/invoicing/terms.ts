@@ -18,8 +18,7 @@ export const BILLING_TERMS: LegalDoc = {
   subtitle: `Billing terms for invoices issued by ${COMPANY}.`,
   company: COMPANY,
   effective: 'Effective 1 January 2026',
-  intro:
-    `These Billing Terms & Policies govern invoices, orders, and payments between ${COMPANY} ("we", "us", "our") and the client named on an invoice ("you"). By accepting an invoice or placing an order you agree to these terms. Where a signed agreement exists between the parties, that agreement prevails to the extent of any conflict.`,
+  intro: `These Billing Terms & Policies govern invoices, orders, and payments between ${COMPANY} ("we", "us", "our") and the client named on an invoice ("you"). By accepting an invoice or placing an order you agree to these terms. Where a signed agreement exists between the parties, that agreement prevails to the extent of any conflict.`,
   sections: [
     {
       title: '1. Definitions',

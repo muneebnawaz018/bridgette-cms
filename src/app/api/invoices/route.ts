@@ -1,6 +1,11 @@
 import { handle, ok } from '@/lib/api/respond';
 import { requirePermission, Permission } from '@/modules/auth';
-import { createInvoice, listInvoices, createInvoiceSchema, listInvoiceSchema } from '@/modules/invoicing';
+import {
+  createInvoice,
+  listInvoices,
+  createInvoiceSchema,
+  listInvoiceSchema,
+} from '@/modules/invoicing';
 import { requireWrite } from '@/lib/security/guard';
 import { assertBodySize } from '@/lib/api/bodyLimit';
 

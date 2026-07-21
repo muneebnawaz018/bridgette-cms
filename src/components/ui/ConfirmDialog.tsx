@@ -55,10 +55,23 @@ export function ConfirmDialog({
       showClose={false}
       actions={
         <>
-          <Button onClick={onClose} disabled={loading} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+          <Button
+            onClick={onClose}
+            disabled={loading}
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseRounded />}
+          >
             {cancelLabel}
           </Button>
-          <SubmitButton onClick={onConfirm} loading={loading} disabled={confirmDisabled} variant="contained" color={confirmColor} startIcon={confirmIcon ?? <CheckRounded />}>
+          <SubmitButton
+            onClick={onConfirm}
+            loading={loading}
+            disabled={confirmDisabled}
+            variant="contained"
+            color={confirmColor}
+            startIcon={confirmIcon ?? <CheckRounded />}
+          >
             {confirmLabel}
           </SubmitButton>
         </>

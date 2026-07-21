@@ -20,9 +20,14 @@ import { colors, redA } from '@/lib/colors';
 import { ROLE_LABEL } from '@/lib/format/labels';
 import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
 
-
 // Soft, non-button badge: tinted fill, no heavy border.
-const badgeSx = { fontWeight: 700, fontSize: '0.82rem', height: 32, borderRadius: 2, '& .MuiChip-label': { px: 1.5 } } as const;
+const badgeSx = {
+  fontWeight: 700,
+  fontSize: '0.82rem',
+  height: 32,
+  borderRadius: 2,
+  '& .MuiChip-label': { px: 1.5 },
+} as const;
 const neutralBadgeSx = { ...badgeSx, bgcolor: colors.surface.subtle, color: colors.ink[500] };
 
 interface Profile {
@@ -43,11 +48,17 @@ interface Profile {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+      >
         {label}
       </Typography>
       {/* Long unbroken values (an email) must wrap, not spill into the next column. */}
-      <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>{value}</Typography>
+      <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+        {value}
+      </Typography>
     </Box>
   );
 }
@@ -75,7 +86,9 @@ export default function ProfilePage() {
     setUploading(true);
     try {
       const dataUrl = await fileToAvatarDataUrl(file, 256);
-      const res = await apiPatch<{ avatarUrl: string | null }>('/api/auth/me', { avatarUrl: dataUrl });
+      const res = await apiPatch<{ avatarUrl: string | null }>('/api/auth/me', {
+        avatarUrl: dataUrl,
+      });
       if (res.ok && res.data) {
         const next = res.data.avatarUrl;
         setMe((prev) => (prev ? { ...prev, avatarUrl: next } : prev));
@@ -84,7 +97,9 @@ export default function ProfilePage() {
         enqueueSnackbar(res.error ?? 'Could not update the photo', { variant: 'error' });
       }
     } catch (err) {
-      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', { variant: 'error' });
+      enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', {
+        variant: 'error',
+      });
     } finally {
       setUploading(false);
     }
@@ -113,11 +128,22 @@ export default function ProfilePage() {
             <Typography color="text.secondary" gutterBottom noWrap>
               {me.email}
             </Typography>
-            <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-              <Chip label={ROLE_LABEL[me.role] ?? me.role} sx={{ ...badgeSx, bgcolor: redA(0.12), color: 'primary.main' }} />
+            <Box
+              sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}
+            >
+              <Chip
+                label={ROLE_LABEL[me.role] ?? me.role}
+                sx={{ ...badgeSx, bgcolor: redA(0.12), color: 'primary.main' }}
+              />
               {me.isSuperAdmin && <Chip label="Protected" sx={neutralBadgeSx} />}
             </Box>
-            <Button fullWidth variant="outlined" startIcon={<EditRounded />} sx={{ mt: 2.5 }} onClick={() => setEditOpen(true)}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<EditRounded />}
+              sx={{ mt: 2.5 }}
+              onClick={() => setEditOpen(true)}
+            >
               Edit profile
             </Button>
           </Paper>
@@ -125,19 +151,37 @@ export default function ProfilePage() {
 
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Account details</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Account details
+            </Typography>
             <Divider sx={{ mb: 1, mt: 1 }} />
             {/* One cell per field so the two columns share row lines — Email then spans the
                 full width as just another row, not a detached block after both stacks. */}
             <Grid container spacing={2.5}>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Name" value={me.name ?? 'Not set'} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Status" value={me.status ?? 'Unknown'} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Role" value={ROLE_LABEL[me.role] ?? me.role} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Job title" value={me.jobTitle ?? 'Not set'} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Member since" value={formatDate(me.createdAt)} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Phone" value={formatPhone(me.phone) || "Not set"} /></Grid>
-              <Grid size={{ xs: 12, sm: 6 }}><Field label="Last login" value={formatDateTime(me.lastLoginAt, 'Never')} /></Grid>
-              <Grid size={{ xs: 12 }}><Field label="Email" value={me.email} /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Name" value={me.name ?? 'Not set'} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Status" value={me.status ?? 'Unknown'} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Role" value={ROLE_LABEL[me.role] ?? me.role} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Job title" value={me.jobTitle ?? 'Not set'} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Member since" value={formatDate(me.createdAt)} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Phone" value={formatPhone(me.phone) || 'Not set'} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Field label="Last login" value={formatDateTime(me.lastLoginAt, 'Never')} />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Field label="Email" value={me.email} />
+              </Grid>
             </Grid>
           </Paper>
         </Grid>
@@ -162,7 +206,11 @@ export default function ProfilePage() {
         onClose={() => setEditOpen(false)}
         initial={{ name: me.name ?? '', phone: me.phone ?? '', avatarUrl: me.avatarUrl }}
         onSaved={(next) =>
-          setMe((prev) => (prev ? { ...prev, name: next.name, phone: next.phone, avatarUrl: next.avatarUrl } : prev))
+          setMe((prev) =>
+            prev
+              ? { ...prev, name: next.name, phone: next.phone, avatarUrl: next.avatarUrl }
+              : prev,
+          )
         }
       />
     </Box>

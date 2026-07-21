@@ -54,7 +54,7 @@ export const env = {
     if (isProd && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(raw)) {
       throw new Error(
         `NEXT_PUBLIC_SITE_URL is "${raw}" in production — set it to the real public domain, ` +
-          'otherwise every emailed link points at the recipient\'s own machine',
+          "otherwise every emailed link points at the recipient's own machine",
       );
     }
     // A trailing slash would double up, since callers append "/login", "/invoices/…".

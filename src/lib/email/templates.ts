@@ -58,7 +58,15 @@ function codeBlock(code: string): string {
  * Outer chrome. `preheader` is the grey snippet inboxes show next to the subject — without
  * one, clients pull the first visible words, which reads as noise.
  */
-function shell({ title, preheader, body }: { title: string; preheader: string; body: string }): string {
+function shell({
+  title,
+  preheader,
+  body,
+}: {
+  title: string;
+  preheader: string;
+  body: string;
+}): string {
   return `<!doctype html>
 <html lang="en">
 <head>

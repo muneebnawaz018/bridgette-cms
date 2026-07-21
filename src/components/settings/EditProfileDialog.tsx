@@ -131,7 +131,13 @@ export function EditProfileDialog({
       busy={busy}
       actions={
         <>
-          <Button onClick={onClose} disabled={busy} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+          <Button
+            onClick={onClose}
+            disabled={busy}
+            variant="outlined"
+            color="inherit"
+            startIcon={<CloseRounded />}
+          >
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}

@@ -44,7 +44,9 @@ export async function GET(req: Request) {
     const payload = await verifyRefreshToken(token);
     await connectDb();
 
-    const stored = await RefreshToken.findOne({ jti: payload.jti, revokedAt: null }).select('_id').lean();
+    const stored = await RefreshToken.findOne({ jti: payload.jti, revokedAt: null })
+      .select('_id')
+      .lean();
     if (!stored) return NextResponse.json({ valid: false }, { status: 401 });
 
     const user = await User.findById(payload.sub)

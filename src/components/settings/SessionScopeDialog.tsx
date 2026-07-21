@@ -37,7 +37,9 @@ export function SessionScopeDialog({
 
   async function run(scope: Scope) {
     setBusy(scope);
-    const res = await apiPost<{ scope: Scope; revoked?: number }>('/api/auth/sessions/revoke', { scope });
+    const res = await apiPost<{ scope: Scope; revoked?: number }>('/api/auth/sessions/revoke', {
+      scope,
+    });
     if (!res.ok) {
       setBusy(null);
       enqueueSnackbar(res.error ?? 'Could not update sessions', { variant: 'error' });
@@ -50,9 +52,14 @@ export function SessionScopeDialog({
     }
     setBusy(null);
     const n = res.data?.revoked ?? 0;
-    enqueueSnackbar(n > 0 ? `Signed out ${n} other device${n === 1 ? '' : 's'}` : 'No other devices were signed in', {
-      variant: 'success',
-    });
+    enqueueSnackbar(
+      n > 0
+        ? `Signed out ${n} other device${n === 1 ? '' : 's'}`
+        : 'No other devices were signed in',
+      {
+        variant: 'success',
+      },
+    );
     onClose();
   }
 

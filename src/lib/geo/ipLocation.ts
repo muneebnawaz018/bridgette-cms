@@ -20,7 +20,10 @@ export interface Origin {
 /** First address from an `x-forwarded-for` chain, with the IPv4-mapped IPv6 prefix stripped. */
 export function normalizeIp(raw?: string | null): string | null {
   if (!raw) return null;
-  const first = raw.split(',')[0].trim().replace(/^::ffff:/i, '');
+  const first = raw
+    .split(',')[0]
+    .trim()
+    .replace(/^::ffff:/i, '');
   return first || null;
 }
 
@@ -49,7 +52,9 @@ async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
 
 function toLocation(j: Record<string, unknown> | null): string | null {
   if (!j || j.success === false) return null;
-  const parts = [j.city, j.region, j.country].filter((x): x is string => typeof x === 'string' && x.length > 0);
+  const parts = [j.city, j.region, j.country].filter(
+    (x): x is string => typeof x === 'string' && x.length > 0,
+  );
   return parts.length ? parts.join(', ') : null;
 }
 

@@ -99,7 +99,9 @@ export function DataTable<T extends GridValidRowModel>({
             : undefined
         }
         initialState={
-          server ? undefined : { pagination: { paginationModel: { pageSize: DEFAULT_PAGE_SIZE, page: 0 } } }
+          server
+            ? undefined
+            : { pagination: { paginationModel: { pageSize: DEFAULT_PAGE_SIZE, page: 0 } } }
         }
         disableRowSelectionOnClick
         sx={onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : undefined}

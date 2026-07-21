@@ -47,7 +47,10 @@ async function main() {
     const when = new Date(Date.now() - 60_000); // a minute ago, so the next sweep picks it up
     const result = await invoices.updateOne(
       { number: target },
-      { $set: { 'reminder.dueAt': when, 'reminder.sent': false }, $unset: { 'reminder.sentAt': '' } },
+      {
+        $set: { 'reminder.dueAt': when, 'reminder.sent': false },
+        $unset: { 'reminder.sentAt': '' },
+      },
     );
     if (result.matchedCount === 0) throw new Error(`no invoice numbered "${target}"`);
     console.log(`${target}: reminder back-dated to ${when.toISOString()} and marked unsent.`);
@@ -91,7 +94,9 @@ async function main() {
               ? `not due until ${dueAt.toISOString()}`
               : 'ready';
 
-      console.log(`  ${String(inv.number).padEnd(18)} ${eligible ? 'WILL FIRE ' : 'skipped   '} ${why}`);
+      console.log(
+        `  ${String(inv.number).padEnd(18)} ${eligible ? 'WILL FIRE ' : 'skipped   '} ${why}`,
+      );
     }
     console.log('\nTo force one:  npm run reminders due <NUMBER>');
   }

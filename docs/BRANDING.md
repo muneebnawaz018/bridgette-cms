@@ -13,12 +13,12 @@ Template PDF** — the same identity the site uses. Confirm against a brand kit 
 
 ## Color scheme (exact — sampled from the logo)
 
-| Role | Hex | RGB | Use |
-| --- | --- | --- | --- |
-| Brand red (primary) | `#EC222A` | 236, 34, 42 | logo, header/footer bars, table headers, primary buttons, accents |
-| Brand black | `#050707` | 5, 7, 7 | logo dark mark, body text |
-| White | `#FFFFFF` | 255, 255, 255 | backgrounds, invoice body |
-| Muted gray (approx) | `#EDEDED` | 237, 237, 237 | borders, subtle fills |
+| Role                | Hex       | RGB           | Use                                                               |
+| ------------------- | --------- | ------------- | ----------------------------------------------------------------- |
+| Brand red (primary) | `#EC222A` | 236, 34, 42   | logo, header/footer bars, table headers, primary buttons, accents |
+| Brand black         | `#050707` | 5, 7, 7       | logo dark mark, body text                                         |
+| White               | `#FFFFFF` | 255, 255, 255 | backgrounds, invoice body                                         |
+| Muted gray (approx) | `#EDEDED` | 237, 237, 237 | borders, subtle fills                                             |
 
 ## CSS tokens (drop into global styles)
 
