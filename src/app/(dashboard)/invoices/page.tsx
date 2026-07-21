@@ -15,6 +15,7 @@ import { InvoiceType } from '@/modules/invoicing/enums';
 import type { InvoiceView } from '@/modules/invoicing/schemas';
 import { useCan } from '@/components/auth/SessionProvider';
 import { DataTable } from '@/components/ui/DataTable';
+import { useBreakpointColumns, type ColumnTiers } from '@/lib/ui/useBreakpointColumns';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { NoAccess } from '@/components/ui/NoAccess';
@@ -75,6 +76,14 @@ const VIEW_META: Record<InvoiceView, { label: string; blurb: string }> = {
   all: { label: 'All', blurb: 'every invoice you can access' },
 };
 
+// Number + state + total + actions are the columns worth keeping when space runs out; the
+// rest peel off as the grid narrows. Module-level so the hook's memo identity holds.
+const INVOICE_COLUMN_TIERS: ColumnTiers = {
+  lg: ['type', 'billTo'],
+  md: ['balanceDue'],
+  sm: ['status'],
+};
+
 export default function InvoicesPage() {
   const { enqueueSnackbar } = useSnackbar();
   const canView = useCan(Permission.InvoiceView);
@@ -83,6 +92,8 @@ export default function InvoicesPage() {
   const canArchive = useCan(Permission.InvoiceArchive);
   const canDelete = useCan(Permission.InvoiceDelete);
   const canSeeDeleted = useCan(Permission.InvoiceViewAllArchived);
+
+  const columnVisibility = useBreakpointColumns(INVOICE_COLUMN_TIERS);
 
   const { pageSize } = usePreferences();
   const [view, setView] = useState<InvoiceView>('active');
@@ -289,6 +300,7 @@ export default function InvoicesPage() {
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           onRowClick={setDetailId}
+          columnVisibilityModel={columnVisibility}
         />
       </Paper>
 

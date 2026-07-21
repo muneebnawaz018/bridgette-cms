@@ -121,7 +121,7 @@ const LineRow = memo(function LineRow({
           onChange={(_n, v) => onChange(index, { description: v })}
         />
       </Grid>
-      <Grid size={{ xs: 4, sm: 2 }}>
+      <Grid size={{ xs: 5, sm: 2 }}>
         <TextInput
           name="quantity"
           label="Qty"
@@ -134,7 +134,7 @@ const LineRow = memo(function LineRow({
           onChange={(_n, v) => onChange(index, { quantity: v })}
         />
       </Grid>
-      <Grid size={{ xs: 6, sm: 3 }}>
+      <Grid size={{ xs: 5, sm: 3 }}>
         <TextInput
           name="unitPrice"
           label="Unit price"
@@ -152,6 +152,7 @@ const LineRow = memo(function LineRow({
           aria-label={`Remove line ${index + 1}`}
           onClick={() => onRemove(index)}
           disabled={disabled || !canRemove}
+          size="small"
           sx={{ mt: 1 }}
         >
           <CloseRounded fontSize="small" />
@@ -402,6 +403,7 @@ export function InvoiceFormDialog({
       description="Add the customer and its lines. Totals update as you type."
       icon={<ReceiptLongRounded />}
       maxWidth="md"
+      fullScreenOnMobile
       busy={saving}
       actions={
         <>

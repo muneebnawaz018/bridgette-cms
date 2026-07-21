@@ -167,6 +167,7 @@ export function ExportInvoicesModal({
       description="Pick a format and date range, then review."
       icon={<FileDownloadRounded />}
       maxWidth="md"
+      fullScreenOnMobile
       busy={downloading}
       actions={
         <>

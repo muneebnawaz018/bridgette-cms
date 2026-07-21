@@ -8,6 +8,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Grow from '@mui/material/Grow';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import { colors, gradients, redA } from '@/lib/colors';
 
@@ -34,6 +35,7 @@ export function Modal({
   maxWidth = 'sm',
   busy = false,
   showClose = true,
+  fullScreenOnMobile = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -46,34 +48,47 @@ export function Modal({
   busy?: boolean;
   /** Set false when the dialog's own buttons are the only way out it needs. */
   showClose?: boolean;
+  /**
+   * Go edge-to-edge below sm. Opt-in, so small dialogs keep their card look; reserve it for
+   * the long ones — the invoice form and the export stepper — that otherwise spend a phone
+   * screen inside a 12px-inset card scrolling internally.
+   */
+  fullScreenOnMobile?: boolean;
 }) {
   const close = () => {
     if (!busy) onClose();
   };
+
+  // `noSsr` so the first client render already knows the width — without it a mobile dialog
+  // flashes its card layout for a frame before switching to full screen.
+  const fullScreen = useMediaQuery('(max-width:599.95px)', { noSsr: true }) && fullScreenOnMobile;
 
   return (
     <Dialog
       open={open}
       onClose={close}
       fullWidth
+      fullScreen={fullScreen}
       maxWidth={maxWidth}
       TransitionComponent={Grow}
       transitionDuration={220}
       slotProps={{
         paper: {
-          sx: {
-            position: 'relative',
-            borderRadius: 3,
-            // MUI's default 32px margin costs 64px of a phone's width, which is most of the
-            // room a 320px screen has for content. Claw it back below sm.
-            //
-            // maxWidth is deliberately left to MUI's own paperWidth* class. Setting it here
-            // would leak: sx breakpoints are min-width, so an `xs` value with no `sm` value
-            // above it applies at every width and silently overrides the maxWidth prop.
-            m: { xs: 1.5, sm: 4 },
-            width: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
-            maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
-          },
+          sx: fullScreen
+            ? { position: 'relative', borderRadius: 0 }
+            : {
+                position: 'relative',
+                borderRadius: 3,
+                // MUI's default 32px margin costs 64px of a phone's width, which is most of the
+                // room a 320px screen has for content. Claw it back below sm.
+                //
+                // maxWidth is deliberately left to MUI's own paperWidth* class. Setting it here
+                // would leak: sx breakpoints are min-width, so an `xs` value with no `sm` value
+                // above it applies at every width and silently overrides the maxWidth prop.
+                m: { xs: 1.5, sm: 4 },
+                width: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+                maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+              },
         },
       }}
     >
@@ -152,8 +167,16 @@ export function Modal({
             px: { xs: 2, sm: 3 },
             pb: 2.5,
             pt: children ? 0.5 : 1.5,
-            // Three buttons (Cancel / Back / Export) don't fit one line on a small phone.
-            // Let them wrap; gap replaces MUI's fixed left margin so wrapped rows stay spaced.
+            // Three buttons (Cancel / Save as draft / Create invoice) need ~440px on one line
+            // and a 320px phone offers 264px. Wrapping alone left them right-aligned across
+            // two or three lines with an orphan on the last row, so below sm they stack and
+            // fill the width instead.
+            //
+            // column-reverse, not column: `actions` is written primary-last for a left-to-right
+            // row, and stacked the primary action belongs on top, nearest the thumb.
+            flexDirection: { xs: 'column-reverse', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'center' },
+            '& > *': { width: { xs: '100%', sm: 'auto' } },
             flexWrap: 'wrap',
             gap: 1,
             '& > :not(:first-of-type)': { ml: 0 },

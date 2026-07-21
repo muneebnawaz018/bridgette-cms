@@ -12,6 +12,7 @@ import { Permission, Role, ACTIVE_ROLES } from '@/modules/auth/rbac';
 import { useCan, useSession } from '@/components/auth/SessionProvider';
 import { DataTable } from '@/components/ui/DataTable';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
+import { useBreakpointColumns, type ColumnTiers } from '@/lib/ui/useBreakpointColumns';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { NoAccess } from '@/components/ui/NoAccess';
@@ -40,6 +41,15 @@ interface UserRow {
   createdAt: string;
 }
 
+
+// What to shed as the grid narrows. Name + status + actions always survive; the photo and
+// job title go first, role next, contact last, so three columns remain at phone width.
+// Module-level so the hook's memo identity holds across renders.
+const USER_COLUMN_TIERS: ColumnTiers = {
+  lg: ['avatar', 'jobTitle'],
+  md: ['role'],
+  sm: ['email'],
+};
 
 /** Which of the row actions this user may take on this particular account. */
 function rowActions(
@@ -79,6 +89,8 @@ export default function UsersPage() {
   const canCreate = useCan(Permission.UserCreate);
   const canCreateAdmin = useCan(Permission.UserCreateAdmin);
   const canManage = useCan(Permission.UserManage);
+
+  const columnVisibility = useBreakpointColumns(USER_COLUMN_TIERS);
 
   const { pageSize } = usePreferences();
   const [searchInput, setSearchInput] = useState('');
@@ -332,6 +344,7 @@ export default function UsersPage() {
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           onRowClick={setDetailId}
+          columnVisibilityModel={columnVisibility}
         />
       </Paper>
 

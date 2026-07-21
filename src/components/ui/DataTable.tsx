@@ -2,7 +2,13 @@
 
 import dynamic from 'next/dynamic';
 import Box from '@mui/material/Box';
-import type { GridColDef, GridValidRowModel, GridPaginationModel } from '@mui/x-data-grid';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import type {
+  GridColDef,
+  GridValidRowModel,
+  GridPaginationModel,
+  GridColumnVisibilityModel,
+} from '@mui/x-data-grid';
 import { GlobalLoading } from '@/components/ui/GlobalLoading';
 import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE } from '@/lib/pagination';
@@ -23,7 +29,17 @@ interface DataTableProps<T extends GridValidRowModel> {
   columns: GridColDef<T>[];
   loading?: boolean;
   getRowId: (row: T) => string;
-  height?: { xs: number; md: number } | number;
+  height?: { xs: number | string; md: number | string } | number | string;
+  /**
+   * Which columns are visible, keyed by field. Pages drive this from `useBreakpointColumns`
+   * so a narrow screen shows three columns instead of eight.
+   *
+   * Column `minWidth` totals here run to ~900px, and from 768px up the shell reserves a 268px
+   * rail, so without this both grids scrolled sideways at every width below roughly 1266px —
+   * a 1280 laptop included. It is a JS decision rather than CSS because DataGrid measures
+   * columns itself and cannot be told to drop one with a media query.
+   */
+  columnVisibilityModel?: GridColumnVisibilityModel;
   /** Server pagination: pass all three to drive paging from the server (rowCount = total). */
   rowCount?: number;
   paginationModel?: GridPaginationModel;
@@ -37,13 +53,19 @@ export function DataTable<T extends GridValidRowModel>({
   columns,
   loading,
   getRowId,
-  height = { xs: 480, md: 560 },
+  height = { xs: 'auto', md: 560 },
+  columnVisibilityModel,
   rowCount,
   paginationModel,
   onPaginationModelChange,
   onRowClick,
 }: DataTableProps<T>) {
   const server = Boolean(paginationModel && onPaginationModelChange);
+  // A phone screen is ~568-640px tall, and the app bar, page header and stacked search/filter
+  // rows eat ~350px of it. A fixed 480px box then overflowed the page AND scrolled internally
+  // — two nested scrollbars, with the pagination footer pushed off-screen. Letting the grid
+  // size to its rows below md leaves one scroll: the page's own.
+  const compact = useMediaQuery('(max-width:899.95px)');
 
   // Rows loading asks for the one app-wide overlay. The grid's own indicator stays off: it
   // drew a second, smaller spinner in the table's top-left while the overlay was already up.
@@ -60,6 +82,12 @@ export function DataTable<T extends GridValidRowModel>({
         rowCount={server ? (rowCount ?? 0) : undefined}
         paginationModel={paginationModel}
         onPaginationModelChange={onPaginationModelChange}
+        columnVisibilityModel={columnVisibilityModel}
+        autoHeight={compact}
+        // The default footer wants ~320px for "Rows per page:" + select + "1-10 of 128" + two
+        // arrows, against 288px of usable width at 320px. Dropping the label is enough; the
+        // select still says what it is.
+        slotProps={compact ? { pagination: { labelRowsPerPage: '' } } : undefined}
         onCellClick={
           onRowClick
             ? (params) => {

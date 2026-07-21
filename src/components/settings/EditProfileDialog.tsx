@@ -142,7 +142,16 @@ export function EditProfileDialog({
       }
     >
       <Stack key={formKey} spacing={2.5} sx={{ mt: 0.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            // The 88px avatar has flexShrink:0, so on a row it left ~160px for the blurb at
+            // 320px and it wrapped to eight lines. Stack below sm; side-by-side from sm up.
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'flex-start', sm: 'center' },
+            gap: 2,
+          }}
+        >
           <AvatarPicker
             src={avatarUrl}
             fallback={(initial.name || '?').charAt(0).toUpperCase()}

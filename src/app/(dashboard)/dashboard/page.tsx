@@ -23,6 +23,7 @@ import { Permission } from '@/modules/auth/rbac';
 import { useSession, useCan } from '@/components/auth/SessionProvider';
 import { useApi } from '@/lib/api/useApi';
 import { colors, gradients, redA } from '@/lib/colors';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { displayFont } from '@/lib/theme';
 import { formatMonth } from '@/lib/format/date';
 import { ROLE_LABEL } from '@/lib/format/labels';
@@ -84,14 +85,14 @@ const stateChip: Record<string, { bg: string; fg: string }> = {
 
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function StateChip({ state }: { state: string }) {
+function StateChip({ state, sx }: { state: string; sx?: SxProps<Theme> }) {
   const c = stateChip[state] ?? stateChip.draft;
   const label = STATES.find((x) => x.k === state)?.label ?? state;
   return (
     <Chip
       label={label}
       size="small"
-      sx={{ bgcolor: c.bg, color: c.fg, fontWeight: 600, borderRadius: 2, '& .MuiChip-label': { px: 1 } }}
+      sx={{ bgcolor: c.bg, color: c.fg, fontWeight: 600, borderRadius: 2, '& .MuiChip-label': { px: 1 }, ...sx }}
     />
   );
 }
@@ -241,8 +242,11 @@ export default function DashboardPage() {
                       <Typography sx={{ fontWeight: 700 }} noWrap>{inv.number}</Typography>
                       <Typography variant="body2" color="text.secondary" noWrap>{inv.billTo?.name ?? '—'}</Typography>
                     </Box>
-                    <StateChip state={inv.state} />
-                    <Typography className="tnum" sx={{ minWidth: 120, textAlign: 'right', fontWeight: 700 }}>
+                    <StateChip state={inv.state} sx={{ flexShrink: 0 }} />
+                    {/* The hard 120px floor plus a non-shrinking chip pushed this row past its
+                        card below ~380px. Drop the floor at xs — the amount is `noWrap`, so it
+                        keeps itself on one line without reserving width the small screen lacks. */}
+                    <Typography className="tnum" noWrap sx={{ minWidth: { xs: 0, sm: 120 }, textAlign: 'right', fontWeight: 700, flexShrink: 0 }}>
                       {inv.currency} {money(Number(inv.grandTotal))}
                     </Typography>
                   </Box>

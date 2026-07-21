@@ -143,7 +143,7 @@ export function UserDetailsModal({
         <Typography color="error">Could not load this user.</Typography>
       ) : (
         <Stack spacing={2.5}>
-          <Stack direction="row" spacing={2.5} alignItems="center">
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} alignItems={{ xs: 'flex-start', sm: 'center' }}>
             <AvatarPicker
               src={user.avatarUrl}
               fallback={(user.name || user.email).charAt(0).toUpperCase()}

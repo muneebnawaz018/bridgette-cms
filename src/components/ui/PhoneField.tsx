@@ -16,7 +16,11 @@ import { colors } from '@/lib/colors';
 const SHRINK_LABEL = { shrink: true } as const;
 // maxLength counts the display spaces too, so allow room for the separators.
 const INPUT_PROPS = { inputMode: 'tel', autoComplete: 'tel-national', maxLength: 20 } as const;
-const MENU_SLOT_PROPS = { paper: { sx: { maxHeight: 340, width: 300 } } } as const;
+// 300px flush against a 320px screen left 20px of viewport. Cap to the available width below
+// sm so the country list never sits on the edge.
+const MENU_SLOT_PROPS = {
+  paper: { sx: { maxHeight: 340, width: { xs: 'calc(100vw - 32px)', sm: 300 } } },
+} as const;
 const ROOT_SX = { '& .MuiInputBase-root': { pl: 1 } } as const;
 const PICKER_SX = {
   display: 'flex',

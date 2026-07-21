@@ -39,7 +39,7 @@ export function ProfileMenu() {
         onClose={() => setAnchor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{ paper: { sx: { minWidth: 240, mt: 1 } } }}
+        slotProps={{ paper: { sx: { minWidth: 240, maxWidth: 'calc(100vw - 32px)', mt: 1 } } }}
       >
         <Box sx={{ px: 2, py: 1.5 }}>
           <Typography variant="body2" fontWeight={700} noWrap>

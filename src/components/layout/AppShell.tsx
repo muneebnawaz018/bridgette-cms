@@ -229,7 +229,9 @@ export function AppShell({
         ModalProps={{ keepMounted: true }}
         PaperProps={{
           sx: {
-            width: RAIL,
+            // A flat 268px is 84% of a 320px screen, leaving a 52px backdrop — under the ~64px
+            // a thumb needs to tap-dismiss. Cap it to 82vw at the low end; desktop keeps RAIL.
+            width: { xs: 'min(268px, 82vw)', sm: RAIL },
             bgcolor: colors.rail.bg,
             backgroundImage: 'none',
             border: 'none',
@@ -282,7 +284,9 @@ export function AppShell({
             aria-label="Open navigation"
             sx={{ width: 40, height: 40, p: 0, flexShrink: 0, [RAIL_QUERY]: { display: 'none' } }}
           >
-            <MenuRounded sx={{ fontSize: 40 }} />
+            {/* 26, not 40: a 40px glyph exactly filled its 40px button — no optical padding, and
+                it read heavier than the 40px avatar on the far side of the bar. */}
+            <MenuRounded sx={{ fontSize: 26 }} />
           </IconButton>
           <Typography
             component="h1"
@@ -291,14 +295,16 @@ export function AppShell({
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              maxWidth: '55%',
+              // 55% of a 320px bar is 176px, into which a 1.5rem title ellipsized "New invoice".
+              // Give the low end the room the hamburger + avatar (~116px) leave free.
+              maxWidth: { xs: 'calc(100% - 116px)', sm: '55%' },
               textAlign: 'center',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               fontFamily: displayFont,
               fontWeight: 600,
-              fontSize: { xs: '1.5rem', md: '1.8rem' },
+              fontSize: { xs: '1.15rem', sm: '1.5rem', md: '1.8rem' },
               lineHeight: 1.3,
               py: 0.25,
               letterSpacing: '-0.01em',
