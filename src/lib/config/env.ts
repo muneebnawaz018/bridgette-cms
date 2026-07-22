@@ -61,19 +61,30 @@ export const env = {
     const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
     const isProd = process.env.NODE_ENV === 'production';
 
-    if (!raw) {
-      if (isProd) throw new Error('Missing required env var: NEXT_PUBLIC_SITE_URL');
-      return 'http://localhost:3000';
+    // Explicit value wins. It has to: once a custom domain is attached the Vercel-provided
+    // URLs below still point at the *.vercel.app host, so links would go to the wrong place.
+    if (raw) {
+      // Catches the common deploy mistake of copying .env up to the server unchanged.
+      if (isProd && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(raw)) {
+        throw new Error(
+          `NEXT_PUBLIC_SITE_URL is "${raw}" in production — set it to the real public domain, ` +
+            "otherwise every emailed link points at the recipient's own machine",
+        );
+      }
+      // A trailing slash would double up, since callers append "/login", "/invoices/…".
+      return raw.replace(/\/+$/, '');
     }
-    // Catches the common deploy mistake of copying .env up to the server unchanged.
-    if (isProd && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(raw)) {
-      throw new Error(
-        `NEXT_PUBLIC_SITE_URL is "${raw}" in production — set it to the real public domain, ` +
-          "otherwise every emailed link points at the recipient's own machine",
-      );
-    }
-    // A trailing slash would double up, since callers append "/login", "/invoices/…".
-    return raw.replace(/\/+$/, '');
+
+    // Not set: auto-pick from Vercel's injected vars so emails still resolve without config.
+    // PROJECT_PRODUCTION_URL is the stable production domain; VERCEL_URL is the per-deploy
+    // host (preview builds). Neither carries a scheme, so prepend https. Both are server-only
+    // (no NEXT_PUBLIC_), which is fine — appUrl is read server-side, for email links.
+    const vercelHost =
+      process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
+    if (vercelHost) return `https://${vercelHost.replace(/\/+$/, '')}`;
+
+    if (isProd) throw new Error('Missing required env var: NEXT_PUBLIC_SITE_URL');
+    return 'http://localhost:3000';
   },
   smtp: {
     get host() {
