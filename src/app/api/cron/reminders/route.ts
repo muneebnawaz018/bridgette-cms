@@ -11,7 +11,8 @@ import { logger } from '@/lib/logger/logger';
  * the same sweep the timer would have. Nothing third-party: the schedule lives in the repo.
  *
  * Double-sending is impossible regardless of how often this is hit: sendDueReminders() claims
- * each invoice with an atomic `reminder.sent:false -> true` guard before mailing.
+ * each invoice with an atomic cooldown guard (stamps `reminder.sentAt = now`) before mailing,
+ * so a manual Run landing between scheduled sweeps still can't send the same invoice twice.
  */
 
 // nodemailer + mongoose need Node APIs; the edge runtime has neither.

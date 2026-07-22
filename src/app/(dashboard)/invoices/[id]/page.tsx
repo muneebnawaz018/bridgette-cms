@@ -56,8 +56,9 @@ function reminderSummary(
   // Compact date+time (no seconds) so it stays on one line.
   const fmt = (d: Date) => d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
   if (reminder.sent) {
+    // Reminders repeat daily until the invoice is paid, so this is the most recent send.
     return reminder.sentAt
-      ? `${label} · sent ${fmt(new Date(reminder.sentAt))}`
+      ? `${label} · last sent ${fmt(new Date(reminder.sentAt))}`
       : `${label} · sent`;
   }
   // No dueAt means the clock has not started: either a draft holding its interval until
