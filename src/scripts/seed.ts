@@ -1,9 +1,12 @@
 /**
- * Create the Super Admin, or bring the existing one in line with .env.
+ * Create the Super Admin, or bring the existing one in line with the chosen env file.
  *
- *   npm run seed
+ *   npm run seed:dev    # seeds the dev database   (.env.development)
+ *   npm run seed:prod   # seeds the prod database  (.env.prod)
  *
- * Reads MONGODB_URI + SUPER_ADMIN_* from .env.local, falling back to .env.
+ * The target is the first CLI arg (`dev` — default — or `prod`), which selects the env file
+ * that MONGODB_URI + SUPER_ADMIN_* are read from. Dev and prod are separate Atlas clusters, so
+ * this is the guard against seeding one while pointed at the other.
  *
  * This used to stop the moment a Super Admin existed, which meant editing
  * SUPER_ADMIN_EMAIL or SUPER_ADMIN_PASSWORD had no effect and you needed a second script to
@@ -18,13 +21,17 @@ import { hashPassword, verifyPassword } from '../modules/auth/password';
 import { Role } from '../modules/auth/rbac';
 import { UserStatus } from '../modules/auth/enums';
 
-// .env.local first: dotenv keeps the first value it sees, so it wins over .env, which is the
-// same precedence Next.js itself applies.
-// dotenv keeps the first value it sees, so this is highest-precedence first. `.env.development`
-// is the app's dev file (Next loads it for `next dev`); `.env.local`/`.env` stay supported so
-// the script works whatever the project uses.
-dotenv.config({ path: '.env.local' });
-dotenv.config({ path: '.env.development' });
+// Which environment to seed. `prod` loads .env.prod (production cluster + prod Super Admin);
+// anything else (default) loads the dev files. dotenv keeps the FIRST value it sees, so the
+// target file is listed first and .env is only a last-resort fallback — the prod and dev
+// clusters never cross.
+const TARGET = process.argv[2] === 'prod' ? 'prod' : 'dev';
+if (TARGET === 'prod') {
+  dotenv.config({ path: '.env.prod' });
+} else {
+  dotenv.config({ path: '.env.local' });
+  dotenv.config({ path: '.env.development' });
+}
 dotenv.config({ path: '.env' });
 
 async function main() {
@@ -40,6 +47,9 @@ async function main() {
   if (!email || !password) {
     throw new Error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD must be set');
   }
+
+  // Show the target before writing (password masked), so seeding the wrong cluster is caught.
+  console.log(`Seeding [${TARGET}]: ${email} @ ${uri.replace(/\/\/[^@]*@/, '//***:***@')}`);
 
   await mongoose.connect(uri);
 
