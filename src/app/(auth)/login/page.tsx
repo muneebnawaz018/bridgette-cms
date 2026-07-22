@@ -57,9 +57,15 @@ export default function LoginPage() {
     // `loading` deliberately stays true. It holds the global overlay open across the
     // navigation; clearing it here left the login form sitting there looking idle while the
     // dashboard loaded, which read as nothing having happened. This page unmounts on
-    // arrival, which releases the overlay. `replace` so Back doesn't return to a form the
-    // user is already past.
-    router.replace('/dashboard');
+    // arrival, which releases the overlay.
+    //
+    // A hard navigation, NOT router.replace. The mount-time prefetch of /dashboard ran while
+    // still signed out, so middleware answered it with a 307 to /login and the client router
+    // cached that redirect. A soft replace then reused the cached "go to login" entry and
+    // bounced straight back to the form — the login only "took" after a manual refresh. A
+    // full document load re-runs middleware with the just-set auth cookie, so the dashboard
+    // resolves for real. `.replace` keeps Back from returning to the form the user is past.
+    window.location.replace('/dashboard');
 
     // Failsafe: if that navigation never lands, don't strand the user behind an overlay
     // with no way out. A no-op once this page has unmounted.
