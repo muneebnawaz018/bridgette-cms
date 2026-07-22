@@ -10,9 +10,9 @@ import { logger } from '@/lib/logger/logger';
  * real trigger on Vercel — the platform pings it on the schedule in vercel.json, and it runs
  * the same sweep the timer would have. Nothing third-party: the schedule lives in the repo.
  *
- * Double-sending is impossible regardless of how often this is hit: sendDueReminders() claims
- * each invoice with an atomic cooldown guard (stamps `reminder.sentAt = now`) before mailing,
- * so a manual Run landing between scheduled sweeps still can't send the same invoice twice.
+ * Every hit sends a reminder for each overdue, unpaid invoice — there is no repeat guard, so
+ * hitting this route (Vercel's daily cron, or a manual Run) mails those invoices again each
+ * time. With the daily schedule that lands as one reminder a day until each invoice is paid.
  */
 
 // nodemailer + mongoose need Node APIs; the edge runtime has neither.

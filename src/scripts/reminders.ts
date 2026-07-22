@@ -73,20 +73,16 @@ async function main() {
   } else {
     console.log(`${withReminders.length} invoice(s) with a reminder:\n`);
     const now = Date.now();
-    // Reminders repeat until paid: an invoice is eligible again once its last send is older
-    // than this cooldown (kept in sync with REMIND_EVERY_MS in the sweep).
-    const REMIND_EVERY_MS = 20 * 60 * 60 * 1000;
+    // Reminders repeat on every sweep until the invoice is paid/archived/deleted — no repeat
+    // guard, so eligibility is just: overdue, open, and not archived/deleted.
     for (const inv of withReminders) {
       const r = inv.reminder ?? {};
       const dueAt: Date | undefined = r.dueAt;
-      const sentAt: Date | undefined = r.sentAt;
-      const cooledDown = !(sentAt instanceof Date) || now - sentAt.getTime() >= REMIND_EVERY_MS;
       // Mirrors the sweep's own filter, so this column explains why something did not fire.
       const eligible =
         !inv.isArchived &&
         !inv.isDeleted &&
         ['pending', 'partiallyPaid', 'overdue'].includes(inv.state) &&
-        cooledDown &&
         dueAt instanceof Date &&
         dueAt.getTime() <= now;
 
@@ -97,9 +93,7 @@ async function main() {
             ? `state=${inv.state}`
             : dueAt && dueAt.getTime() > now
               ? `not due until ${dueAt.toISOString()}`
-              : !cooledDown
-                ? `reminded recently (${sentAt?.toISOString()})`
-                : 'ready';
+              : 'ready';
 
       console.log(
         `  ${String(inv.number).padEnd(18)} ${eligible ? 'WILL FIRE ' : 'skipped   '} ${why}`,
