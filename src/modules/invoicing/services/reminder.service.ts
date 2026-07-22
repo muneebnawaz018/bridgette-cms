@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger/logger';
 import { env } from '@/lib/config/env';
 import { sendMail } from '@/lib/email/mailer';
 import { reminderEmail } from '@/lib/email/templates';
+import { formatMoney } from '@/lib/format/money';
 import { User } from '@/modules/auth/models/user.model';
 import { UserStatus } from '@/modules/auth/enums';
 import { Role } from '@/modules/auth/rbac';
@@ -119,10 +120,20 @@ export async function sendDueReminders(limit = 100): Promise<ReminderSweepResult
     isArchived: false,
     ...notRecentlySent,
   })
-    .select('_id number createdBy reminder.sentAt')
+    .select('_id number createdBy reminder.sentAt grandTotal amountPaid currency dueDate billTo.name')
     .limit(limit)
     .lean<
-      Array<{ _id: unknown; number: string; createdBy: unknown; reminder?: { sentAt?: Date } }>
+      Array<{
+        _id: unknown;
+        number: string;
+        createdBy: unknown;
+        reminder?: { sentAt?: Date };
+        grandTotal?: number;
+        amountPaid?: number;
+        currency?: string;
+        dueDate?: Date;
+        billTo?: { name?: string };
+      }>
     >();
 
   result.due = candidates.length;
@@ -150,7 +161,20 @@ export async function sendDueReminders(limit = 100): Promise<ReminderSweepResult
 
     const link = `${env.appUrl}/invoices/${String(invoice._id)}`;
     try {
-      const mail = reminderEmail(invoice.number, link);
+      const balanceDue = (invoice.grandTotal ?? 0) - (invoice.amountPaid ?? 0);
+      const mail = reminderEmail({
+        invoiceNumber: invoice.number,
+        link,
+        amountDue: formatMoney(invoice.currency, balanceDue),
+        dueDate: invoice.dueDate
+          ? new Date(invoice.dueDate).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
+          : undefined,
+        billTo: invoice.billTo?.name,
+      });
       await Promise.all(recipients.map((r) => sendMail({ to: r.email, ...mail })));
       result.sent += 1;
     } catch (err) {

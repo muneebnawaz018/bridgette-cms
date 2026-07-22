@@ -54,6 +54,23 @@ function codeBlock(code: string): string {
   </table>`;
 }
 
+/** A compact, bordered label/value card — for summarising an invoice, a payment, etc. */
+function detailsTable(
+  rows: Array<{ label: string; value: string; strong?: boolean; accent?: boolean }>,
+): string {
+  const body = rows
+    .map((r, i) => {
+      const divider = i < rows.length - 1 ? `border-bottom:1px solid ${BORDER};` : '';
+      const valueColor = r.accent ? BRAND : INK;
+      return `<tr>
+        <td style="padding:11px 16px;font-size:13px;color:${MUTED};${divider}">${esc(r.label)}</td>
+        <td style="padding:11px 16px;font-size:14px;font-weight:${r.strong ? 'bold' : 'normal'};color:${valueColor};text-align:right;${divider}">${esc(r.value)}</td>
+      </tr>`;
+    })
+    .join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0;background:${CANVAS};border:1px solid ${BORDER};border-radius:10px">${body}</table>`;
+}
+
 /**
  * Outer chrome. `preheader` is the grey snippet inboxes show next to the subject — without
  * one, clients pull the first visible words, which reads as noise.
@@ -192,20 +209,46 @@ export function changeEmailOtpEmail(name: string, code: string): MailBody {
   };
 }
 
-/** Invoice reminder — an invoice passed its threshold and is still open. */
-export function reminderEmail(invoiceNumber: string, link: string): MailBody {
+/**
+ * Invoice reminder — an invoice passed its reminder date and is still open. Amount due, due
+ * date and the billed-to name are optional so the email still reads correctly when an invoice
+ * is missing any of them.
+ */
+export function reminderEmail(params: {
+  invoiceNumber: string;
+  link: string;
+  amountDue?: string;
+  dueDate?: string;
+  billTo?: string;
+}): MailBody {
+  const { invoiceNumber, link, amountDue, dueDate, billTo } = params;
+
+  const rows: Array<{ label: string; value: string; strong?: boolean; accent?: boolean }> = [];
+  if (amountDue) rows.push({ label: 'Amount due', value: amountDue, strong: true, accent: true });
+  if (dueDate) rows.push({ label: 'Due date', value: dueDate });
+  if (billTo) rows.push({ label: 'Billed to', value: billTo });
+
   return {
     subject: `Reminder: invoice ${invoiceNumber} needs attention`,
     html: shell({
       title: 'Invoice reminder',
-      preheader: `Invoice ${invoiceNumber} has passed its reminder threshold and is still open.`,
-      body: `<p style="margin:0;font-size:15px;line-height:1.6">Invoice <strong>${esc(invoiceNumber)}</strong> has passed its reminder threshold and is still open. Review it and record a payment if one has been received.</p>
-        ${button(link, 'Open invoice')}`,
+      preheader: `Invoice ${invoiceNumber} is past its reminder date and still unpaid${
+        amountDue ? ` — ${amountDue} outstanding` : ''
+      }.`,
+      body: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">This is a reminder that invoice <strong>${esc(invoiceNumber)}</strong> has passed its reminder date and is still open. Please review it and record a payment if one has been received.</p>
+        ${rows.length ? detailsTable(rows) : ''}
+        ${button(link, 'Open invoice')}
+        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">You will keep receiving this daily reminder until the invoice is paid or closed.</p>`,
     }),
     text: [
-      `Invoice ${invoiceNumber} has passed its reminder threshold and is still open.`,
+      `Invoice ${invoiceNumber} has passed its reminder date and is still open.`,
+      ...(amountDue ? [`Amount due: ${amountDue}`] : []),
+      ...(dueDate ? [`Due date: ${dueDate}`] : []),
+      ...(billTo ? [`Billed to: ${billTo}`] : []),
       '',
       `Open it here: ${link}`,
+      '',
+      'You will keep receiving this daily reminder until the invoice is paid or closed.',
     ].join('\n'),
   };
 }
