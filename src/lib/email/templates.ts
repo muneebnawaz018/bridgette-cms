@@ -217,13 +217,19 @@ export function changeEmailOtpEmail(name: string, code: string): MailBody {
 export function reminderEmail(params: {
   invoiceNumber: string;
   link: string;
+  total?: string;
+  paid?: string;
   amountDue?: string;
   dueDate?: string;
   billTo?: string;
 }): MailBody {
-  const { invoiceNumber, link, amountDue, dueDate, billTo } = params;
+  const { invoiceNumber, link, total, paid, amountDue, dueDate, billTo } = params;
 
+  // `total` and `paid` are only passed when part of the invoice has been paid, so a fully
+  // unpaid one shows just the amount due (its total) rather than repeating the same figure.
   const rows: Array<{ label: string; value: string; strong?: boolean; accent?: boolean }> = [];
+  if (total) rows.push({ label: 'Invoice total', value: total });
+  if (paid) rows.push({ label: 'Paid', value: paid });
   if (amountDue) rows.push({ label: 'Amount due', value: amountDue, strong: true, accent: true });
   if (dueDate) rows.push({ label: 'Due date', value: dueDate });
   if (billTo) rows.push({ label: 'Billed to', value: billTo });
@@ -242,6 +248,8 @@ export function reminderEmail(params: {
     }),
     text: [
       `Invoice ${invoiceNumber} has passed its reminder date and is still open.`,
+      ...(total ? [`Invoice total: ${total}`] : []),
+      ...(paid ? [`Paid: ${paid}`] : []),
       ...(amountDue ? [`Amount due: ${amountDue}`] : []),
       ...(dueDate ? [`Due date: ${dueDate}`] : []),
       ...(billTo ? [`Billed to: ${billTo}`] : []),

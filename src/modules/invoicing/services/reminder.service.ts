@@ -125,10 +125,17 @@ export async function sendDueReminders(limit = 100): Promise<ReminderSweepResult
 
     const link = `${env.appUrl}/invoices/${String(invoice._id)}`;
     try {
-      const balanceDue = (invoice.grandTotal ?? 0) - (invoice.amountPaid ?? 0);
+      const grandTotal = invoice.grandTotal ?? 0;
+      const paid = invoice.amountPaid ?? 0;
+      const balanceDue = grandTotal - paid;
+      // Show the total/paid breakdown only when something has been paid; a fully unpaid invoice
+      // would otherwise just repeat the same figure as "total" and "amount due".
+      const partiallyPaid = paid > 0;
       const mail = reminderEmail({
         invoiceNumber: invoice.number,
         link,
+        total: partiallyPaid ? formatMoney(invoice.currency, grandTotal) : undefined,
+        paid: partiallyPaid ? formatMoney(invoice.currency, paid) : undefined,
         amountDue: formatMoney(invoice.currency, balanceDue),
         dueDate: invoice.dueDate
           ? new Date(invoice.dueDate).toLocaleDateString('en-US', {
