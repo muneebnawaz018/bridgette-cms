@@ -40,29 +40,39 @@ type Recipient = { email: string; name: string };
 /**
  * Who hears about this invoice.
  *
- * Normally the creator. If that account has since been disabled or deleted, the reminder
- * would otherwise vanish, so it falls back to the admins, who can reassign the work. An
- * invoice quietly ageing because its author left is the failure this avoids.
+ * The creator AND every active admin, together. The person who raised the invoice needs the
+ * nudge to chase it, and the admins want oversight of anything ageing — so both are notified,
+ * not one or the other. If the creator's account has since been disabled or deleted, only the
+ * admins remain, which still keeps an orphaned invoice from ageing silently.
+ *
+ * Merged and de-duplicated by email, so an admin who is themselves the creator is mailed once.
  */
 async function recipientsFor(createdBy: unknown): Promise<Recipient[]> {
-  const creator = await User.findById(createdBy)
-    .select('email name status')
-    .lean<{ email?: string; name?: string; status?: string }>();
+  const [creator, admins] = await Promise.all([
+    User.findById(createdBy)
+      .select('email name status')
+      .lean<{ email?: string; name?: string; status?: string }>(),
+    User.find({
+      role: { $in: [Role.SuperAdmin, Role.Admin] },
+      status: UserStatus.Active,
+    })
+      .select('email name')
+      .lean<Array<{ email?: string; name?: string }>>(),
+  ]);
 
-  if (creator?.email && creator.status === UserStatus.Active) {
-    return [{ email: creator.email, name: creator.name ?? 'there' }];
-  }
+  // First writer wins per email (case-insensitive), so the creator's own entry isn't
+  // overwritten by their admin row and nobody is mailed twice.
+  const byEmail = new Map<string, Recipient>();
+  const add = (email?: string, name?: string) => {
+    if (!email) return;
+    const key = email.toLowerCase();
+    if (!byEmail.has(key)) byEmail.set(key, { email, name: name ?? 'there' });
+  };
 
-  const admins = await User.find({
-    role: { $in: [Role.SuperAdmin, Role.Admin] },
-    status: UserStatus.Active,
-  })
-    .select('email name')
-    .lean<Array<{ email?: string; name?: string }>>();
+  if (creator?.status === UserStatus.Active) add(creator.email, creator.name);
+  for (const a of admins) add(a.email, a.name);
 
-  return admins
-    .filter((a): a is { email: string; name?: string } => Boolean(a.email))
-    .map((a) => ({ email: a.email, name: a.name ?? 'there' }));
+  return [...byEmail.values()];
 }
 
 /**
