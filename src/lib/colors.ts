@@ -110,6 +110,30 @@ export const colors = {
     neutralBg: '#eef0f3',
   },
   border: '#e7e9ee',
+  /** The printed invoice template's palette (masthead/table/totals). Reuses the base brand red
+   *  and neutral ink; the two tints derive from red via `redA`, so nothing here is a new colour. */
+  invoiceDoc: {
+    red: BASE.red,
+    headerBg: '#f1f3f5', // = surface.subtle
+    pink: redA(0.12), // balance-due highlight, a brand-red tint
+    tableBorder: BASE.ink,
+    link: '#1f6fd6', // = status.info
+    focus: redA(0.08), // input focus tint while editing on the template
+    viewerBg: BASE.ink,
+    // Neutral ink/hairline shades used by the document + editor, single-sourced here so the
+    // template carries no raw hex. Chosen to match the printed design's greys.
+    paper: BASE.white,
+    bodyText: '#0b0d0f', // = ink.900
+    metaText: '#2c3138', // = ink.700
+    cellText: '#2c3138', // = ink.700
+    muted: '#5b636e', // = ink.500 / text.secondary
+    faint: '#828b97', // = ink.400 (large masthead label)
+    hairline: '#aab1bb', // = ink.300
+    hairlineSoft: '#d7dbe2', // = surface.borderStrong
+    fieldBorder: '#e7e9ee', // = surface.border
+    controlBg: '#f6f7f9', // = surface.canvas
+    placeholder: '#828b97', // = ink.400
+  },
 } as const;
 
 /** Reusable gradients (brand hero surfaces, accents). */

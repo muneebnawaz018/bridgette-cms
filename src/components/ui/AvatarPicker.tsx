@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import Image from 'next/image';
 import Box from '@mui/material/Box';
 import Avatar from '@mui/material/Avatar';
 import IconButton from '@mui/material/IconButton';
@@ -159,13 +160,21 @@ export function AvatarPicker({
       <Modal open={viewOpen} onClose={() => setViewOpen(false)} title={title} maxWidth="lg">
         {src && (
           <Box sx={{ display: 'grid', placeItems: 'center' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            {/* Avatars are user-supplied (stored/remote or a data URL), so skip the optimizer;
+                stored downscaled to ~256px, capped by CSS rather than stretched past source. */}
+            <Image
               src={src}
               alt={title}
-              // Avatars are stored downscaled to ~256px, so this is capped by width rather
-              // than stretched past the source and left blurry.
-              style={{ maxWidth: '100%', maxHeight: '82vh', borderRadius: 12 }}
+              width={256}
+              height={256}
+              unoptimized
+              style={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '82vh',
+                borderRadius: 12,
+              }}
             />
           </Box>
         )}

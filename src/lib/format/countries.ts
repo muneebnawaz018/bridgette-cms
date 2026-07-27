@@ -165,7 +165,7 @@ export function formatNational(iso2: string, national: string): string {
   return parts.join(' ');
 }
 
-/** Business is Pakistan-based (PKR invoices), so that is the sensible starting country. */
+/** Business is Pakistan-based, so that is the sensible starting country. */
 export const DEFAULT_COUNTRY_ISO2 = 'PK';
 
 export function countryByIso2(iso2: string): Country | undefined {

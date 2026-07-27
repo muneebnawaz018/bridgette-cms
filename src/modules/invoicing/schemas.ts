@@ -29,18 +29,23 @@ export const createInvoiceSchema = z.object({
   billTo: party,
   shipTo: party.optional(),
   items: z.array(item).min(1, 'At least one line item is required'),
-  shippingHandlingTariff: z.number().nonnegative().max(MAX_AMOUNT, 'Amount is too large').optional(),
+  shippingHandlingTariff: z
+    .number()
+    .nonnegative()
+    .max(MAX_AMOUNT, 'Amount is too large')
+    .optional(),
   invoiceDiscount: z.number().nonnegative().max(MAX_AMOUNT, 'Discount is too large').optional(),
   // A fraction, not a percentage (0.0875 = 8.75%). Capped at 1 so a stray 50 can't book a
   // 5000% tax; the form already limits its percentage input to 100.
   taxRate: z.number().nonnegative().max(1, 'Tax rate cannot exceed 100%').optional(),
   applyTax: z.boolean().optional(),
+  // US Tax only: a reseller is tax-exempt, so sales tax is not charged. Ignored for other types.
+  reseller: z.boolean().optional(),
   paymentMethod: z.nativeEnum(PaymentMethod).optional(),
   issueDate: z.string().datetime().optional(),
   dueDate: z.string().datetime().optional(),
   terms: z.string().optional(),
   notes: z.string().optional(),
-  reminderThresholdMinutes: z.number().int().positive().optional(),
   asDraft: z.boolean().optional(), // save as Draft instead of finalizing to Pending
   // type-specific
   cashReceived: z.number().nonnegative().max(MAX_AMOUNT, 'Amount is too large').optional(),
@@ -49,9 +54,6 @@ export const createInvoiceSchema = z.object({
 
 export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
   type: z.nativeEnum(InvoiceType).optional(),
-  // null clears an existing reminder. Without it there would be no way to turn one off:
-  // omitting the key means "leave unchanged", which is a different intent.
-  reminderThresholdMinutes: z.number().int().positive().nullable().optional(),
 });
 
 /**
@@ -94,6 +96,8 @@ export const invoiceFormSchema = z.object({
     .nonnegative('Tax rate cannot be negative')
     .max(100, 'Tax rate cannot be more than 100%')
     .optional(),
+  // US Tax only: tax-exempt reseller. The form only surfaces it for the Tax type.
+  reseller: z.boolean().optional(),
   notes: z.string().max(2000, 'That note is too long').optional(),
 });
 
@@ -126,13 +130,15 @@ export const listInvoiceSchema = z
     path: ['from'],
   });
 
-export const EXPORT_FORMATS = ['csv', 'xlsx', 'json'] as const;
+// CSV is the only supported export format (Excel/JSON were dropped). Kept as an enum + default
+// so the query param is optional and old links without `format` still resolve to CSV.
+export const EXPORT_FORMATS = ['csv'] as const;
 export const exportFormatSchema = z.enum(EXPORT_FORMATS);
 
 /** Export reuses every list filter, minus pagination, plus the file format. */
 export const exportInvoiceSchema = z
   .object({
-    format: exportFormatSchema,
+    format: exportFormatSchema.optional().default('csv'),
     type: z.nativeEnum(InvoiceType).optional(),
     state: z.nativeEnum(InvoiceState).optional(),
     search: z.string().optional(),

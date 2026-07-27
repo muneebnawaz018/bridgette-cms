@@ -2,7 +2,7 @@
 export enum InvoiceType {
   Tax = 'tax', // US, account/bank transfer, always sales tax
   Cash = 'cash', // US, direct cash, never sales tax
-  PK = 'pk', // Pakistan operations, PKR, optional tax
+  PK = 'pk', // Pakistan operations, billed in USD, optional tax
 }
 
 /**
@@ -39,10 +39,9 @@ export enum ShippingStatus {
   Cancelled = 'cancelled',
 }
 
-/** Supported currencies. */
+/** Supported currencies. USD only — every invoice (US or PK) is billed in USD. */
 export enum Currency {
   USD = 'USD',
-  PKR = 'PKR',
 }
 
 /** Payment methods (spec 4.8). */
@@ -57,11 +56,11 @@ export enum PaymentMethod {
   Other = 'other',
 }
 
-/** Default currency per invoice type. */
+/** Default currency per invoice type. All types bill in USD, including PK. */
 export const DEFAULT_CURRENCY: Record<InvoiceType, Currency> = {
   [InvoiceType.Tax]: Currency.USD,
   [InvoiceType.Cash]: Currency.USD,
-  [InvoiceType.PK]: Currency.PKR,
+  [InvoiceType.PK]: Currency.USD,
 };
 
 /** Whether sales tax applies for a type: Tax = always, Cash = never, PK = optional. */

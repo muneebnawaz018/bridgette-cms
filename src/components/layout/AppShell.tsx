@@ -13,6 +13,8 @@ import Typography from '@mui/material/Typography';
 import SpaceDashboardRounded from '@mui/icons-material/SpaceDashboardRounded';
 import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
 import GroupRounded from '@mui/icons-material/GroupRounded';
+import ContactsRounded from '@mui/icons-material/ContactsRounded';
+import Inventory2Rounded from '@mui/icons-material/Inventory2Rounded';
 import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import MenuRounded from '@mui/icons-material/MenuRounded';
 import LogoutRounded from '@mui/icons-material/LogoutRounded';
@@ -49,6 +51,8 @@ interface NavItem {
 function pageTitle(pathname: string): string {
   if (pathname.startsWith('/invoices/new')) return 'New invoice';
   if (pathname.startsWith('/invoices')) return 'Invoices';
+  if (pathname.startsWith('/customers')) return 'Customers';
+  if (pathname.startsWith('/products')) return 'Products';
   if (pathname.startsWith('/users')) return 'Users';
   if (pathname.startsWith('/settings')) return 'Settings';
   if (pathname.startsWith('/profile')) return 'My profile';
@@ -184,9 +188,13 @@ function RailContent({
 /** App chrome: fixed dark sidebar (desktop) / drawer (mobile) + sticky glass header. */
 export function AppShell({
   canViewUsers,
+  canViewCustomers,
+  canViewProducts,
   children,
 }: {
   canViewUsers: boolean;
+  canViewCustomers: boolean;
+  canViewProducts: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -197,6 +205,12 @@ export function AppShell({
   const items: NavItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: <SpaceDashboardRounded fontSize="small" /> },
     { href: '/invoices', label: 'Invoices', icon: <ReceiptLongRounded fontSize="small" /> },
+    ...(canViewCustomers
+      ? [{ href: '/customers', label: 'Customers', icon: <ContactsRounded fontSize="small" /> }]
+      : []),
+    ...(canViewProducts
+      ? [{ href: '/products', label: 'Products', icon: <Inventory2Rounded fontSize="small" /> }]
+      : []),
     ...(canViewUsers
       ? [{ href: '/users', label: 'Users', icon: <GroupRounded fontSize="small" /> }]
       : []),
@@ -351,10 +365,7 @@ export function AppShell({
           }}
         >
           <Typography variant="body2" color="text.secondary">
-            © {new Date().getFullYear()} {COMPANY}. All rights reserved. ·{' '}
-            <AppLink href="/terms" style={{ fontWeight: 600 }}>
-              Terms &amp; Policies
-            </AppLink>
+            © {new Date().getFullYear()} {COMPANY}. All rights reserved.
           </Typography>
         </Box>
       </Box>

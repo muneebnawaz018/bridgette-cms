@@ -46,7 +46,11 @@ export async function GET(req: Request) {
 
     // Bind the row to the token's subject: a forged token (e.g. if the secret leaked) reusing
     // a live jti with someone else's `sub` finds no matching row and is rejected.
-    const stored = await RefreshToken.findOne({ jti: payload.jti, userId: payload.sub, revokedAt: null })
+    const stored = await RefreshToken.findOne({
+      jti: payload.jti,
+      userId: payload.sub,
+      revokedAt: null,
+    })
       .select('_id')
       .lean();
     if (!stored) return NextResponse.json({ valid: false }, { status: 401 });

@@ -9,7 +9,6 @@ import { InvoiceState, DEFAULT_CURRENCY } from '../enums';
 import { computePaymentState } from '../state';
 import { calcInvoice } from '../calc';
 import { issueInvoiceNumber } from '../numbering';
-import { reminderDueAt } from '../reminders';
 import { invoiceVisibilityFilter, canViewInvoice } from '../visibility';
 import type {
   CreateInvoiceInput,
@@ -31,6 +30,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     invoiceDiscount: input.invoiceDiscount,
     taxRate: input.taxRate,
     applyTax: input.applyTax,
+    reseller: input.reseller,
   });
 
   const items = input.items.map((it, i) => ({
@@ -47,18 +47,16 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
   const issueDate = input.issueDate ? new Date(input.issueDate) : undefined;
   const dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
 
-  // A reminder fires `thresholdMinutes` after the due date, and only once the invoice is live.
-  // A draft, or an invoice with no due date, keeps the chosen interval but leaves dueAt unset,
-  // so the sweep never chases a document that has not been issued or has no date to fire after.
-  // Finalizing is what stamps dueAt (see updateInvoice).
-  const reminder =
-    input.reminderThresholdMinutes != null
-      ? {
-          thresholdMinutes: input.reminderThresholdMinutes,
-          dueAt: input.asDraft ? undefined : reminderDueAt(dueDate, input.reminderThresholdMinutes),
-          sent: false,
-        }
-      : undefined;
+  // The due date can never precede the invoice date (the UI also enforces this).
+  if (issueDate && dueDate && dueDate.getTime() < issueDate.getTime()) {
+    throw new Error('Due date cannot be before the invoice date');
+  }
+
+  // Reminders are automatic: every finalized invoice with a due date is chased daily once that
+  // date passes, until it is paid. There is no per-invoice interval to choose any more. A draft,
+  // or an invoice with no due date, gets no reminder yet — finalizing stamps it (see
+  // updateInvoice), and the sweep only ever fires for unpaid/partially-paid invoices.
+  const reminder = !input.asDraft && dueDate ? { dueAt: dueDate, sent: false } : undefined;
 
   const state = input.asDraft
     ? InvoiceState.Draft
@@ -82,6 +80,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     amountPaid: 0,
     balanceDue: calc.grandTotal,
     applyTax: input.applyTax ?? false,
+    reseller: input.reseller ?? false,
     cashReceived: input.cashReceived,
     advancePayment: input.advancePayment,
     remainingBalance:
@@ -303,6 +302,7 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
     invoiceDiscount: input.invoiceDiscount ?? doc.discount,
     taxRate: input.taxRate ?? doc.taxRate,
     applyTax: input.applyTax ?? doc.applyTax,
+    reseller: input.reseller ?? doc.reseller,
   });
 
   doc.set(
@@ -342,10 +342,15 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
       dueDate: doc.dueDate,
     });
   }
+  if (input.reseller !== undefined) doc.reseller = input.reseller;
   if (input.billTo) doc.billTo = input.billTo;
   if (input.shipTo) doc.shipTo = input.shipTo;
   if (input.issueDate) doc.issueDate = new Date(input.issueDate);
   if (input.dueDate) doc.dueDate = new Date(input.dueDate);
+  // The due date can never precede the invoice date (the UI also enforces this).
+  if (doc.issueDate && doc.dueDate && doc.dueDate.getTime() < doc.issueDate.getTime()) {
+    throw new Error('Due date cannot be before the invoice date');
+  }
   if (input.terms !== undefined) doc.terms = input.terms;
   if (input.notes !== undefined) doc.notes = input.notes;
 
@@ -353,32 +358,21 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   // will persist — Draft only if it is staying a draft.
   const willBeDraft = doc.state === InvoiceState.Draft;
 
-  // Reminder. Omitting the key leaves it alone; null clears it.
-  if (input.reminderThresholdMinutes !== undefined) {
-    if (input.reminderThresholdMinutes === null) {
-      doc.set('reminder', undefined);
-    } else {
-      // The reminder is anchored to the due date (set just above, so doc.dueDate is current):
-      // it fires `thresholdMinutes` after the invoice falls due. Clearing `sent` is part of the
-      // same intent — a new interval means a new reminder is owed.
-      //
-      // While the invoice is still a draft, or has no due date, the interval is remembered but
-      // dueAt stays unset, so the countdown does not begin until the invoice is issued with a
-      // date to fire after.
-      doc.set('reminder', {
-        thresholdMinutes: input.reminderThresholdMinutes,
-        dueAt: willBeDraft ? undefined : reminderDueAt(doc.dueDate, input.reminderThresholdMinutes),
-        sent: false,
-      });
-    }
-  }
-
-  // Finalizing an invoice that already carries a reminder interval is what starts its clock,
-  // even when this save did not touch the reminder field. Measured from the due date, so the
-  // reminder fires once the invoice is actually overdue rather than a span after it went live.
-  if (finalizingDraft && doc.reminder?.thresholdMinutes && !doc.reminder.dueAt) {
-    doc.set('reminder.dueAt', reminderDueAt(doc.dueDate, doc.reminder.thresholdMinutes));
-    doc.set('reminder.sent', false);
+  // Reminders are automatic: keep reminder.dueAt equal to the due date for any finalized invoice
+  // that has one, so the daily sweep chases it once overdue (and only while unpaid/partial). A
+  // draft, or an invoice with no due date, carries no reminder. Re-arm (clear `sent`) only when
+  // the due date actually moves, so a routine edit does not resend a reminder that already went.
+  if (willBeDraft || !doc.dueDate) {
+    doc.set('reminder', undefined);
+  } else {
+    const dueAtMs = doc.dueDate.getTime();
+    const prevMs = doc.reminder?.dueAt ? new Date(doc.reminder.dueAt).getTime() : undefined;
+    const dueDateChanged = prevMs !== dueAtMs;
+    doc.set('reminder', {
+      dueAt: doc.dueDate,
+      sent: dueDateChanged ? false : (doc.reminder?.sent ?? false),
+      sentAt: dueDateChanged ? undefined : doc.reminder?.sentAt,
+    });
   }
 
   await doc.save();

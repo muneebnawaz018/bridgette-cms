@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
@@ -13,12 +13,12 @@ import { useSnackbar } from 'notistack';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import { EditProfileDialog } from '@/components/settings/EditProfileDialog';
 import { apiPatch } from '@/lib/api/client';
+import { useApi } from '@/lib/api/useApi';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/countries';
 import { colors, redA } from '@/lib/colors';
 import { ROLE_LABEL } from '@/lib/format/labels';
-import { useGlobalLoading } from '@/lib/api/useGlobalLoading';
 
 // Soft, non-button badge: tinted fill, no heavy border.
 const badgeSx = {
@@ -65,22 +65,10 @@ function Field({ label, value }: { label: string; value: string }) {
 
 export default function ProfilePage() {
   const { enqueueSnackbar } = useSnackbar();
-  const [me, setMe] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // useApi drives the one app-wide overlay on first load; no page-local loading flag needed.
+  const { data: me, isLoading: loading, mutate } = useApi<Profile>('/api/auth/me');
   const [editOpen, setEditOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  // Ask for the one app-wide overlay rather than drawing one in the page, which could not
-  // cover the sidebar or the top bar.
-  useGlobalLoading(loading);
-
-  useEffect(() => {
-    void (async () => {
-      const res = await fetch('/api/auth/me').then((r) => r.json());
-      if (res.ok) setMe(res.data);
-      setLoading(false);
-    })();
-  }, []);
 
   async function pickAvatar(file: File) {
     setUploading(true);
@@ -91,7 +79,7 @@ export default function ProfilePage() {
       });
       if (res.ok && res.data) {
         const next = res.data.avatarUrl;
-        setMe((prev) => (prev ? { ...prev, avatarUrl: next } : prev));
+        void mutate((prev) => (prev ? { ...prev, avatarUrl: next } : prev), { revalidate: false });
         enqueueSnackbar('Photo updated', { variant: 'success' });
       } else {
         enqueueSnackbar(res.error ?? 'Could not update the photo', { variant: 'error' });
@@ -206,10 +194,12 @@ export default function ProfilePage() {
         onClose={() => setEditOpen(false)}
         initial={{ name: me.name ?? '', phone: me.phone ?? '', avatarUrl: me.avatarUrl }}
         onSaved={(next) =>
-          setMe((prev) =>
-            prev
-              ? { ...prev, name: next.name, phone: next.phone, avatarUrl: next.avatarUrl }
-              : prev,
+          void mutate(
+            (prev) =>
+              prev
+                ? { ...prev, name: next.name, phone: next.phone, avatarUrl: next.avatarUrl }
+                : prev,
+            { revalidate: false },
           )
         }
       />

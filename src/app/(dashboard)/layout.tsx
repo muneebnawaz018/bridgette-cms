@@ -17,11 +17,22 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   };
 
   const canViewUsers = clientSession.permissions.includes(Permission.UserView);
+  // Only admins manage customers; other roles consume them through the invoice picker, so the
+  // nav link is gated on the create grant rather than plain view.
+  const canViewCustomers = clientSession.permissions.includes(Permission.CustomerCreate);
+  // Same rule for products: only admins manage the catalogue; others consume via the line picker.
+  const canViewProducts = clientSession.permissions.includes(Permission.ProductCreate);
 
   return (
     <SessionProvider value={clientSession}>
       <PreferencesProvider>
-        <AppShell canViewUsers={canViewUsers}>{children}</AppShell>
+        <AppShell
+          canViewUsers={canViewUsers}
+          canViewCustomers={canViewCustomers}
+          canViewProducts={canViewProducts}
+        >
+          {children}
+        </AppShell>
       </PreferencesProvider>
     </SessionProvider>
   );

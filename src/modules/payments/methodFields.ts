@@ -68,11 +68,13 @@ export function paymentFieldLabel(method: PaymentMethod | string, key: string): 
 }
 
 /**
- * Whether a payment by this method must carry a proof/screenshot. Cash is exempt — there is no
- * digital receipt to attach — every electronic method requires one.
+ * Whether a payment by this method must carry a proof/screenshot. Proof (the bank screenshot)
+ * is optional on every invoice and method now — it's a convenience, not a requirement — so this
+ * always returns false. Kept as a single switch so a method could be made mandatory again
+ * without hunting down the form hint and the schema refine that both read from here.
  */
-export function proofRequired(method: PaymentMethod): boolean {
-  return method !== PaymentMethod.Cash;
+export function proofRequired(): boolean {
+  return false;
 }
 
 /** Proof upload is compressed to a JPEG client-side; this bounds the stored payload server-side. */

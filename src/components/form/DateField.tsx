@@ -15,6 +15,7 @@ export function DateField({
   onChange,
   size = 'small',
   disabled,
+  readOnly,
   error,
   helperText,
   fullWidth = true,
@@ -28,6 +29,8 @@ export function DateField({
   onChange: (value: string) => void;
   size?: 'small' | 'medium';
   disabled?: boolean;
+  /** Shows the value but blocks editing (calendar and typing), without the greyed disabled look. */
+  readOnly?: boolean;
   error?: boolean;
   helperText?: string;
   fullWidth?: boolean;
@@ -42,6 +45,7 @@ export function DateField({
       value={value ? dayjs(value) : null}
       onChange={(d: Dayjs | null) => onChange(d && d.isValid() ? d.format('YYYY-MM-DD') : '')}
       disabled={disabled}
+      readOnly={readOnly}
       minDate={minDate ? dayjs(minDate) : undefined}
       maxDate={maxDate ? dayjs(maxDate) : undefined}
       format="DD/MM/YYYY"
@@ -53,7 +57,8 @@ export function DateField({
           helperText,
           InputLabelProps: { shrink: true },
         },
-        field: { clearable },
+        // A read-only field has nothing to clear; hide the clear affordance too.
+        field: { clearable: clearable && !readOnly },
       }}
     />
   );

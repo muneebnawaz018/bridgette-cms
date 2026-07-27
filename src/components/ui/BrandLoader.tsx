@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
@@ -77,8 +78,13 @@ export function BrandLoader({
             animation: 'loader-breathe 2.2s ease-in-out infinite',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/icon-512.png" alt="" style={{ width: iconSize, height: iconSize }} />
+          <Image
+            src="/brand/icon-512.png"
+            alt=""
+            width={512}
+            height={512}
+            style={{ width: iconSize, height: iconSize }}
+          />
         </Box>
       </Box>
       {showLabel && (

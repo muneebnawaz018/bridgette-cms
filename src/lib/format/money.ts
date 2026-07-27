@@ -16,16 +16,14 @@ export function formatAmount(amount: number): string {
 }
 
 /**
- * How each currency is shown before the amount. USD uses the "$" sign (no space); PKR keeps its
- * code, since the rupee sign reads poorly and "PKR" is unambiguous. Anything else falls back to
- * its code with a space.
+ * How each currency is shown before the amount. USD uses the "$" sign (no space). Anything else
+ * (legacy rows only — the system bills in USD) falls back to its code with a space.
  */
 const CURRENCY_PREFIX: Record<string, string> = {
   USD: '$',
-  PKR: 'PKR ',
 };
 
-/** An amount with its currency marker, e.g. "$1,234.50" or "PKR 1,234.50". Always two decimals. */
+/** An amount with its currency marker, e.g. "$1,234.50". Always two decimals. */
 export function formatMoney(currency: string | undefined, amount: number): string {
   const prefix = currency ? (CURRENCY_PREFIX[currency] ?? `${currency} `) : '';
   return `${prefix}${formatAmount(amount)}`;

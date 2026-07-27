@@ -15,6 +15,18 @@ export enum Permission {
   InvoiceView = 'invoice:view',
   InvoiceViewAllArchived = 'invoice:viewAllArchived', // see any archived/deleted invoice (else only own archived)
 
+  // Customers (reusable billing parties). Admins maintain them; every role may view/pick.
+  CustomerCreate = 'customer:create',
+  CustomerEdit = 'customer:edit',
+  CustomerDelete = 'customer:delete', // soft-delete, admins only
+  CustomerView = 'customer:view',
+
+  // Products (catalogue + per-customer rates). Admins maintain them; every role may view/pick.
+  ProductCreate = 'product:create',
+  ProductEdit = 'product:edit',
+  ProductDelete = 'product:delete', // soft-delete, admins only
+  ProductView = 'product:view',
+
   // Payments
   PaymentRecord = 'payment:record',
   PaymentManage = 'payment:manage',

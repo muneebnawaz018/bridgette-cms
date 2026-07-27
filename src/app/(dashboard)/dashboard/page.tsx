@@ -58,11 +58,11 @@ interface Stats {
   byType: Record<string, TypeTotals>;
 }
 
-// The 3 invoice types + their fixed currency (Tax/Cash = USD, PK = PKR).
+// The 3 invoice types. All bill in USD (US and PK alike).
 const TYPES = [
   { key: 'tax', label: 'Tax', currency: 'USD', icon: <AccountBalanceRounded /> },
   { key: 'cash', label: 'Cash', currency: 'USD', icon: <PaymentsRounded /> },
-  { key: 'pk', label: 'PK', currency: 'PKR', icon: <PublicRounded /> },
+  { key: 'pk', label: 'PK', currency: 'USD', icon: <PublicRounded /> },
 ] as const;
 
 interface RecentInvoice {

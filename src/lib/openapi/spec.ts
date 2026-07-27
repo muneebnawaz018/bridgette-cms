@@ -83,7 +83,7 @@ export const openApiSpec = {
         required: ['type', 'billTo', 'items'],
         properties: {
           type: { type: 'string', enum: ['tax', 'cash', 'pk'] },
-          currency: { type: 'string', enum: ['USD', 'PKR'] },
+          currency: { type: 'string', enum: ['USD'] },
           billTo: {
             type: 'object',
             properties: { name: { type: 'string' }, email: { type: 'string' } },

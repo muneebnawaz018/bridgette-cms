@@ -148,7 +148,7 @@ export function RecordPaymentModal({
   );
 
   const fields = PAYMENT_METHOD_FIELDS[method];
-  const needsProof = proofRequired(method);
+  const needsProof = proofRequired();
 
   async function submit() {
     if (!invoice) return;

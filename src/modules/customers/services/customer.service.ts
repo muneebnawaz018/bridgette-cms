@@ -1,0 +1,158 @@
+import 'server-only';
+import type { PipelineStage } from 'mongoose';
+import { connectDb } from '@/lib/db/connection';
+import { escapeRegex } from '@/lib/query/escapeRegex';
+import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
+import { Permission, assertCan, type SessionUser } from '@/modules/auth';
+import { Customer, type CustomerDoc } from '../models/customer.model';
+import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
+
+/**
+ * Customers are shared company-wide: any role holding CustomerView reads every (non-deleted)
+ * customer. Only admins (CustomerCreate/Edit/Delete) mutate them. So there is no per-user
+ * visibility filter here — the read match is simply "not deleted".
+ */
+function activeMatch(search?: string): Record<string, unknown> {
+  const match: Record<string, unknown> = { isDeleted: { $ne: true } };
+  if (search?.trim()) {
+    const rx = new RegExp(escapeRegex(search.trim()), 'i');
+    match.$or = [{ name: rx }, { email: rx }, { company: rx }];
+  }
+  return match;
+}
+
+const LIST_PROJECTION = {
+  name: 1,
+  email: 1,
+  phone: 1,
+  company: 1,
+  address: 1,
+  reseller: 1,
+  invoiceType: 1,
+  createdAt: 1,
+} as const;
+
+/** Paginated customer list (search over name/email/company). */
+export async function listCustomers(
+  actor: SessionUser,
+  query: ListCustomerInput,
+): Promise<Paginated<CustomerDoc>> {
+  assertCan(actor.role, Permission.CustomerView);
+  await connectDb();
+
+  const stages: PipelineStage[] = [
+    { $match: activeMatch(query.search) },
+    { $project: LIST_PROJECTION },
+  ];
+  // Customers read best name-first; aggregatePaginate applies this sort inside its $facet page.
+  return aggregatePaginate<CustomerDoc>(
+    Customer,
+    stages,
+    { page: query.page, limit: query.limit },
+    { name: 1 },
+  );
+}
+
+/** Default page size for the picker; hard-capped so a caller can't request the whole book. */
+const OPTIONS_PAGE = 20;
+const OPTIONS_PAGE_MAX = 50;
+
+/**
+ * Paginated list for the invoice customer picker — name + party fields only. With `q` it does a
+ * server-side name/email/company search. Returns one page plus `hasMore` so the dropdown can load
+ * the next page as the user scrolls, rather than ever shipping the whole book at once.
+ */
+export async function listCustomerOptions(
+  actor: SessionUser,
+  opts: { q?: string; limit?: number; skip?: number } = {},
+) {
+  assertCan(actor.role, Permission.CustomerView);
+  await connectDb();
+  const term = opts.q?.trim();
+  const limit = Math.min(Math.max(1, opts.limit ?? OPTIONS_PAGE), OPTIONS_PAGE_MAX);
+  const skip = Math.max(0, opts.skip ?? 0);
+
+  const filter: Record<string, unknown> = { isDeleted: { $ne: true } };
+  if (term) {
+    // Escape regex metacharacters so a typed "." or "(" searches literally.
+    const safe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(safe, 'i');
+    filter.$or = [{ name: rx }, { email: rx }, { company: rx }];
+  }
+
+  // Fetch one extra row to detect a next page without a separate count query.
+  const rows = await Customer.find(filter)
+    .select({ name: 1, email: 1, phone: 1, company: 1, address: 1, reseller: 1, invoiceType: 1 })
+    .sort({ name: 1 })
+    .skip(skip)
+    .limit(limit + 1)
+    .lean<CustomerDoc[]>();
+
+  const hasMore = rows.length > limit;
+  return { items: hasMore ? rows.slice(0, limit) : rows, hasMore };
+}
+
+/** Fetch one customer (excludes soft-deleted). */
+export async function getCustomer(actor: SessionUser, id: string) {
+  assertCan(actor.role, Permission.CustomerView);
+  await connectDb();
+  const doc = await Customer.findOne({ _id: id, isDeleted: { $ne: true } }).lean<CustomerDoc>();
+  if (!doc) throw new Error('Customer not found');
+  return doc;
+}
+
+/** Create a customer. Admin only. */
+export async function createCustomer(actor: SessionUser, input: CustomerCreateInput) {
+  assertCan(actor.role, Permission.CustomerCreate);
+  await connectDb();
+  const doc = await Customer.create({
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
+    company: input.company,
+    address: input.address,
+    notes: input.notes,
+    reseller: input.reseller ?? false,
+    invoiceType: input.invoiceType,
+    createdBy: actor.userId,
+  });
+  return doc.toObject();
+}
+
+/** Edit a customer. Admin only. Only provided fields change; blanks clear the field. */
+export async function updateCustomer(actor: SessionUser, id: string, input: CustomerUpdateInput) {
+  assertCan(actor.role, Permission.CustomerEdit);
+  await connectDb();
+  const doc = await Customer.findById(id);
+  if (!doc || doc.isDeleted) throw new Error('Customer not found');
+
+  if (input.name !== undefined) doc.name = input.name;
+  if (input.email !== undefined) doc.email = input.email;
+  if (input.phone !== undefined) doc.phone = input.phone;
+  if (input.company !== undefined) doc.company = input.company;
+  if (input.address !== undefined) doc.address = input.address;
+  if (input.notes !== undefined) doc.notes = input.notes;
+  if (input.reseller !== undefined) doc.reseller = input.reseller;
+  if (input.invoiceType !== undefined) doc.invoiceType = input.invoiceType;
+
+  await doc.save();
+  return doc.toObject();
+}
+
+/**
+ * Soft-delete. Customers are never hard-deleted so invoices that referenced them keep their
+ * audit trail. Admin only.
+ */
+export async function deleteCustomer(actor: SessionUser, id: string, reason?: string) {
+  assertCan(actor.role, Permission.CustomerDelete);
+  await connectDb();
+  const doc = await Customer.findById(id);
+  if (!doc) throw new Error('Customer not found');
+  if (doc.isDeleted) throw new Error('That customer is already deleted');
+  doc.isDeleted = true;
+  doc.deletedBy = actor.userId as unknown as CustomerDoc['deletedBy'];
+  doc.deletedAt = new Date();
+  doc.deleteReason = reason;
+  await doc.save();
+  return doc.toObject();
+}

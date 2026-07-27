@@ -15,6 +15,7 @@ export interface CalcInput {
   invoiceDiscount?: number; // fixed amount off the whole invoice
   taxRate?: number; // e.g. 0.0875 — applied per TAX_POLICY
   applyTax?: boolean; // for PK (optional tax); ignored for Tax(always)/Cash(never)
+  reseller?: boolean; // US Tax only: a reseller is tax-exempt, so no sales tax is charged
 }
 
 export interface CalcResult {
@@ -49,18 +50,27 @@ export function calcInvoice(input: CalcInput): CalcResult {
   );
   const subtotal = sum(lineTotals);
 
-  const applies = taxApplies(input.type, input.applyTax);
+  // A reseller is tax-exempt: even a Tax invoice charges no sales tax when the flag is set.
+  const applies = taxApplies(input.type, input.applyTax) && !input.reseller;
   const rate = applies ? (input.taxRate ?? 0) : 0;
 
-  // Taxable base: taxable line totals + shipping/handling/tariff, less invoice discount.
+  // The invoice discount is a trade discount applied BEFORE tax: it reduces the taxable base, so
+  // sales tax is charged on what the customer actually pays. Order the template shows:
+  // SUBTOTAL → Discount → TOTAL BEFORE TAX → TAX → TOTAL.
+  const totalBeforeTax = nonNegative(round2(subtotal + shipping - invoiceDiscount));
+
+  // Apportion the discount across the taxable portion so the taxable base drops proportionally
+  // (a discount on non-taxable goods shouldn't cut the tax, and vice-versa).
   const taxableLineTotal = sum(
     input.items.map((it, i) => (it.taxable === false ? 0 : lineTotals[i])),
   );
-  const taxableBase = nonNegative(taxableLineTotal + shipping - invoiceDiscount);
+  const preDiscountBase = nonNegative(taxableLineTotal + shipping);
+  const grossBase = nonNegative(subtotal + shipping);
+  const taxableShare = grossBase > 0 ? preDiscountBase / grossBase : 0;
+  const taxableBase = nonNegative(round2(preDiscountBase - invoiceDiscount * taxableShare));
   const taxAmount = applies ? round2(taxableBase * rate) : 0;
 
-  const totalBeforeTax = nonNegative(subtotal + shipping - invoiceDiscount);
-  const grandTotal = round2(totalBeforeTax + taxAmount);
+  const grandTotal = nonNegative(round2(totalBeforeTax + taxAmount));
 
   return {
     lineTotals,

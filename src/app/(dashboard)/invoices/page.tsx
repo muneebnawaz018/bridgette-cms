@@ -19,6 +19,9 @@ import { DataTable } from '@/components/ui/DataTable';
 import { useBreakpointColumns, type ColumnTiers } from '@/lib/ui/useBreakpointColumns';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { PageHeader } from '@/components/ui/PageHeader';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import { TYPE_OPTIONS } from '@/components/invoices/InvoiceTemplateForm';
 import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
@@ -54,19 +57,53 @@ function rowActions(
   perms: { canPay: boolean; canArchive: boolean; canDelete: boolean },
   onPay: (row: InvoiceRow) => void,
   onAct: (kind: 'archive' | 'delete', row: InvoiceRow) => void,
+  onPdf: (row: InvoiceRow) => void,
+  onCsv: (row: InvoiceRow) => void,
 ): RowAction[] {
   const actions: RowAction[] = [];
   const paid = row.state === 'paid' || row.state === 'draft';
   if (perms.canPay && !row.isArchived && !row.isDeleted && !paid) {
     actions.push({ label: 'Record payment', onClick: () => onPay(row) });
   }
-  if (perms.canArchive && !row.isArchived && !row.isDeleted) {
-    actions.push({ label: 'Archive', onClick: () => onAct('archive', row) });
+  // A draft is not a real document yet, so no PDF; the CSV summary is fine for any row.
+  if (!row.isDeleted && row.state !== 'draft') {
+    actions.push({ label: 'Download PDF', onClick: () => onPdf(row) });
   }
-  if (perms.canDelete && !row.isDeleted) {
-    actions.push({ label: 'Delete', danger: true, onClick: () => onAct('delete', row) });
+  if (!row.isDeleted) {
+    actions.push({ label: 'Download CSV', onClick: () => onCsv(row) });
+  }
+  if (perms.canArchive && !row.isArchived && !row.isDeleted) {
+    actions.push({ label: 'Archive', danger: true, onClick: () => onAct('archive', row) });
   }
   return actions;
+}
+
+/** One-row CSV for a single invoice (summary columns), built + downloaded client-side. */
+function downloadInvoiceCsv(row: InvoiceRow) {
+  const paid = Number(row.grandTotal) - Number(row.balanceDue);
+  const cell = (v: string | number) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const headers = ['Number', 'Type', 'State', 'Customer', 'Currency', 'Total', 'Paid', 'Balance'];
+  const values = [
+    row.number,
+    row.type,
+    row.state,
+    row.billTo?.name ?? '',
+    row.currency,
+    Number(row.grandTotal ?? 0),
+    paid,
+    Number(row.balanceDue ?? 0),
+  ];
+  // Prepend a BOM so Excel/Sheets read UTF-8 correctly.
+  const csv = `﻿${headers.map(cell).join(',')}\n${values.map(cell).join(',')}\n`;
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `invoice-${row.number}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 const VIEW_META: Record<InvoiceView, { label: string; blurb: string }> = {
@@ -91,7 +128,6 @@ export default function InvoicesPage() {
   const canPay = useCan(Permission.PaymentRecord);
   const canArchive = useCan(Permission.InvoiceArchive);
   const canDelete = useCan(Permission.InvoiceDelete);
-  const canSeeDeleted = useCan(Permission.InvoiceViewAllArchived);
 
   const columnVisibility = useBreakpointColumns(INVOICE_COLUMN_TIERS);
 
@@ -104,6 +140,7 @@ export default function InvoicesPage() {
   // dates shows everything.
   const [range, setRange] = useState({ from: monthStart(), to: monthEnd() });
   const router = useRouter();
+  const [newAnchor, setNewAnchor] = useState<null | HTMLElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -159,12 +196,8 @@ export default function InvoicesPage() {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const views: InvoiceView[] = [
-    'active',
-    'archived',
-    ...(canSeeDeleted ? (['deleted'] as const) : []),
-    'all',
-  ];
+  // Invoices are only ever archived, never deleted, so the Deleted view is not offered.
+  const views: InvoiceView[] = ['active', 'archived', 'all'];
 
   function openAction(kind: 'archive' | 'delete', row: InvoiceRow) {
     setAction({ kind, row });
@@ -277,7 +310,14 @@ export default function InvoicesPage() {
       align: 'center',
       renderCell: (p) => (
         <RowActionsMenu
-          actions={rowActions(p.row, { canPay, canArchive, canDelete }, setPayFor, openAction)}
+          actions={rowActions(
+            p.row,
+            { canPay, canArchive, canDelete },
+            setPayFor,
+            openAction,
+            (row) => window.open(`/print/invoices/${row._id}`, '_blank'),
+            downloadInvoiceCsv,
+          )}
         />
       ),
     },
@@ -305,7 +345,7 @@ export default function InvoicesPage() {
               <Button
                 variant="contained"
                 startIcon={<AddRounded />}
-                onClick={() => router.push('/invoices/new')}
+                onClick={(e) => setNewAnchor(e.currentTarget)}
               >
                 New invoice
               </Button>
@@ -313,6 +353,22 @@ export default function InvoicesPage() {
           </>
         }
       />
+
+      {/* Invoice type is picked here, from the New-invoice button, then carried into the form via
+          ?type= so the template opens ready to fill (type is fixed once chosen). */}
+      <Menu anchorEl={newAnchor} open={Boolean(newAnchor)} onClose={() => setNewAnchor(null)}>
+        {TYPE_OPTIONS.map((o) => (
+          <MenuItem
+            key={o.value}
+            onClick={() => {
+              setNewAnchor(null);
+              router.push(`/invoices/new?type=${o.value}`);
+            }}
+          >
+            {o.label}
+          </MenuItem>
+        ))}
+      </Menu>
 
       {/* Search + two fused filter dropdowns (type + view), same pattern as user management */}
       <Box sx={{ mb: 2 }}>

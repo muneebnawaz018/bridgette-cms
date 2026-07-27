@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { PaymentMethod } from '@/modules/invoicing/enums';
-import { proofRequired, MAX_PROOF_BYTES } from './methodFields';
+import { MAX_PROOF_BYTES } from './methodFields';
 
 /**
  * An attached proof of payment: a compressed image, stored as a base64 data URL.
@@ -21,7 +21,10 @@ const PROOF_CONTENT_TYPES = new Set([
   'image/heic',
 ]);
 const proofSchema = z.object({
-  data: z.string().min(1).regex(PROOF_DATA_URL, 'Proof must be a PNG, JPEG, WEBP, GIF or HEIC image'),
+  data: z
+    .string()
+    .min(1)
+    .regex(PROOF_DATA_URL, 'Proof must be a PNG, JPEG, WEBP, GIF or HEIC image'),
   name: z.string().min(1).max(200),
   contentType: z
     .string()
@@ -44,11 +47,7 @@ export const recordPaymentSchema = z
     details: z.record(z.string().max(500)).optional(),
     proof: proofSchema.optional(),
   })
-  // Proof is mandatory for every method except cash.
-  .refine((v) => !proofRequired(v.method) || Boolean(v.proof), {
-    message: 'A proof of payment is required for this method',
-    path: ['proof'],
-  })
+  // Proof (the bank screenshot) is optional for every method and invoice type.
   // Guard the stored size against a client that lies about `size`: the base64 string itself is
   // the real cost. ~1.4x covers base64 overhead plus the data-URL prefix.
   .refine((v) => !v.proof || v.proof.data.length <= Math.ceil(MAX_PROOF_BYTES * 1.4), {

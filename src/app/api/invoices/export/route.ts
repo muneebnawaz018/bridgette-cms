@@ -3,9 +3,8 @@ import { handle } from '@/lib/api/respond';
 import { Permission } from '@/modules/auth';
 import { requireLimited } from '@/lib/security/guard';
 import { LIMITS } from '@/lib/security/rateLimit';
-import { exportInvoices, exportInvoiceSchema, type ExportFormat } from '@/modules/invoicing';
+import { exportInvoices, exportInvoiceSchema } from '@/modules/invoicing';
 import { toCsv } from '@/lib/export/csv';
-import { buildXlsx, type XlsxValue } from '@/lib/export/xlsx';
 
 const HEADERS = [
   'Number',
@@ -21,11 +20,7 @@ const HEADERS = [
   'Created',
 ] as const;
 
-const MIME: Record<ExportFormat, string> = {
-  csv: 'text/csv; charset=utf-8',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  json: 'application/json; charset=utf-8',
-};
+const CSV_MIME = 'text/csv; charset=utf-8';
 
 function statusOf(row: { isDeleted?: boolean; isArchived?: boolean }): string {
   if (row.isDeleted) return 'Deleted';
@@ -48,7 +43,7 @@ export const GET = handle(async (req) => {
 
   const { rows, total, truncated } = await exportInvoices(actor, query);
 
-  const table: XlsxValue[][] = rows.map((r) => [
+  const table: (string | number)[][] = rows.map((r) => [
     r.number,
     r.type,
     r.state,
@@ -62,37 +57,12 @@ export const GET = handle(async (req) => {
     r.createdAt ? new Date(r.createdAt).toISOString() : '',
   ]);
 
-  const filename = `invoices-${query.view ?? 'active'}-${stamp()}.${query.format}`;
-  let body: string | Buffer;
+  const filename = `invoices-${query.view ?? 'active'}-${stamp()}.csv`;
+  const body = toCsv([...HEADERS], table);
 
-  if (query.format === 'csv') {
-    body = toCsv([...HEADERS], table);
-  } else if (query.format === 'xlsx') {
-    body = buildXlsx({ sheetName: 'Invoices', headers: [...HEADERS], rows: table });
-  } else {
-    body = JSON.stringify(
-      {
-        exportedAt: new Date().toISOString(),
-        filters: {
-          view: query.view ?? 'active',
-          type: query.type,
-          state: query.state,
-          from: query.from,
-          to: query.to,
-        },
-        total,
-        truncated,
-        // Objects rather than positional arrays — JSON consumers want named fields.
-        invoices: table.map((row) => Object.fromEntries(HEADERS.map((h, i) => [h, row[i]]))),
-      },
-      null,
-      2,
-    );
-  }
-
-  return new NextResponse(body as BodyInit, {
+  return new NextResponse(body, {
     headers: {
-      'Content-Type': MIME[query.format],
+      'Content-Type': CSV_MIME,
       'Content-Disposition': `attachment; filename="${filename}"`,
       // The row count the file actually contains, so the UI can warn about a capped export.
       'X-Export-Count': String(rows.length),

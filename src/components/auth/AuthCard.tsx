@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
@@ -78,11 +79,12 @@ export function AuthCard({
             transform: 'rotate(-8deg)',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src="/brand/icon-512.png"
             alt=""
-            style={{ width: '100%', filter: 'grayscale(1) brightness(3)' }}
+            width={512}
+            height={512}
+            style={{ width: '100%', height: 'auto', filter: 'grayscale(1) brightness(3)' }}
           />
         </Box>
 
@@ -128,8 +130,13 @@ export function AuthCard({
         <Box className="rise-in" sx={{ width: '100%', maxWidth: 400 }}>
           {/* Mobile logo (brand panel is hidden here) */}
           <Box sx={{ display: { xs: 'flex', md: 'none' }, justifyContent: 'center', mb: 3.5 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/logo.png" alt="Bridgette Enterprises" style={{ height: 46 }} />
+            <Image
+              src="/brand/logo.png"
+              alt="Bridgette Enterprises"
+              width={1978}
+              height={1145}
+              style={{ height: 46, width: 'auto' }}
+            />
           </Box>
 
           <Typography variant="h4" sx={{ fontWeight: 700 }}>

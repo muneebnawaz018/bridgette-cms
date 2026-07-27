@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { displayFont } from '@/lib/theme';
@@ -32,10 +33,11 @@ export function BrandLockup({
           boxShadow: `0 4px 14px ${blackA(0.28)}`,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src="/brand/icon-512.png"
           alt="Bridgette Enterprises"
+          width={512}
+          height={512}
           style={{ width: badge * 0.72, height: badge * 0.72 }}
         />
       </Box>

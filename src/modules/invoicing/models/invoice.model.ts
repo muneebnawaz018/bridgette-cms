@@ -65,6 +65,7 @@ const invoiceSchema = new Schema(
     amountPaid: { type: Number, default: 0 },
     balanceDue: { type: Number, default: 0 },
     applyTax: { type: Boolean, default: false }, // PK optional tax flag
+    reseller: { type: Boolean, default: false }, // US Tax only: tax-exempt reseller (no sales tax)
 
     // Type-specific
     cashReceived: { type: Number },
