@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
@@ -10,9 +10,10 @@ import AddBoxRounded from '@mui/icons-material/AddBoxRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
-import { FormSection, TextInput } from '@/components/form/fields';
+import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { ProductRatesEditor } from '@/components/products/ProductRatesEditor';
 import { productFormSchema } from '@/modules/products/schemas';
+import { useApi } from '@/lib/api/useApi';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
@@ -28,8 +29,17 @@ export interface EditableProduct {
   sku: string;
   defaultRate: number;
   unit?: string;
+  /** Fabric id, when the product is linked to one. */
+  fabric?: string | null;
   description?: string;
   notes?: string;
+}
+
+interface FabricOption {
+  _id: string;
+  name: string;
+  gsm: number | null;
+  type: string;
 }
 
 interface FormValues {
@@ -37,6 +47,7 @@ interface FormValues {
   sku: string;
   defaultRate: string;
   unit: string;
+  fabric: string;
   description: string;
   notes: string;
 }
@@ -48,6 +59,7 @@ const EMPTY: FormValues = {
   sku: '',
   defaultRate: '',
   unit: '',
+  fabric: '',
   description: '',
   notes: '',
 };
@@ -58,6 +70,7 @@ function valuesFromProduct(p: EditableProduct): FormValues {
     sku: p.sku ?? '',
     defaultRate: p.defaultRate != null ? String(p.defaultRate) : '',
     unit: p.unit ?? '',
+    fabric: p.fabric ? String(p.fabric) : '',
     description: p.description ?? '',
     notes: p.notes ?? '',
   };
@@ -70,9 +83,18 @@ function buildPayload(f: FormValues) {
     sku: f.sku.trim(),
     defaultRate: Number(f.defaultRate),
     unit: f.unit.trim() || undefined,
+    // Sent as '' rather than omitted so clearing the picker actually unlinks the fabric.
+    fabric: f.fabric,
     description: f.description.trim() || undefined,
     notes: f.notes.trim() || undefined,
   };
+}
+
+/** "Cotton Jersey · 180 GSM · Knit" — the spec that matters, on one line. */
+function fabricLabel(f: FabricOption): string {
+  return [f.name, f.gsm != null ? `${f.gsm} GSM` : null, f.type || null]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 export function ProductFormDialog({
@@ -97,12 +119,28 @@ export function ProductFormDialog({
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  // The picker is controlled (a pick has to re-render the select), unlike the text fields.
+  const [fabric, setFabric] = useState('');
+
+  // Only fetched while the dialog is open — the catalogue list itself has no use for it.
+  const { data: fabricData } = useApi<{ items: FabricOption[] }>(
+    open ? '/api/fabrics/options' : null,
+    { globalLoading: false },
+  );
+  const fabricOptions: SelectOption[] = useMemo(
+    () => [
+      { value: '', label: 'No fabric' },
+      ...(fabricData?.items ?? []).map((f) => ({ value: f._id, label: fabricLabel(f) })),
+    ],
+    [fabricData],
+  );
 
   useLayoutEffect(() => {
     if (!open) return;
     const next = product ? valuesFromProduct(product) : { ...EMPTY };
     valuesRef.current = next;
     setInitial(next);
+    setFabric(next.fabric);
     setErrors({});
     setTouched({});
     setSubmitted(false);
@@ -117,6 +155,11 @@ export function ProductFormDialog({
 
   const setText = useCallback((key: string, value: string) => {
     valuesRef.current[key as FieldKey] = value;
+  }, []);
+
+  const pickFabric = useCallback((_key: string, value: string) => {
+    valuesRef.current.fabric = value;
+    setFabric(value);
   }, []);
 
   const blurField = useCallback(
@@ -252,7 +295,19 @@ export function ProductFormDialog({
                 onBlur={blurField}
               />
             </Grid>
-            <Grid size={12}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <SelectInput
+                name="fabric"
+                label="Fabric"
+                value={fabric}
+                options={fabricOptions}
+                helperText={shown('fabric') ?? 'The material this product is made of'}
+                error={Boolean(shown('fabric'))}
+                disabled={saving}
+                onChange={pickFabric}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextInput
                 name="unit"
                 label="Unit"

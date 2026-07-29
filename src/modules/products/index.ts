@@ -16,6 +16,27 @@ export {
   type CustomerRateRow,
 } from './services/product.service';
 export {
+  listFabrics,
+  listFabricOptions,
+  getFabric,
+  createFabric,
+  updateFabric,
+  deleteFabric,
+  FABRIC_OPTIONS_LIMIT,
+} from './services/fabric.service';
+export {
+  fabricCreateSchema,
+  fabricUpdateSchema,
+  fabricFormSchema,
+  listFabricSchema,
+  deleteFabricSchema,
+  type FabricCreateInput,
+  type FabricUpdateInput,
+  type FabricFormInput,
+  type ListFabricInput,
+} from './schemas';
+export { Fabric, type FabricDoc } from './models/fabric.model';
+export {
   productCreateSchema,
   productUpdateSchema,
   productFormSchema,

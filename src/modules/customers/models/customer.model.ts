@@ -1,5 +1,6 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
 import { InvoiceType } from '@/modules/invoicing/enums';
+import { CustomerType } from '../enums';
 
 const { Schema, model, models } = mongoose;
 
@@ -13,11 +14,39 @@ const { Schema, model, models } = mongoose;
  */
 const customerSchema = new Schema(
   {
+    // Full name — kept as the single field invoices and every picker read. It is derived from
+    // firstName/lastName when those are given, so the two stay in step without every consumer
+    // having to join them.
     name: { type: String, required: true, index: true },
+    firstName: { type: String },
+    lastName: { type: String },
     email: { type: String },
     phone: { type: String },
+    // The customer's team / business name.
     company: { type: String },
+    // What kind of account this is. Free of the tax logic: `reseller` below still drives
+    // tax exemption, and picking the Reseller type sets it.
+    customerType: { type: String, enum: Object.values(CustomerType) },
+    // The printable one-line address invoices use. Derived from `addressParts` whenever those
+    // are filled in, so the two can never drift; still writable on its own for records that
+    // predate the structured form.
     address: { type: String },
+    // Structured US address (street / unit / city / state / ZIP+4).
+    addressParts: {
+      type: new Schema(
+        {
+          line1: { type: String },
+          line2: { type: String },
+          city: { type: String },
+          // USPS two-letter code, e.g. 'CA'.
+          state: { type: String, uppercase: true, trim: true },
+          zip: { type: String },
+          zipPlus4: { type: String },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
     notes: { type: String },
 
     // A reseller is tax-exempt: invoices raised for this customer charge no sales tax. Picking

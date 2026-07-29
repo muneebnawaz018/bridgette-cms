@@ -3,7 +3,7 @@ import { requirePermission, Permission } from '@/modules/auth';
 import {
   createCustomer,
   listCustomers,
-  customerCreateSchema,
+  customerCreateSchemaChecked,
   listCustomerSchema,
 } from '@/modules/customers';
 import { requireWrite } from '@/lib/security/guard';
@@ -22,7 +22,7 @@ export const GET = handle(async (req) => {
 export const POST = handle(async (req) => {
   assertBodySize(req);
   const actor = await requireWrite(Permission.CustomerCreate);
-  const body = customerCreateSchema.parse(await req.json());
+  const body = customerCreateSchemaChecked.parse(await req.json());
   const customer = await createCustomer(actor, body);
   return ok(customer, 201);
 });

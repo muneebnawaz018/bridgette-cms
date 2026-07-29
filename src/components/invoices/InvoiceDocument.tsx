@@ -121,18 +121,32 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
         .inv-terms .h { font-weight: 400; }
         .inv-terms a { color: ${LINK}; text-decoration: underline; word-break: break-all; }
         .inv-totals { width: 350px; flex-shrink: 0; font-size: 13px; }
-        .inv-totals .tr { display: flex; justify-content: flex-end; align-items: center; gap: 12px;
-          padding: 6px 0; }
-        .inv-totals .tr .k { font-weight: 700; text-align: right; font-size: 13px;
-          white-space: nowrap; min-width: 0; }
+        /*
+         * The totals block is a two-column table of fixed-height rows. Every value cell fills its
+         * row, so a rule is always the row's own edge and can never crowd the number above or
+         * below it. Mirrors InvoiceTemplateForm, which has to look identical.
+         */
+        .inv-totals .tr { display: flex; justify-content: flex-end; align-items: stretch;
+          gap: 12px; height: 34px; }
+        .inv-totals .tr .k { flex: 1 1 auto; align-self: center; font-weight: 700;
+          text-align: right; font-size: 13px; white-space: nowrap; min-width: 0; }
         .inv-totals .tr .k .red { color: ${RED}; }
-        .inv-totals .tr .v { flex: 0 0 110px; width: 110px; text-align: right;
-          white-space: nowrap; font-size: 13px;
-          border-bottom: 1px solid ${HAIR}; padding-bottom: 4px; }
-        .inv-totals .grand { margin-top: 0; padding-top: 6px; }
-        .inv-totals .grand .v { border-top: none; border-bottom: 2px solid ${BORDER};
-          padding-top: 0; padding-bottom: 4px; font-weight: 800; font-size: 16px; }
-        .inv-totals .grand .k { font-size: 16px; }
+        /* The value box hugs its text: 20px tall (13px text centred → ~3px to each rule) and
+           centred in the 34px row, so a rule sits tight against its own value and level with its
+           own label — 7px clear of the row edge, never near the row above. */
+        .inv-totals .tr .v { flex: 0 0 110px; width: 110px; align-self: center; height: 20px;
+          display: flex; align-items: center;
+          justify-content: flex-end; text-align: right; white-space: nowrap; font-size: 13px;
+          line-height: 1; padding: 0 6px 0 0; }
+        /* Rules are opt-in per row, so the block reads as the template's grouped boxes rather
+           than one underline per line. */
+        .inv-totals .tr .v.line-top { border-top: 1px solid ${HAIR}; }
+        .inv-totals .tr .v.line-bottom { border-bottom: 1px solid ${HAIR}; }
+        /* NET TOTAL and NET TOTAL + Tax: the whole row boxed, on the same 34px rhythm. */
+        .inv-totals .boxed { border: 1.5px solid ${BORDER}; }
+        .inv-totals .boxed .k { padding-left: 10px; }
+        .inv-totals .boxed .k, .inv-totals .boxed .v { font-weight: 800; }
+        .inv-totals .pay-rule { border-bottom: 2px solid ${BORDER}; margin: 2px 0 8px; }
         .inv-totals .bal { background: ${PINK}; padding: 8px; margin-top: 8px;
           display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
         .inv-totals .bal .k { text-align: right; font-weight: 700; }
@@ -241,21 +255,30 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
           </div>
 
           <div className="inv-totals">
-            <Total k="SUBTOTAL" v={usd(invoice.subtotal)} />
-            <Total k="SHIPPING/HANDLING/TARIFF" v={usd(invoice.shippingHandlingTariff)} />
-            <Total k="Discount" v={usd(invoice.discount)} />
-            <Total k="TOTAL BEFORE TAX" v={usd(invoice.totalBeforeTax)} />
+            {/*
+              Row order and rules follow the client's template exactly: charges accumulate to a
+              boxed NET TOTAL, tax is shown as rate then amount, and the two combine into the
+              boxed NET TOTAL + Tax that the payment and balance hang off.
+            */}
+            <Total k="SUBTOTAL" v={usd(invoice.subtotal)} vClass="line-bottom" />
+            <Total
+              k="SHIPPING/HANDLING/TARIFF"
+              v={usd(invoice.shippingHandlingTariff)}
+              vClass="line-bottom"
+            />
+            <Total k="Discount" v={usd(invoice.discount)} vClass="line-bottom" />
+            <Total k="NET TOTAL" v={usd(invoice.totalBeforeTax)} className="boxed" />
             <div className="tr">
               <span className="k">
-                SALES <span className="red">TAX</span> ({pct(invoice.taxRate)})
+                SALES <span className="red">TAX</span>
               </span>
-              <span className="v">{usd(invoice.taxAmount)}</span>
+              <span className="v line-bottom">{pct(invoice.taxRate)}</span>
             </div>
-            <div className="tr grand">
-              <span className="k">TOTAL</span>
-              <span className="v">{usd(invoice.grandTotal)}</span>
-            </div>
-            <Total k="AMOUNT PAID" v={usd(invoice.amountPaid)} />
+            <Total k="TAX AMOUNT" v={usd(invoice.taxAmount)} vClass="line-bottom" />
+            <Total k="NET TOTAL + Tax" v={usd(invoice.grandTotal)} className="boxed" />
+            {/* PAYMENT stays blank until something is actually paid, as on the template. */}
+            <Total k="PAYMENT" v={invoice.amountPaid > 0 ? usd(invoice.amountPaid) : ''} />
+            <div className="pay-rule" />
             <div className="bal">
               <span className="k">
                 Balance Due
@@ -296,15 +319,18 @@ const Total = memo(function Total({
   k,
   v,
   className,
+  vClass,
 }: {
   k: string;
   v: string;
   className?: string;
+  /** Which rules this row's value carries: 'line-top', 'line-bottom', or both. */
+  vClass?: string;
 }) {
   return (
     <div className={className ? `tr ${className}` : 'tr'}>
       <span className="k">{k}</span>
-      <span className="v">{v}</span>
+      <span className={vClass ? `v ${vClass}` : 'v'}>{v}</span>
     </div>
   );
 });

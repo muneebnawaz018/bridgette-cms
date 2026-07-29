@@ -18,6 +18,9 @@ const productSchema = new Schema(
     sku: { type: String },
     defaultRate: { type: Number, required: true, min: 0 },
     unit: { type: String },
+    // The material this product is made of. Optional so the catalogue predating fabrics stays
+    // valid; a soft-deleted fabric leaves the ref in place (reads filter it out).
+    fabric: { type: Schema.Types.ObjectId, ref: 'Fabric', index: true },
     description: { type: String },
     notes: { type: String },
 

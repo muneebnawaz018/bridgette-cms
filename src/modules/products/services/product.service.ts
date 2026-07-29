@@ -30,8 +30,24 @@ const LIST_PROJECTION = {
   sku: 1,
   defaultRate: 1,
   unit: 1,
+  fabric: 1,
+  fabricName: '$fabricDoc.name',
+  fabricGsm: '$fabricDoc.gsm',
   createdAt: 1,
 } as const;
+
+// The list shows the fabric by name, so join it in rather than making the grid resolve ids.
+const FABRIC_LOOKUP: PipelineStage[] = [
+  {
+    $lookup: {
+      from: 'fabrics',
+      localField: 'fabric',
+      foreignField: '_id',
+      as: 'fabricDoc',
+    },
+  },
+  { $unwind: { path: '$fabricDoc', preserveNullAndEmptyArrays: true } },
+];
 
 /** A duplicate SKU surfaces as a Mongo 11000; translate it to a field-level message. */
 function isDuplicateKey(err: unknown): boolean {
@@ -48,6 +64,7 @@ export async function listProducts(
 
   const stages: PipelineStage[] = [
     { $match: activeMatch(query.search) },
+    ...FABRIC_LOOKUP,
     { $project: LIST_PROJECTION },
   ];
   return aggregatePaginate<ProductDoc>(
@@ -114,6 +131,7 @@ export async function createProduct(actor: SessionUser, input: ProductCreateInpu
       sku: input.sku,
       defaultRate: input.defaultRate,
       unit: input.unit,
+      fabric: input.fabric,
       description: input.description,
       notes: input.notes,
       createdBy: actor.userId,
@@ -135,6 +153,8 @@ export async function updateProduct(actor: SessionUser, id: string, input: Produ
   if (input.sku !== undefined) doc.sku = input.sku;
   if (input.defaultRate !== undefined) doc.defaultRate = input.defaultRate;
   if (input.unit !== undefined) doc.unit = input.unit;
+  // undefined (field absent) leaves it alone; an explicit blank clears the link.
+  if ('fabric' in input) doc.fabric = (input.fabric ?? null) as unknown as ProductDoc['fabric'];
   if (input.description !== undefined) doc.description = input.description;
   if (input.notes !== undefined) doc.notes = input.notes;
 

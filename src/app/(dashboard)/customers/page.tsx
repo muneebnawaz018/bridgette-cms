@@ -26,10 +26,16 @@ import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { apiDelete } from '@/lib/api/client';
+import { CustomerType, CUSTOMER_TYPE_LABEL } from '@/modules/customers/enums';
+import type { AddressParts } from '@/modules/customers/address';
 
 interface CustomerRow {
   _id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  customerType?: string;
+  addressParts?: AddressParts | null;
   email?: string;
   phone?: string;
   company?: string;
@@ -43,7 +49,7 @@ const TYPE_LABEL: Record<string, string> = { tax: 'US Tax', cash: 'US Cash', pk:
 
 // Name + actions always survive; company goes first as the grid narrows, then phone, then email.
 const CUSTOMER_COLUMN_TIERS: ColumnTiers = {
-  lg: ['company', 'invoiceType'],
+  lg: ['company', 'invoiceType', 'customerType'],
   md: ['phone'],
   sm: ['email'],
 };
@@ -123,8 +129,16 @@ export default function CustomersPage() {
     () => [
       { field: 'name', headerName: 'Name', flex: 1.3, minWidth: 160 },
       {
+        field: 'customerType',
+        headerName: 'Type',
+        flex: 0.8,
+        minWidth: 110,
+        valueGetter: (_v, r) =>
+          r.customerType ? CUSTOMER_TYPE_LABEL[r.customerType as CustomerType] : '—',
+      },
+      {
         field: 'company',
-        headerName: 'Company',
+        headerName: 'Team / business',
         flex: 1.1,
         minWidth: 150,
         valueGetter: (_v, r) => r.company || '—',

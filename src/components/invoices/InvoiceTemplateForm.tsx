@@ -406,29 +406,43 @@ export function InvoiceTemplateForm({
         .tpl-terms { flex: 1; font-size: 12px; }
         .tpl-terms a { color: ${LINK}; text-decoration: underline; word-break: break-all; }
         .tpl-totals { width: 350px; flex-shrink: 0; font-size: 13px; }
-        .tpl-totals .tr { display: flex; justify-content: flex-end; align-items: center; gap: 12px;
-          padding: 6px 0; }
-        .tpl-totals .tr .k { font-weight: 700; text-align: right; font-size: 13px;
-          white-space: nowrap; min-width: 0; }
+        /*
+         * The totals block is a two-column table of fixed-height rows. Every value cell fills its
+         * row, so a rule is always the row's own edge — it can never crowd the number above or
+         * below it, whatever a row contains (text, input, or a box).
+         */
+        .tpl-totals .tr { display: flex; justify-content: flex-end; align-items: stretch;
+          gap: 12px; height: 34px; }
+        /* Kept inline (not a flex box) so "SALES TAX" keeps its word space; centred by align-self. */
+        .tpl-totals .tr .k { flex: 1 1 auto; align-self: center; font-weight: 700;
+          text-align: right; font-size: 13px; white-space: nowrap; min-width: 0; }
         .tpl-totals .tr .k .red { color: ${RED}; }
-        /* Tight inline rate box: needs more specificity than the bare-input reset above, which
-           would otherwise stretch it to width:100% and blow the label out. */
-        .tpl .tpl-totals input.rate-in { width: 38px; flex: none; display: inline-block;
-          border: none; border-bottom: 1px solid ${HAIR}; text-align: center; padding: 0; margin: 0;
-          font-size: 13px; font-weight: 700; vertical-align: baseline; }
-        .tpl-totals .tr .v { flex: 0 0 110px; width: 110px; text-align: right;
-          white-space: nowrap; font-size: 13px;
-          border-bottom: 1px solid ${HAIR}; padding-bottom: 4px; }
-        .tpl-totals .tr .v-in { flex: 0 0 110px; width: 110px; }
-        .tpl-totals .tr .v-in input { border: none; border-bottom: 1px solid ${HAIR};
-          border-radius: 0; text-align: right; padding-bottom: 3px; font-size: 13px; }
+        /* The value box hugs its text: 20px tall (13px text centred → ~3px to each rule) and
+           centred in the 34px row, so a rule sits tight against its own value and level with its
+           own label — 7px clear of the row edge, never near the row above. */
+        .tpl-totals .tr .v, .tpl-totals .tr .v-in { flex: 0 0 110px; width: 110px;
+          align-self: center; height: 20px;
+          display: flex; align-items: center; justify-content: flex-end;
+          text-align: right; white-space: nowrap; font-size: 13px; line-height: 1;
+          padding: 0 6px 0 0; }
+        /* Rules are opt-in per row so the block reads as the template's grouped boxes rather
+           than one underline per line. */
+        .tpl-totals .tr .v.line-top, .tpl-totals .tr .v-in.line-top {
+          border-top: 1px solid ${HAIR}; }
+        .tpl-totals .tr .v.line-bottom, .tpl-totals .tr .v-in.line-bottom {
+          border-bottom: 1px solid ${HAIR}; }
+        .tpl .tpl-totals .tr .v-in input { border: none; border-radius: 0; text-align: right;
+          padding: 0; font-size: 13px; line-height: 1; height: 100%; }
         .tpl-totals .tr .v-in input:focus { background: ${FOCUS}; }
-        /* Rule sits the same 4px off the number as the hairlines above, and the row itself adds no
-           extra margin — so the TOTAL block keeps the 12px rhythm of the rows above it. */
-        .tpl-totals .grand { margin-top: 0; padding-top: 6px; }
-        .tpl-totals .grand .v { border-top: none; border-bottom: 2px solid ${BORDER};
-          padding-top: 0; padding-bottom: 4px; font-weight: 800; font-size: 16px; }
-        .tpl-totals .grand .k { font-size: 16px; }
+        /* The tax rate reads "8.75 %": the input shrinks so the sign sits with the number
+           instead of drifting to the column edge. */
+        .tpl-totals .tr .v-in.pct-in i { font-style: normal; font-size: 13px; padding-left: 4px; }
+        .tpl .tpl-totals .tr .v-in.pct-in input { flex: 1 1 auto; width: auto; min-width: 0; }
+        /* NET TOTAL and NET TOTAL + Tax: the whole row boxed, on the same 34px rhythm. */
+        .tpl-totals .boxed { border: 1.5px solid ${BORDER}; }
+        .tpl-totals .boxed .k { padding-left: 10px; }
+        .tpl-totals .boxed .k, .tpl-totals .boxed .v { font-weight: 800; }
+        .tpl-totals .pay-rule { border-bottom: 2px solid ${BORDER}; margin: 2px 0 8px; }
         .tpl-totals .bal { background: ${PINK}; padding: 8px; margin-top: 8px;
           display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
         .tpl-totals .bal .k { text-align: right; font-weight: 700; }
@@ -694,10 +708,10 @@ export function InvoiceTemplateForm({
             {form.type === InvoiceType.Tax && form.reseller && (
               <div className="tpl-reseller">Reseller — tax-exempt (no sales tax)</div>
             )}
-            <Total k="SUBTOTAL" v={usd(preview.subtotal)} />
+            <Total k="SUBTOTAL" v={usd(preview.subtotal)} vClass="line-bottom" />
             <div className="tr">
               <span className="k">SHIPPING/HANDLING/TARIFF</span>
-              <span className="v-in">
+              <span className="v-in line-bottom">
                 <input
                   type="number"
                   value={form.shippingHandling}
@@ -708,7 +722,7 @@ export function InvoiceTemplateForm({
             </div>
             <div className="tr">
               <span className="k">Discount</span>
-              <span className="v-in">
+              <span className="v-in line-bottom">
                 <input
                   type="number"
                   value={form.discount}
@@ -717,27 +731,30 @@ export function InvoiceTemplateForm({
                 />
               </span>
             </div>
-            <Total k="TOTAL BEFORE TAX" v={usd(preview.totalBeforeTax)} />
-            {/* One tax line: the value is the tax amount, the rate sits inline in the label. */}
+            <Total k="NET TOTAL" v={usd(preview.totalBeforeTax)} className="boxed" />
+            {/* Tax is split across two rows on the template: the rate, then the amount it makes. */}
             <div className="tr">
               <span className="k">
-                SALES <span className="red">TAX</span> (
+                SALES <span className="red">TAX</span>
+              </span>
+              <span className="v-in line-bottom pct-in">
                 <input
-                  className="rate-in"
                   type="number"
                   value={form.taxPercent}
                   disabled={saving || !taxable}
                   onChange={(e) => setField('taxPercent', Number(e.target.value))}
                 />
-                %)
+                <i>%</i>
               </span>
-              <span className="v">{usd(preview.taxAmount)}</span>
             </div>
-            <div className="tr grand">
-              <span className="k">TOTAL</span>
-              <span className="v">{usd(preview.grandTotal)}</span>
+            <div className="tr">
+              <span className="k">TAX AMOUNT</span>
+              <span className="v line-bottom">{usd(preview.taxAmount)}</span>
             </div>
-            <Total k="AMOUNT PAID" v={usd(0)} />
+            <Total k="NET TOTAL + Tax" v={usd(preview.grandTotal)} className="boxed" />
+            {/* Nothing is paid at creation, so PAYMENT stays blank as on the template. */}
+            <Total k="PAYMENT" v="" />
+            <div className="pay-rule" />
             <div className="bal">
               <span className="k">
                 Balance Due
@@ -772,15 +789,18 @@ const Total = memo(function Total({
   k,
   v,
   className,
+  vClass,
 }: {
   k: string;
   v: string;
   className?: string;
+  /** Which rules this row's value carries: 'line-top', 'line-bottom', or both. */
+  vClass?: string;
 }) {
   return (
     <div className={className ? `tr ${className}` : 'tr'}>
       <span className="k">{k}</span>
-      <span className="v">{v}</span>
+      <span className={vClass ? `v ${vClass}` : 'v'}>{v}</span>
     </div>
   );
 });

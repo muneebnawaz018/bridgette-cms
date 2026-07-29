@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import AddBoxRounded from '@mui/icons-material/AddBoxRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
@@ -18,6 +20,7 @@ import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ProductFormDialog, type EditableProduct } from '@/components/products/ProductFormDialog';
+import { FabricsPanel } from '@/components/products/FabricsPanel';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
@@ -30,17 +33,26 @@ interface ProductRow {
   sku: string;
   defaultRate: number;
   unit?: string;
+  /** Fabric id, plus the joined name/GSM the list renders. */
+  fabric?: string | null;
+  fabricName?: string;
+  fabricGsm?: number | null;
   createdAt: string;
 }
 
-// Name + rate + actions always survive; unit goes first as it narrows, then SKU.
+// Name + rate + actions always survive; unit goes first as it narrows, then fabric, then SKU.
 const PRODUCT_COLUMN_TIERS: ColumnTiers = {
   lg: ['unit'],
-  md: ['sku'],
+  md: ['sku', 'fabricName'],
 };
+
+type TabKey = 'products' | 'fabrics';
 
 export default function ProductsPage() {
   const { enqueueSnackbar } = useSnackbar();
+  const [tab, setTab] = useState<TabKey>('products');
+  const [fabricCount, setFabricCount] = useState(0);
+  const [fabricCreateOpen, setFabricCreateOpen] = useState(false);
   const canView = useCan(Permission.ProductView);
   const canCreate = useCan(Permission.ProductCreate);
   const canEdit = useCan(Permission.ProductEdit);
@@ -116,6 +128,19 @@ export default function ProductsPage() {
         valueGetter: (_v, r) => r.sku || '—',
       },
       {
+        field: 'fabricName',
+        headerName: 'Fabric',
+        flex: 1.1,
+        minWidth: 140,
+        sortable: false,
+        valueGetter: (_v, r) =>
+          r.fabricName
+            ? [r.fabricName, r.fabricGsm != null ? `${r.fabricGsm} GSM` : null]
+                .filter(Boolean)
+                .join(' · ')
+            : '—',
+      },
+      {
         field: 'unit',
         headerName: 'Unit',
         flex: 0.7,
@@ -153,65 +178,95 @@ export default function ProductsPage() {
     return <NoAccess message="You do not have permission to view products." />;
   }
 
+  const isFabrics = tab === 'fabrics';
+
   return (
     <Box className="rise-in">
       <PageHeader
-        title="Products"
-        subtitle={`${rowCount} ${rowCount === 1 ? 'product' : 'products'} · catalogue & customer pricing`}
+        title="Products & fabrics"
+        subtitle={
+          isFabrics
+            ? `${fabricCount} ${fabricCount === 1 ? 'fabric' : 'fabrics'} · materials products are made of`
+            : `${rowCount} ${rowCount === 1 ? 'product' : 'products'} · catalogue & customer pricing`
+        }
         actions={
           canCreate && (
-            <Button variant="contained" onClick={openCreate} startIcon={<AddBoxRounded />}>
-              New product
+            <Button
+              variant="contained"
+              onClick={isFabrics ? () => setFabricCreateOpen(true) : openCreate}
+              startIcon={<AddBoxRounded />}
+            >
+              {isFabrics ? 'New fabric' : 'New product'}
             </Button>
           )
         }
       />
 
-      <Box sx={{ mb: 2 }}>
-        <SearchBar
-          value={searchInput}
-          onChange={setSearchInput}
-          placeholder="Search by name or SKU"
+      <Tabs
+        value={tab}
+        onChange={(_e, v: TabKey) => setTab(v)}
+        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab value="products" label="Products" />
+        <Tab value="fabrics" label="Fabrics" />
+      </Tabs>
+
+      {isFabrics && (
+        <FabricsPanel
+          createOpen={fabricCreateOpen}
+          onCreateClose={() => setFabricCreateOpen(false)}
+          onCountChange={setFabricCount}
+        />
+      )}
+
+      {/* Hidden rather than unmounted, so switching tabs keeps the grid's page and search. */}
+      <Box sx={{ display: isFabrics ? 'none' : 'block' }}>
+        <Box sx={{ mb: 2 }}>
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search by name or SKU"
+          />
+        </Box>
+
+        <Paper sx={{ p: 0, overflow: 'hidden' }}>
+          <DataTable
+            rows={rows}
+            columns={columns}
+            getRowId={(r) => r._id}
+            loading={isLoading}
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
+            columnVisibilityModel={columnVisibility}
+          />
+        </Paper>
+
+        <ProductFormDialog
+          open={formOpen}
+          product={formProduct}
+          onClose={() => setFormOpen(false)}
+          onSaved={() => void mutate()}
+        />
+
+        <ConfirmDialog
+          open={Boolean(toDelete)}
+          title="Delete this product?"
+          description={
+            <>
+              {toDelete?.name} will be removed from the catalogue and its negotiated rates cleared.
+              Existing invoices are unaffected.
+            </>
+          }
+          confirmLabel="Delete"
+          confirmIcon={<DeleteOutlineRounded />}
+          confirmColor="error"
+          loading={deleting}
+          onConfirm={confirmDelete}
+          onClose={() => setToDelete(null)}
         />
       </Box>
-
-      <Paper sx={{ p: 0, overflow: 'hidden' }}>
-        <DataTable
-          rows={rows}
-          columns={columns}
-          getRowId={(r) => r._id}
-          loading={isLoading}
-          rowCount={rowCount}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
-          columnVisibilityModel={columnVisibility}
-        />
-      </Paper>
-
-      <ProductFormDialog
-        open={formOpen}
-        product={formProduct}
-        onClose={() => setFormOpen(false)}
-        onSaved={() => void mutate()}
-      />
-
-      <ConfirmDialog
-        open={Boolean(toDelete)}
-        title="Delete this product?"
-        description={
-          <>
-            {toDelete?.name} will be removed from the catalogue and its negotiated rates cleared.
-            Existing invoices are unaffected.
-          </>
-        }
-        confirmLabel="Delete"
-        confirmIcon={<DeleteOutlineRounded />}
-        confirmColor="error"
-        loading={deleting}
-        onConfirm={confirmDelete}
-        onClose={() => setToDelete(null)}
-      />
     </Box>
   );
 }

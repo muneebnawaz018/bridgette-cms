@@ -5,6 +5,8 @@ import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
 import { Customer, type CustomerDoc } from '../models/customer.model';
+import { CustomerType } from '../enums';
+import { formatAddress, isBlankAddress } from '../address';
 import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
 
 /**
@@ -23,6 +25,10 @@ function activeMatch(search?: string): Record<string, unknown> {
 
 const LIST_PROJECTION = {
   name: 1,
+  firstName: 1,
+  lastName: 1,
+  customerType: 1,
+  addressParts: 1,
   email: 1,
   phone: 1,
   company: 1,
@@ -101,18 +107,42 @@ export async function getCustomer(actor: SessionUser, id: string) {
   return doc;
 }
 
+/** "First Last" when the parts are given, else whatever full name the caller sent. */
+function fullName(input: {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+}): string | undefined {
+  const joined = [input.firstName, input.lastName].filter(Boolean).join(' ').trim();
+  return joined || input.name;
+}
+
+/**
+ * The printable address. A filled-in structured address always wins, so the flat string can
+ * never drift from the parts; an explicit `address` is only used when there are no parts.
+ */
+function printableAddress(input: CustomerCreateInput): string | undefined {
+  if (!isBlankAddress(input.addressParts)) return formatAddress(input.addressParts);
+  return input.address;
+}
+
 /** Create a customer. Admin only. */
 export async function createCustomer(actor: SessionUser, input: CustomerCreateInput) {
   assertCan(actor.role, Permission.CustomerCreate);
   await connectDb();
   const doc = await Customer.create({
-    name: input.name,
+    name: fullName(input),
+    firstName: input.firstName,
+    lastName: input.lastName,
     email: input.email,
     phone: input.phone,
     company: input.company,
-    address: input.address,
+    customerType: input.customerType,
+    address: printableAddress(input),
+    addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
     notes: input.notes,
-    reseller: input.reseller ?? false,
+    // The Reseller account type IS the tax-exempt flag; an explicit flag still wins.
+    reseller: input.reseller ?? input.customerType === CustomerType.Reseller,
     invoiceType: input.invoiceType,
     createdBy: actor.userId,
   });
@@ -126,11 +156,27 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   const doc = await Customer.findById(id);
   if (!doc || doc.isDeleted) throw new Error('Customer not found');
 
-  if (input.name !== undefined) doc.name = input.name;
+  if (input.firstName !== undefined) doc.firstName = input.firstName;
+  if (input.lastName !== undefined) doc.lastName = input.lastName;
+  // Re-derive the full name from whatever the record now holds, so editing just the last name
+  // still updates it; a caller sending only `name` keeps setting it directly.
+  const derived = fullName({
+    name: input.name,
+    firstName: input.firstName ?? doc.firstName ?? undefined,
+    lastName: input.lastName ?? doc.lastName ?? undefined,
+  });
+  if (derived) doc.name = derived;
   if (input.email !== undefined) doc.email = input.email;
   if (input.phone !== undefined) doc.phone = input.phone;
   if (input.company !== undefined) doc.company = input.company;
-  if (input.address !== undefined) doc.address = input.address;
+  if (input.customerType !== undefined) doc.customerType = input.customerType;
+  if (input.addressParts !== undefined) {
+    const blank = isBlankAddress(input.addressParts);
+    doc.addressParts = (blank ? undefined : input.addressParts) as CustomerDoc['addressParts'];
+    doc.address = blank ? (input.address ?? '') : formatAddress(input.addressParts);
+  } else if (input.address !== undefined) {
+    doc.address = input.address;
+  }
   if (input.notes !== undefined) doc.notes = input.notes;
   if (input.reseller !== undefined) doc.reseller = input.reseller;
   if (input.invoiceType !== undefined) doc.invoiceType = input.invoiceType;

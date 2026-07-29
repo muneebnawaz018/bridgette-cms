@@ -15,6 +15,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { Modal } from '@/components/ui/Modal';
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { customerFormSchema } from '@/modules/customers/schemas';
+import { CustomerType, CUSTOMER_TYPE_LABEL } from '@/modules/customers/enums';
+import { US_STATES, type AddressParts } from '@/modules/customers/address';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
@@ -28,21 +30,32 @@ import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/e
 export interface EditableCustomer {
   _id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
   company?: string;
+  customerType?: string;
   address?: string;
+  addressParts?: AddressParts | null;
   notes?: string;
   reseller?: boolean;
   invoiceType?: string;
 }
 
 interface FormValues {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
   company: string;
-  address: string;
+  customerType: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  zip: string;
+  zipPlus4: string;
   notes: string;
   reseller: boolean;
   invoiceType: string;
@@ -55,26 +68,65 @@ const TYPE_OPTIONS: SelectOption[] = [
   { value: InvoiceType.PK, label: 'Pakistan' },
 ];
 
-type TextKey = 'name' | 'email' | 'phone' | 'company' | 'address' | 'notes';
+const CUSTOMER_TYPE_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Not set' },
+  ...Object.values(CustomerType).map((t) => ({ value: t, label: CUSTOMER_TYPE_LABEL[t] })),
+];
+
+const STATE_OPTIONS: SelectOption[] = [
+  { value: '', label: 'No state' },
+  ...US_STATES.map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` })),
+];
+
+type TextKey =
+  | 'firstName'
+  | 'lastName'
+  | 'email'
+  | 'phone'
+  | 'company'
+  | 'line1'
+  | 'line2'
+  | 'city'
+  | 'zip'
+  | 'zipPlus4'
+  | 'notes';
 
 const EMPTY: FormValues = {
-  name: '',
+  firstName: '',
+  lastName: '',
   email: '',
   phone: '',
   company: '',
-  address: '',
+  customerType: '',
+  line1: '',
+  line2: '',
+  city: '',
+  state: '',
+  zip: '',
+  zipPlus4: '',
   notes: '',
   reseller: false,
   invoiceType: '',
 };
 
 function valuesFromCustomer(c: EditableCustomer): FormValues {
+  // Records created before first/last existed only have the full name — split it so the form
+  // shows something sensible rather than two empty boxes.
+  const [fallbackFirst = '', ...restName] = (c.name ?? '').trim().split(/\s+/);
+  const a = c.addressParts ?? {};
   return {
-    name: c.name ?? '',
+    firstName: c.firstName ?? fallbackFirst,
+    lastName: c.lastName ?? restName.join(' '),
     email: c.email ?? '',
     phone: c.phone ?? '',
     company: c.company ?? '',
-    address: c.address ?? '',
+    customerType: c.customerType ?? '',
+    line1: a.line1 ?? '',
+    line2: a.line2 ?? '',
+    city: a.city ?? '',
+    state: a.state ?? '',
+    zip: a.zip ?? '',
+    zipPlus4: a.zipPlus4 ?? '',
     notes: c.notes ?? '',
     reseller: c.reseller ?? false,
     invoiceType: c.invoiceType ?? '',
@@ -84,11 +136,21 @@ function valuesFromCustomer(c: EditableCustomer): FormValues {
 /** Blank optional fields go as undefined so an empty box never stores "". */
 function buildPayload(f: FormValues) {
   return {
-    name: f.name.trim(),
+    firstName: f.firstName.trim(),
+    lastName: f.lastName.trim() || undefined,
     email: f.email.trim() || undefined,
     phone: f.phone.trim() || undefined,
     company: f.company.trim() || undefined,
-    address: f.address.trim() || undefined,
+    customerType: (f.customerType || undefined) as CustomerType | undefined,
+    // Always sent, so clearing every box actually clears the stored address.
+    addressParts: {
+      line1: f.line1.trim() || undefined,
+      line2: f.line2.trim() || undefined,
+      city: f.city.trim() || undefined,
+      state: f.state || undefined,
+      zip: f.zip.trim() || undefined,
+      zipPlus4: f.zipPlus4.trim() || undefined,
+    },
     notes: f.notes.trim() || undefined,
     reseller: f.reseller,
     invoiceType: (f.invoiceType || undefined) as InvoiceType | undefined,
@@ -120,6 +182,8 @@ export function CustomerFormDialog({
   // These two need a render to reflect a pick, so they live in state (mirrored into valuesRef).
   const [reseller, setReseller] = useState(false);
   const [invoiceType, setInvoiceType] = useState('');
+  const [customerType, setCustomerType] = useState('');
+  const [state, setState] = useState('');
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -128,6 +192,8 @@ export function CustomerFormDialog({
     setInitial(next);
     setReseller(next.reseller);
     setInvoiceType(next.invoiceType);
+    setCustomerType(next.customerType);
+    setState(next.state);
     setErrors({});
     setTouched({});
     setSubmitted(false);
@@ -141,6 +207,20 @@ export function CustomerFormDialog({
   const pickType = useCallback((_name: string, v: string) => {
     valuesRef.current.invoiceType = v;
     setInvoiceType(v);
+  }, []);
+  // Reseller is the tax-exempt flag, so picking that account type ticks it here too — the admin
+  // can still untick it afterwards.
+  const pickCustomerType = useCallback((_name: string, v: string) => {
+    valuesRef.current.customerType = v;
+    setCustomerType(v);
+    if (v === CustomerType.Reseller) {
+      valuesRef.current.reseller = true;
+      setReseller(true);
+    }
+  }, []);
+  const pickState = useCallback((_name: string, v: string) => {
+    valuesRef.current.state = v;
+    setState(v);
   }, []);
 
   const validate = useCallback((f: FormValues): FieldErrors => {
@@ -241,15 +321,27 @@ export function CustomerFormDialog({
       <Stack key={formKey} spacing={3}>
         <FormSection title="Basic details">
           <Grid container spacing={2}>
-            <Grid size={12}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextInput
-                name="name"
-                label="Name"
-                defaultValue={initial.name}
-                helperText={shown('name')}
-                error={Boolean(shown('name'))}
+                name="firstName"
+                label="First name"
+                defaultValue={initial.firstName}
+                helperText={shown('firstName')}
+                error={Boolean(shown('firstName'))}
                 required
                 autoFocus={!isEdit}
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextInput
+                name="lastName"
+                label="Last name"
+                defaultValue={initial.lastName}
+                helperText={shown('lastName')}
+                error={Boolean(shown('lastName'))}
                 disabled={saving}
                 onChange={setText}
                 onBlur={blurField}
@@ -280,10 +372,10 @@ export function CustomerFormDialog({
                 onBlur={blurField}
               />
             </Grid>
-            <Grid size={12}>
+            <Grid size={{ xs: 12, sm: 7 }}>
               <TextInput
                 name="company"
-                label="Company"
+                label="Team / business name"
                 defaultValue={initial.company}
                 helperText={shown('company')}
                 error={Boolean(shown('company'))}
@@ -293,16 +385,93 @@ export function CustomerFormDialog({
                 onBlur={blurField}
               />
             </Grid>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <SelectInput
+                name="customerType"
+                label="Customer type"
+                value={customerType}
+                options={CUSTOMER_TYPE_OPTIONS}
+                disabled={saving}
+                onChange={pickCustomerType}
+              />
+            </Grid>
+          </Grid>
+        </FormSection>
+
+        <FormSection title="Address">
+          <Grid container spacing={2}>
             <Grid size={12}>
               <TextInput
-                name="address"
-                label="Address"
-                defaultValue={initial.address}
-                helperText={shown('address')}
-                error={Boolean(shown('address'))}
+                name="line1"
+                label="Street address"
+                defaultValue={initial.line1}
+                helperText={shown('line1') ?? 'House number and street'}
+                error={Boolean(shown('line1'))}
                 disabled={saving}
-                multiline
-                minRows={2}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={12}>
+              <TextInput
+                name="line2"
+                label="Apt / suite / unit"
+                defaultValue={initial.line2}
+                helperText={shown('line2')}
+                error={Boolean(shown('line2'))}
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <TextInput
+                name="city"
+                label="City"
+                defaultValue={initial.city}
+                helperText={shown('city')}
+                error={Boolean(shown('city'))}
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 3 }}>
+              <SelectInput
+                name="state"
+                label="State"
+                value={state}
+                options={STATE_OPTIONS}
+                helperText={shown('state')}
+                error={Boolean(shown('state'))}
+                disabled={saving}
+                onChange={pickState}
+              />
+            </Grid>
+            <Grid size={{ xs: 7, sm: 2 }}>
+              <TextInput
+                name="zip"
+                label="ZIP"
+                defaultValue={initial.zip}
+                helperText={shown('zip')}
+                error={Boolean(shown('zip'))}
+                inputMode="numeric"
+                maxLength={5}
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 5, sm: 2 }}>
+              <TextInput
+                name="zipPlus4"
+                label="+4"
+                defaultValue={initial.zipPlus4}
+                helperText={shown('zipPlus4') ?? 'Optional'}
+                error={Boolean(shown('zipPlus4'))}
+                inputMode="numeric"
+                maxLength={4}
+                disabled={saving}
                 onChange={setText}
                 onBlur={blurField}
               />
