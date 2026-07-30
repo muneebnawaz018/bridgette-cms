@@ -6,7 +6,7 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
-import AddBoxRounded from '@mui/icons-material/AddBoxRounded';
+import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
@@ -225,7 +225,7 @@ export function ProductFormDialog({
           ? 'Update the catalogue entry and its per-customer pricing.'
           : 'Add a catalogue item. Set per-customer rates after saving.'
       }
-      icon={isEdit ? <EditRounded /> : <AddBoxRounded />}
+      icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="sm"
       busy={saving}
       actions={
@@ -243,7 +243,7 @@ export function ProductFormDialog({
             variant="contained"
             onClick={submit}
             disabled={saving}
-            startIcon={isEdit ? <SaveRounded /> : <AddBoxRounded />}
+            startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
           >
             {isEdit ? 'Save' : 'Create'}
           </Button>

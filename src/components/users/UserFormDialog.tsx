@@ -6,7 +6,7 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
-import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
+import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
@@ -359,7 +359,7 @@ export function UserFormDialog({
       description={
         isEdit ? 'Changes take effect immediately.' : 'They get an email to set a password.'
       }
-      icon={isEdit ? <EditRounded /> : <PersonAddRounded />}
+      icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="sm"
       busy={saving}
       actions={
@@ -378,7 +378,7 @@ export function UserFormDialog({
             variant="contained"
             onClick={submit}
             disabled={saving}
-            startIcon={isEdit ? <SaveRounded /> : <PersonAddRounded />}
+            startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
           >
             {isEdit ? 'Save' : 'Create'}
           </Button>

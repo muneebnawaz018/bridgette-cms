@@ -6,7 +6,7 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
-import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
+import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import Grid2 from '@mui/material/Grid2';
@@ -293,7 +293,7 @@ export function CustomerFormDialog({
           ? 'Changes apply to future invoices that pick this customer.'
           : 'Add a reusable customer any role can pick on an invoice.'
       }
-      icon={isEdit ? <EditRounded /> : <PersonAddRounded />}
+      icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="sm"
       busy={saving}
       actions={
@@ -311,7 +311,7 @@ export function CustomerFormDialog({
             variant="contained"
             onClick={submit}
             disabled={saving}
-            startIcon={isEdit ? <SaveRounded /> : <PersonAddRounded />}
+            startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
           >
             {isEdit ? 'Save' : 'Create'}
           </Button>

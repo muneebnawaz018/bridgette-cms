@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
-import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
+import AddRounded from '@mui/icons-material/AddRounded';
 import BlockRounded from '@mui/icons-material/BlockRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -330,7 +330,7 @@ export default function UsersPage() {
         subtitle={`${rowCount} ${rowCount === 1 ? 'member' : 'members'} · manage access and roles`}
         actions={
           canCreate && (
-            <Button variant="contained" onClick={openCreate} startIcon={<PersonAddRounded />}>
+            <Button variant="contained" onClick={openCreate} startIcon={<AddRounded />}>
               New user
             </Button>
           )

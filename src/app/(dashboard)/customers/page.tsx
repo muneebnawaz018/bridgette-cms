@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
-import PersonAddRounded from '@mui/icons-material/PersonAddRounded';
+import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -195,7 +195,7 @@ export default function CustomersPage() {
         subtitle={`${rowCount} ${rowCount === 1 ? 'customer' : 'customers'} · reusable billing parties`}
         actions={
           canCreate && (
-            <Button variant="contained" onClick={openCreate} startIcon={<PersonAddRounded />}>
+            <Button variant="contained" onClick={openCreate} startIcon={<AddRounded />}>
               New customer
             </Button>
           )

@@ -6,7 +6,7 @@ import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import AddBoxRounded from '@mui/icons-material/AddBoxRounded';
+import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -194,7 +194,7 @@ export default function ProductsPage() {
             <Button
               variant="contained"
               onClick={isFabrics ? () => setFabricCreateOpen(true) : openCreate}
-              startIcon={<AddBoxRounded />}
+              startIcon={<AddRounded />}
             >
               {isFabrics ? 'New fabric' : 'New product'}
             </Button>
