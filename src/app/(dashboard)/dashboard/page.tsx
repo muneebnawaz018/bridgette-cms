@@ -102,7 +102,7 @@ function StateChip({ state, sx }: { state: string; sx?: SxProps<Theme> }) {
         bgcolor: c.bg,
         color: c.fg,
         fontWeight: 600,
-        borderRadius: 2,
+        borderRadius: 1,
         '& .MuiChip-label': { px: 1 },
         ...sx,
       }}
@@ -159,7 +159,7 @@ function TypeStatCard({
           sx={{
             width: 44,
             height: 44,
-            borderRadius: 2.5,
+            borderRadius: 1,
             display: 'grid',
             placeItems: 'center',
             bgcolor: redA(0.1),

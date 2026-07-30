@@ -8,7 +8,6 @@ export {
   updateCustomer,
   deleteCustomer,
 } from './services/customer.service';
-export { CustomerType, CUSTOMER_TYPE_LABEL } from './enums';
 export {
   US_STATES,
   formatAddress,

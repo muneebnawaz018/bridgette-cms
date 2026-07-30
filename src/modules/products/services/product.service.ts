@@ -133,7 +133,6 @@ export async function createProduct(actor: SessionUser, input: ProductCreateInpu
       unit: input.unit,
       fabric: input.fabric,
       description: input.description,
-      notes: input.notes,
       createdBy: actor.userId,
     });
     return doc.toObject();
@@ -153,10 +152,9 @@ export async function updateProduct(actor: SessionUser, id: string, input: Produ
   if (input.sku !== undefined) doc.sku = input.sku;
   if (input.defaultRate !== undefined) doc.defaultRate = input.defaultRate;
   if (input.unit !== undefined) doc.unit = input.unit;
-  // undefined (field absent) leaves it alone; an explicit blank clears the link.
-  if ('fabric' in input) doc.fabric = (input.fabric ?? null) as unknown as ProductDoc['fabric'];
+  // Absent leaves it alone; the schema guarantees a present value is a real id (never blank).
+  if (input.fabric !== undefined) doc.fabric = input.fabric as unknown as ProductDoc['fabric'];
   if (input.description !== undefined) doc.description = input.description;
-  if (input.notes !== undefined) doc.notes = input.notes;
 
   try {
     await doc.save();

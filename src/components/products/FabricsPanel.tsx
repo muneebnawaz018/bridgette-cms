@@ -9,6 +9,7 @@ import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
 import { useCan } from '@/components/auth/SessionProvider';
 import { DataTable } from '@/components/ui/DataTable';
+import { useBreakpointColumns, type ColumnTiers } from '@/lib/ui/useBreakpointColumns';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -23,6 +24,11 @@ import { apiDelete } from '@/lib/api/client';
  * parent owns the "New fabric" button (it lives in the page header) and drives it through the
  * `createOpen` pair so both entry points share one dialog.
  */
+
+// Name + GSM + actions fit the 288px a 320px phone leaves; type goes below sm.
+const FABRIC_COLUMN_TIERS: ColumnTiers = {
+  sm: ['type'],
+};
 
 interface FabricRow {
   _id: string;
@@ -44,6 +50,8 @@ export function FabricsPanel({
   const { enqueueSnackbar } = useSnackbar();
   const canEdit = useCan(Permission.ProductEdit);
   const canDelete = useCan(Permission.ProductDelete);
+
+  const columnVisibility = useBreakpointColumns(FABRIC_COLUMN_TIERS);
 
   const { pageSize } = usePreferences();
   const [searchInput, setSearchInput] = useState('');
@@ -105,25 +113,25 @@ export function FabricsPanel({
     () => [
       // Three data columns only, so keep the flexes near-equal — a dominant Name column makes
       // the grid read as one wide column with leftovers.
-      { field: 'name', headerName: 'Name', flex: 1.1, minWidth: 160 },
+      { field: 'name', headerName: 'Name', flex: 1.1, minWidth: 130 },
       {
         field: 'gsm',
         headerName: 'GSM',
         flex: 0.7,
-        minWidth: 90,
+        minWidth: 80,
         valueGetter: (_v, r) => (r.gsm != null ? String(r.gsm) : '—'),
       },
       {
         field: 'type',
         headerName: 'Type',
         flex: 1,
-        minWidth: 140,
+        minWidth: 120,
         valueGetter: (_v, r) => r.type || '—',
       },
       {
         field: 'actions',
         headerName: '',
-        width: 64,
+        width: 56,
         sortable: false,
         renderCell: (p) => {
           const actions: RowAction[] = [];
@@ -158,6 +166,7 @@ export function FabricsPanel({
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
+          columnVisibilityModel={columnVisibility}
         />
       </Paper>
 

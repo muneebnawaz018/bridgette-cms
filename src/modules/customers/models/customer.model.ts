@@ -1,13 +1,12 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
 import { InvoiceType } from '@/modules/invoicing/enums';
-import { CustomerType } from '../enums';
 
 const { Schema, model, models } = mongoose;
 
 /**
  * Customer — a reusable billing party. Admins maintain the record; every role reads it to fill
  * an invoice's `billTo`. Fields align with the invoice `partySchema` (name/email/phone/address)
- * so a customer can populate that block directly, plus `company` for the account name.
+ * so a customer can populate that block directly.
  *
  * Customers are shared company-wide (no per-user ownership scoping) and never hard-deleted — a
  * removed customer is soft-deleted so invoices that referenced it keep an intact audit trail.
@@ -22,11 +21,6 @@ const customerSchema = new Schema(
     lastName: { type: String },
     email: { type: String },
     phone: { type: String },
-    // The customer's team / business name.
-    company: { type: String },
-    // What kind of account this is. Free of the tax logic: `reseller` below still drives
-    // tax exemption, and picking the Reseller type sets it.
-    customerType: { type: String, enum: Object.values(CustomerType) },
     // The printable one-line address invoices use. Derived from `addressParts` whenever those
     // are filled in, so the two can never drift; still writable on its own for records that
     // predate the structured form.
@@ -35,6 +29,9 @@ const customerSchema = new Schema(
     addressParts: {
       type: new Schema(
         {
+          // 'US' (the default) or 'PK'. Same field set either way; only the state list and the
+          // US-only +4 add-on differ. Absent on rows that predate the field = US.
+          country: { type: String, enum: ['US', 'PK'] },
           line1: { type: String },
           line2: { type: String },
           city: { type: String },
@@ -67,7 +64,7 @@ const customerSchema = new Schema(
   { timestamps: true },
 );
 
-// List is name-sorted and search matches name/email/company; index the active set by name.
+// List is name-sorted and search matches name/email; index the active set by name.
 customerSchema.index({ isDeleted: 1, name: 1 });
 customerSchema.index({ email: 1 });
 

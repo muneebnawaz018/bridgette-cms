@@ -13,8 +13,9 @@ const { Schema, model, models } = mongoose;
 const productSchema = new Schema(
   {
     name: { type: String, required: true, index: true },
-    // Optional. Unique among live products that HAVE one (partial index below); products with no
-    // SKU store the field as undefined so they are simply left out of the unique index.
+    // Mandatory on create/edit (enforced in the zod schemas) and unique among live products.
+    // Not `required` here so rows predating the rule still load; they must gain a SKU on their
+    // next edit. The partial index below keeps those legacy SKU-less rows from colliding.
     sku: { type: String },
     defaultRate: { type: Number, required: true, min: 0 },
     unit: { type: String },
@@ -22,7 +23,6 @@ const productSchema = new Schema(
     // valid; a soft-deleted fabric leaves the ref in place (reads filter it out).
     fabric: { type: Schema.Types.ObjectId, ref: 'Fabric', index: true },
     description: { type: String },
-    notes: { type: String },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
 
@@ -39,7 +39,13 @@ const productSchema = new Schema(
 // soft-deleted SKU also drops out, so it can be reused.
 productSchema.index(
   { sku: 1 },
-  { unique: true, partialFilterExpression: { isDeleted: false, sku: { $exists: true } } },
+  {
+    // Unique among live products with a NON-EMPTY sku. `$exists` alone still indexed docs
+    // holding '' or null (e.g. seeded rows), which made every SKU-less product collide with
+    // them. $gt: '' keeps only real strings ($ne isn't allowed in a partial filter).
+    unique: true,
+    partialFilterExpression: { isDeleted: false, sku: { $type: 'string', $gt: '' } },
+  },
 );
 productSchema.index({ isDeleted: 1, name: 1 });
 

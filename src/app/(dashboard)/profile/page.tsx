@@ -25,7 +25,7 @@ const badgeSx = {
   fontWeight: 700,
   fontSize: '0.82rem',
   height: 32,
-  borderRadius: 2,
+  borderRadius: 1,
   '& .MuiChip-label': { px: 1.5 },
 } as const;
 const neutralBadgeSx = { ...badgeSx, bgcolor: colors.surface.subtle, color: colors.ink[500] };

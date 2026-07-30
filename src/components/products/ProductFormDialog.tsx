@@ -9,8 +9,10 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
+import Autocomplete from '@mui/material/Autocomplete';
+import TextField from '@mui/material/TextField';
 import { Modal } from '@/components/ui/Modal';
-import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
+import { FormSection, TextInput, type SelectOption } from '@/components/form/fields';
 import { ProductRatesEditor } from '@/components/products/ProductRatesEditor';
 import { productFormSchema } from '@/modules/products/schemas';
 import { useApi } from '@/lib/api/useApi';
@@ -32,7 +34,6 @@ export interface EditableProduct {
   /** Fabric id, when the product is linked to one. */
   fabric?: string | null;
   description?: string;
-  notes?: string;
 }
 
 interface FabricOption {
@@ -49,7 +50,6 @@ interface FormValues {
   unit: string;
   fabric: string;
   description: string;
-  notes: string;
 }
 
 type FieldKey = keyof FormValues;
@@ -61,7 +61,6 @@ const EMPTY: FormValues = {
   unit: '',
   fabric: '',
   description: '',
-  notes: '',
 };
 
 function valuesFromProduct(p: EditableProduct): FormValues {
@@ -72,7 +71,6 @@ function valuesFromProduct(p: EditableProduct): FormValues {
     unit: p.unit ?? '',
     fabric: p.fabric ? String(p.fabric) : '',
     description: p.description ?? '',
-    notes: p.notes ?? '',
   };
 }
 
@@ -86,7 +84,6 @@ function buildPayload(f: FormValues) {
     // Sent as '' rather than omitted so clearing the picker actually unlinks the fabric.
     fabric: f.fabric,
     description: f.description.trim() || undefined,
-    notes: f.notes.trim() || undefined,
   };
 }
 
@@ -123,15 +120,14 @@ export function ProductFormDialog({
   const [fabric, setFabric] = useState('');
 
   // Only fetched while the dialog is open — the catalogue list itself has no use for it.
-  const { data: fabricData } = useApi<{ items: FabricOption[] }>(
+  // globalLoading off: the fetch shows as the picker's own loading state, not an app overlay
+  // dropped over the dialog.
+  const { data: fabricData, isLoading: fabricsLoading } = useApi<{ items: FabricOption[] }>(
     open ? '/api/fabrics/options' : null,
     { globalLoading: false },
   );
   const fabricOptions: SelectOption[] = useMemo(
-    () => [
-      { value: '', label: 'No fabric' },
-      ...(fabricData?.items ?? []).map((f) => ({ value: f._id, label: fabricLabel(f) })),
-    ],
+    () => (fabricData?.items ?? []).map((f) => ({ value: f._id, label: fabricLabel(f) })),
     [fabricData],
   );
 
@@ -257,6 +253,7 @@ export function ProductFormDialog({
               <TextInput
                 name="name"
                 label="Name"
+                placeholder="e.g. Classic Polo Shirt"
                 defaultValue={initial.name}
                 helperText={shown('name')}
                 error={Boolean(shown('name'))}
@@ -271,9 +268,11 @@ export function ProductFormDialog({
               <TextInput
                 name="sku"
                 label="SKU / code"
+                placeholder="e.g. BR-1001"
                 defaultValue={initial.sku}
-                helperText={shown('sku') ?? 'Optional — unique if set'}
+                helperText={shown('sku') ?? 'Unique product code'}
                 error={Boolean(shown('sku'))}
+                required
                 disabled={saving}
                 onChange={setText}
                 onBlur={blurField}
@@ -283,6 +282,7 @@ export function ProductFormDialog({
               <TextInput
                 name="defaultRate"
                 label="Default rate (USD)"
+                placeholder="e.g. 12.50"
                 defaultValue={initial.defaultRate}
                 helperText={
                   shown('defaultRate') ?? 'The rate anyone without a negotiated price pays'
@@ -296,15 +296,27 @@ export function ProductFormDialog({
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <SelectInput
-                name="fabric"
-                label="Fabric"
-                value={fabric}
+              {/* Type-to-search, like the invoice line and customer pickers — a plain dropdown
+                  stops working once the fabric list grows past a few dozen. */}
+              <Autocomplete
                 options={fabricOptions}
-                helperText={shown('fabric') ?? 'The material this product is made of'}
-                error={Boolean(shown('fabric'))}
+                getOptionLabel={(o) => o.label}
+                isOptionEqualToValue={(o, v) => o.value === v.value}
+                value={fabricOptions.find((o) => o.value === fabric) ?? null}
+                onChange={(_e, picked) => pickFabric('fabric', picked?.value ?? '')}
+                loading={fabricsLoading}
                 disabled={saving}
-                onChange={pickFabric}
+                noOptionsText={fabricOptions.length === 0 ? 'No fabrics yet' : 'No match'}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Fabric"
+                    required
+                    placeholder={fabricsLoading ? 'Loading fabrics…' : 'Search fabrics'}
+                    helperText={shown('fabric') ?? 'The material this product is made of'}
+                    error={Boolean(shown('fabric'))}
+                  />
+                )}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -324,6 +336,7 @@ export function ProductFormDialog({
               <TextInput
                 name="description"
                 label="Description"
+                placeholder="What this product is, as it should read on records"
                 defaultValue={initial.description}
                 helperText={shown('description')}
                 error={Boolean(shown('description'))}
@@ -342,22 +355,6 @@ export function ProductFormDialog({
             <ProductRatesEditor productId={product._id} defaultRate={product.defaultRate} />
           </FormSection>
         )}
-
-        <FormSection title="Internal notes">
-          <TextInput
-            name="notes"
-            label="Notes"
-            defaultValue={initial.notes}
-            helperText={shown('notes')}
-            error={Boolean(shown('notes'))}
-            disabled={saving}
-            multiline
-            minRows={2}
-            placeholder="Only visible to admins"
-            onChange={setText}
-            onBlur={blurField}
-          />
-        </FormSection>
       </Stack>
     </Modal>
   );

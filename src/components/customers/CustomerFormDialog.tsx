@@ -9,14 +9,12 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
-import Grid2 from '@mui/material/Grid2';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import { Modal } from '@/components/ui/Modal';
+import { PhoneField } from '@/components/ui/PhoneField';
+import { splitPhone } from '@/lib/format/countries';
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
-import { customerFormSchema } from '@/modules/customers/schemas';
-import { CustomerType, CUSTOMER_TYPE_LABEL } from '@/modules/customers/enums';
-import { US_STATES, type AddressParts } from '@/modules/customers/address';
+import { customerFormSchemaChecked } from '@/modules/customers/schemas';
+import { statesFor, type AddressParts } from '@/modules/customers/address';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
@@ -34,8 +32,6 @@ export interface EditableCustomer {
   lastName?: string;
   email?: string;
   phone?: string;
-  company?: string;
-  customerType?: string;
   address?: string;
   addressParts?: AddressParts | null;
   notes?: string;
@@ -48,8 +44,7 @@ interface FormValues {
   lastName: string;
   email: string;
   phone: string;
-  company: string;
-  customerType: string;
+  country: 'US' | 'PK';
   line1: string;
   line2: string;
   city: string;
@@ -68,22 +63,28 @@ const TYPE_OPTIONS: SelectOption[] = [
   { value: InvoiceType.PK, label: 'Pakistan' },
 ];
 
-const CUSTOMER_TYPE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Not set' },
-  ...Object.values(CustomerType).map((t) => ({ value: t, label: CUSTOMER_TYPE_LABEL[t] })),
+/** Reseller drives tax exemption; a dropdown reads better than a lone checkbox in this row. */
+const RESELLER_OPTIONS: SelectOption[] = [
+  { value: 'no', label: 'No — charges sales tax' },
+  { value: 'yes', label: 'Yes — tax-exempt' },
 ];
 
-const STATE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'No state' },
-  ...US_STATES.map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` })),
+const COUNTRY_OPTIONS: SelectOption[] = [
+  { value: 'US', label: 'United States' },
+  { value: 'PK', label: 'Pakistan' },
 ];
+
+/** US states or PK provinces, same shape either way. */
+const STATE_OPTIONS: Record<'US' | 'PK', SelectOption[]> = {
+  US: statesFor('US').map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` })),
+  PK: statesFor('PK').map((s) => ({ value: s.code, label: s.name })),
+};
 
 type TextKey =
   | 'firstName'
   | 'lastName'
   | 'email'
   | 'phone'
-  | 'company'
   | 'line1'
   | 'line2'
   | 'city'
@@ -96,8 +97,7 @@ const EMPTY: FormValues = {
   lastName: '',
   email: '',
   phone: '',
-  company: '',
-  customerType: '',
+  country: 'US',
   line1: '',
   line2: '',
   city: '',
@@ -119,8 +119,7 @@ function valuesFromCustomer(c: EditableCustomer): FormValues {
     lastName: c.lastName ?? restName.join(' '),
     email: c.email ?? '',
     phone: c.phone ?? '',
-    company: c.company ?? '',
-    customerType: c.customerType ?? '',
+    country: a.country === 'PK' ? 'PK' : 'US',
     line1: a.line1 ?? '',
     line2: a.line2 ?? '',
     city: a.city ?? '',
@@ -138,12 +137,11 @@ function buildPayload(f: FormValues) {
   return {
     firstName: f.firstName.trim(),
     lastName: f.lastName.trim() || undefined,
-    email: f.email.trim() || undefined,
+    email: f.email.trim(),
     phone: f.phone.trim() || undefined,
-    company: f.company.trim() || undefined,
-    customerType: (f.customerType || undefined) as CustomerType | undefined,
     // Always sent, so clearing every box actually clears the stored address.
     addressParts: {
+      country: f.country,
       line1: f.line1.trim() || undefined,
       line2: f.line2.trim() || undefined,
       city: f.city.trim() || undefined,
@@ -179,52 +177,60 @@ export function CustomerFormDialog({
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [formKey, setFormKey] = useState(0);
-  // These two need a render to reflect a pick, so they live in state (mirrored into valuesRef).
-  const [reseller, setReseller] = useState(false);
+  // These need a render to reflect a pick, so they live in state (mirrored into valuesRef).
   const [invoiceType, setInvoiceType] = useState('');
-  const [customerType, setCustomerType] = useState('');
+  const [reseller, setReseller] = useState(false);
   const [state, setState] = useState('');
+  const [country, setCountry] = useState<'US' | 'PK'>('US');
+  // The phone picker is controlled (country + national half); the joined E.164 string is what
+  // valuesRef carries and the API stores, same as UserFormDialog.
+  const [phone, setPhone] = useState({ iso2: 'us', national: '' });
 
   useLayoutEffect(() => {
     if (!open) return;
     const next = customer ? valuesFromCustomer(customer) : { ...EMPTY };
     valuesRef.current = next;
     setInitial(next);
-    setReseller(next.reseller);
     setInvoiceType(next.invoiceType);
-    setCustomerType(next.customerType);
+    setReseller(next.reseller);
     setState(next.state);
+    setCountry(next.country);
+    setPhone(splitPhone(next.phone));
     setErrors({});
     setTouched({});
     setSubmitted(false);
     setFormKey((k) => k + 1);
   }, [open, customer]);
 
-  const toggleReseller = useCallback((v: boolean) => {
-    valuesRef.current.reseller = v;
-    setReseller(v);
-  }, []);
   const pickType = useCallback((_name: string, v: string) => {
     valuesRef.current.invoiceType = v;
     setInvoiceType(v);
   }, []);
-  // Reseller is the tax-exempt flag, so picking that account type ticks it here too — the admin
-  // can still untick it afterwards.
-  const pickCustomerType = useCallback((_name: string, v: string) => {
-    valuesRef.current.customerType = v;
-    setCustomerType(v);
-    if (v === CustomerType.Reseller) {
-      valuesRef.current.reseller = true;
-      setReseller(true);
-    }
+  const pickReseller = useCallback((_name: string, v: string) => {
+    valuesRef.current.reseller = v === 'yes';
+    setReseller(v === 'yes');
+  }, []);
+  const changePhone = useCallback((next: { iso2: string; national: string; e164: string }) => {
+    setPhone({ iso2: next.iso2, national: next.national });
+    valuesRef.current.phone = next.e164;
   }, []);
   const pickState = useCallback((_name: string, v: string) => {
     valuesRef.current.state = v;
     setState(v);
   }, []);
+  // Switching country changes which state list applies, so a code from the old list is cleared;
+  // the +4 add-on is US-only and goes with it.
+  const pickCountry = useCallback((_name: string, v: string) => {
+    const next = v === 'PK' ? 'PK' : 'US';
+    valuesRef.current.country = next;
+    valuesRef.current.state = '';
+    setState('');
+    if (next === 'PK') valuesRef.current.zipPlus4 = '';
+    setCountry(next);
+  }, []);
 
   const validate = useCallback((f: FormValues): FieldErrors => {
-    const result = customerFormSchema.safeParse(f);
+    const result = customerFormSchemaChecked.safeParse(f);
     return result.success ? {} : toFieldErrors(result.error);
   }, []);
 
@@ -294,7 +300,7 @@ export function CustomerFormDialog({
           : 'Add a reusable customer any role can pick on an invoice.'
       }
       icon={isEdit ? <EditRounded /> : <AddRounded />}
-      maxWidth="sm"
+      maxWidth="md"
       busy={saving}
       actions={
         <>
@@ -325,6 +331,7 @@ export function CustomerFormDialog({
               <TextInput
                 name="firstName"
                 label="First name"
+                placeholder="e.g. John"
                 defaultValue={initial.firstName}
                 helperText={shown('firstName')}
                 error={Boolean(shown('firstName'))}
@@ -339,6 +346,7 @@ export function CustomerFormDialog({
               <TextInput
                 name="lastName"
                 label="Last name"
+                placeholder="e.g. Smith"
                 defaultValue={initial.lastName}
                 helperText={shown('lastName')}
                 error={Boolean(shown('lastName'))}
@@ -352,136 +360,39 @@ export function CustomerFormDialog({
                 name="email"
                 label="Email"
                 type="email"
+                placeholder="e.g. john@company.com"
                 defaultValue={initial.email}
                 helperText={shown('email')}
                 error={Boolean(shown('email'))}
+                required
                 disabled={saving}
                 onChange={setText}
                 onBlur={blurField}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextInput
-                name="phone"
-                label="Phone"
-                defaultValue={initial.phone}
+              <PhoneField
+                iso2={phone.iso2}
+                national={phone.national}
+                onChange={changePhone}
+                onBlur={() => blurField('phone')}
                 helperText={shown('phone')}
                 error={Boolean(shown('phone'))}
                 disabled={saving}
-                onChange={setText}
-                onBlur={blurField}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 7 }}>
-              <TextInput
-                name="company"
-                label="Team / business name"
-                defaultValue={initial.company}
-                helperText={shown('company')}
-                error={Boolean(shown('company'))}
-                disabled={saving}
-                placeholder="e.g. Acme Corp"
-                onChange={setText}
-                onBlur={blurField}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 5 }}>
+            {/* The account row: tax status and how they're billed. */}
+            <Grid size={{ xs: 12, sm: 6 }}>
               <SelectInput
-                name="customerType"
-                label="Customer type"
-                value={customerType}
-                options={CUSTOMER_TYPE_OPTIONS}
+                name="reseller"
+                label="Reseller"
+                value={reseller ? 'yes' : 'no'}
+                options={RESELLER_OPTIONS}
                 disabled={saving}
-                onChange={pickCustomerType}
+                onChange={pickReseller}
               />
             </Grid>
-          </Grid>
-        </FormSection>
-
-        <FormSection title="Address">
-          <Grid container spacing={2}>
-            <Grid size={12}>
-              <TextInput
-                name="line1"
-                label="Street address"
-                defaultValue={initial.line1}
-                helperText={shown('line1') ?? 'House number and street'}
-                error={Boolean(shown('line1'))}
-                disabled={saving}
-                onChange={setText}
-                onBlur={blurField}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextInput
-                name="line2"
-                label="Apt / suite / unit"
-                defaultValue={initial.line2}
-                helperText={shown('line2')}
-                error={Boolean(shown('line2'))}
-                disabled={saving}
-                onChange={setText}
-                onBlur={blurField}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 5 }}>
-              <TextInput
-                name="city"
-                label="City"
-                defaultValue={initial.city}
-                helperText={shown('city')}
-                error={Boolean(shown('city'))}
-                disabled={saving}
-                onChange={setText}
-                onBlur={blurField}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 3 }}>
-              <SelectInput
-                name="state"
-                label="State"
-                value={state}
-                options={STATE_OPTIONS}
-                helperText={shown('state')}
-                error={Boolean(shown('state'))}
-                disabled={saving}
-                onChange={pickState}
-              />
-            </Grid>
-            <Grid size={{ xs: 7, sm: 2 }}>
-              <TextInput
-                name="zip"
-                label="ZIP"
-                defaultValue={initial.zip}
-                helperText={shown('zip')}
-                error={Boolean(shown('zip'))}
-                inputMode="numeric"
-                maxLength={5}
-                disabled={saving}
-                onChange={setText}
-                onBlur={blurField}
-              />
-            </Grid>
-            <Grid size={{ xs: 5, sm: 2 }}>
-              <TextInput
-                name="zipPlus4"
-                label="+4"
-                defaultValue={initial.zipPlus4}
-                helperText={shown('zipPlus4') ?? 'Optional'}
-                error={Boolean(shown('zipPlus4'))}
-                inputMode="numeric"
-                maxLength={4}
-                disabled={saving}
-                onChange={setText}
-                onBlur={blurField}
-              />
-            </Grid>
-          </Grid>
-        </FormSection>
-
-        <FormSection title="Billing profile">
-          <Grid2 container spacing={2} alignItems="center">
-            <Grid2 size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <SelectInput
                 name="invoiceType"
                 label="Default invoice type"
@@ -490,37 +401,132 @@ export function CustomerFormDialog({
                 disabled={saving}
                 onChange={pickType}
               />
-            </Grid2>
-            <Grid2 size={{ xs: 12, sm: 6 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={reseller}
-                    disabled={saving}
-                    onChange={(e) => toggleReseller(e.target.checked)}
-                  />
-                }
-                label="Reseller (tax-exempt)"
-              />
-            </Grid2>
-          </Grid2>
+            </Grid>
+          </Grid>
         </FormSection>
 
-        <FormSection title="Internal notes">
-          <TextInput
-            name="notes"
-            label="Notes"
-            defaultValue={initial.notes}
-            helperText={shown('notes')}
-            error={Boolean(shown('notes'))}
-            disabled={saving}
-            multiline
-            minRows={2}
-            placeholder="Only visible to admins"
-            onChange={setText}
-            onBlur={blurField}
-          />
+        <FormSection title="Address">
+          <Grid container spacing={2}>
+            {/* Country decides the shape: US shows the client's structured fields, Pakistan is
+                street + city only. */}
+            <Grid size={{ xs: 12, sm: 3 }}>
+              <SelectInput
+                name="country"
+                label="Country"
+                value={country}
+                options={COUNTRY_OPTIONS}
+                disabled={saving}
+                onChange={pickCountry}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <TextInput
+                name="line1"
+                label="Street address"
+                placeholder={country === 'US' ? 'e.g. 5775 Riverside Dr' : 'e.g. 12 Gulberg Blvd'}
+                defaultValue={initial.line1}
+                helperText={shown('line1')}
+                error={Boolean(shown('line1'))}
+                required
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextInput
+                name="line2"
+                label="Apt / suite / unit"
+                placeholder="e.g. Suite 210"
+                defaultValue={initial.line2}
+                helperText={shown('line2')}
+                error={Boolean(shown('line2'))}
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            {/* Same layout for both countries — only the state list changes, and the +4 add-on
+                is US-only routing so Pakistan doesn't show it. */}
+            <Grid size={{ xs: 12, sm: country === 'US' ? 5 : 4 }}>
+              <TextInput
+                name="city"
+                label="City"
+                placeholder={country === 'US' ? 'e.g. Chino' : 'e.g. Lahore'}
+                defaultValue={initial.city}
+                helperText={shown('city')}
+                error={Boolean(shown('city'))}
+                required
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: country === 'US' ? 3 : 4 }}>
+              <SelectInput
+                name="state"
+                label={country === 'US' ? 'State' : 'Province'}
+                value={state}
+                options={STATE_OPTIONS[country]}
+                placeholderLabel={country === 'US' ? 'Pick a state' : 'Pick a province'}
+                helperText={shown('state')}
+                error={Boolean(shown('state'))}
+                required
+                disabled={saving}
+                onChange={pickState}
+              />
+            </Grid>
+            {/* Without the +4 beside it, the postal code takes that slot too — "Postal code"
+                is a longer label than "ZIP" and was clipping its own border at 2 columns. */}
+            <Grid size={{ xs: country === 'US' ? 7 : 12, sm: country === 'US' ? 2 : 4 }}>
+              <TextInput
+                name="zip"
+                label={country === 'US' ? 'ZIP' : 'Postal code'}
+                placeholder={country === 'US' ? 'e.g. 91710' : 'e.g. 54000'}
+                defaultValue={initial.zip}
+                helperText={shown('zip')}
+                error={Boolean(shown('zip'))}
+                required
+                inputMode="numeric"
+                maxLength={5}
+                disabled={saving}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            {country === 'US' && (
+              <Grid size={{ xs: 5, sm: 2 }}>
+                <TextInput
+                  name="zipPlus4"
+                  label="+4"
+                  placeholder="e.g. 6710"
+                  defaultValue={initial.zipPlus4}
+                  helperText={shown('zipPlus4')}
+                  error={Boolean(shown('zipPlus4'))}
+                  inputMode="numeric"
+                  maxLength={4}
+                  disabled={saving}
+                  onChange={setText}
+                  onBlur={blurField}
+                />
+              </Grid>
+            )}
+          </Grid>
         </FormSection>
+
+        <TextInput
+          name="notes"
+          label="Notes"
+          defaultValue={initial.notes}
+          helperText={shown('notes')}
+          error={Boolean(shown('notes'))}
+          disabled={saving}
+          multiline
+          minRows={2}
+          placeholder="Only visible to admins"
+          onChange={setText}
+          onBlur={blurField}
+        />
       </Stack>
     </Modal>
   );

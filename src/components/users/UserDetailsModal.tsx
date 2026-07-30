@@ -171,7 +171,7 @@ export function UserDetailsModal({
               textAlign: { xs: 'center', sm: 'left' },
               gap: 2.5,
               p: 2,
-              borderRadius: 2,
+              borderRadius: 1,
               bgcolor: redA(0.05),
               border: 1,
               borderColor: 'divider',
@@ -194,7 +194,7 @@ export function UserDetailsModal({
                 flexWrap="wrap"
                 useFlexGap
                 justifyContent={{ xs: 'center', sm: 'flex-start' }}
-                sx={{ '& .MuiChip-root': { height: 28, borderRadius: 1.5, fontSize: '0.8rem' } }}
+                sx={{ '& .MuiChip-root': { height: 28, borderRadius: 1, fontSize: '0.8rem' } }}
               >
                 <Chip
                   label={ROLE_LABEL[user.role] ?? user.role}

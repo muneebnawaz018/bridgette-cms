@@ -22,6 +22,21 @@ const bodyFont =
 /** Condensed display font — reserved for the wordmark + large metric numerals only. */
 export const displayFont = 'var(--font-oswald), "Arial Narrow", sans-serif';
 
+/**
+ * The app's single corner radius. Everything with a corner uses it, so nothing has to be
+ * eyeballed against anything else. Two things deliberately opt out: the brand mark's squircle
+ * (identity, not chrome) and anything meant to read as a pill (progress bars, the nav's active
+ * indicator), where a fixed 10px would either exceed half the height or be invisible.
+ */
+export const RADIUS = 10;
+
+/**
+ * The height every medium-sized control lands on — buttons, the search bar, anything that sits
+ * on a row beside them. Left to itself a button is padding + line-height (40.5px) and the search
+ * bar was a hand-picked 48, so the two never agreed; pinning both here means they always do.
+ */
+export const CONTROL_HEIGHT = 40;
+
 // Soft, diffuse elevation scale — replaces MUI's harsh default shadows so cards, menus,
 // and dialogs feel light and modern instead of stamped-on.
 const s = (a: string, b: string) => `${a}, ${b}`;
@@ -59,7 +74,10 @@ export const theme = createTheme({
     error: { main: colors.status.error },
     grey: { 100: colors.surface.subtle, 200: colors.surface.border },
   },
-  shape: { borderRadius: 12 },
+  // One radius for the whole app: cards, grids, dialogs, buttons, inputs and menus all
+  // share it, so `borderRadius: 1` in any sx means the same corner everywhere. The usual
+  // outer-surface-rounder-than-inner-control nesting is deliberately given up for that.
+  shape: { borderRadius: RADIUS },
   shadows: softShadows,
   typography: {
     fontFamily: bodyFont,
@@ -90,22 +108,28 @@ export const theme = createTheme({
         root: {
           backgroundImage: 'none',
           border: `1px solid ${colors.surface.border}`,
-          borderRadius: 16,
+          borderRadius: RADIUS,
         },
         elevation0: { boxShadow: softShadows[2] },
       },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
-      styleOverrides: { root: { borderRadius: 16, border: `1px solid ${colors.surface.border}` } },
+      styleOverrides: {
+        root: { borderRadius: RADIUS, border: `1px solid ${colors.surface.border}` },
+      },
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
         root: {
-          borderRadius: 10,
+          borderRadius: RADIUS,
           paddingInline: 18,
           paddingBlock: 8,
+          // minHeight, not height, so a wrapped label still grows. lineHeight is pulled in from
+          // MUI's 1.75 so the natural box (37px) stays under the floor and minHeight decides.
+          minHeight: CONTROL_HEIGHT,
+          lineHeight: 1.5,
           // Named properties, not `all`: `all` also animates the flip to disabled, so the
           // button fades through a half-red state instead of just going grey.
           transition:
@@ -114,6 +138,9 @@ export const theme = createTheme({
           '&.Mui-disabled': { transition: 'none' },
         },
         sizeLarge: { paddingBlock: 11, fontSize: '0.975rem' },
+        // Same cascade problem as `outlined` below, at the large size (SessionScopeDialog stacks
+        // a contained-large directly on an outlined-large).
+        outlinedSizeLarge: { paddingBlock: 10 },
         contained: { boxShadow: softShadows[1] },
         containedPrimary: {
           // The brand gradient, so every primary CTA carries the identity instead of a flat red.
@@ -133,6 +160,12 @@ export const theme = createTheme({
           },
         },
         outlined: {
+          // MUI's own `outlined` class carries padding: 5px 15px, and it sits after `root` in the
+          // cascade, so root's 8/18 loses and an outlined button renders 6px shorter and 6px
+          // narrower than the contained one beside it. Restate it here, one pixel off each side
+          // to absorb the 1px border, so both variants come out the same size.
+          paddingBlock: 7,
+          paddingInline: 17,
           borderColor: colors.surface.borderStrong,
           color: colors.ink[700],
           '&:not(.Mui-disabled):hover': {
@@ -145,7 +178,7 @@ export const theme = createTheme({
     },
     MuiChip: {
       styleOverrides: {
-        root: { fontWeight: 600, borderRadius: 8 },
+        root: { fontWeight: 600, borderRadius: RADIUS },
         sizeSmall: { fontSize: '0.72rem', height: 22 },
         outlined: { borderColor: colors.surface.borderStrong },
       },
@@ -164,7 +197,7 @@ export const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 10,
+          borderRadius: RADIUS,
           backgroundColor: colors.surface.paper,
           '& .MuiOutlinedInput-notchedOutline': { borderColor: colors.surface.borderStrong },
           '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: colors.ink[400] },
@@ -185,19 +218,31 @@ export const theme = createTheme({
     MuiMenu: {
       styleOverrides: {
         paper: {
-          borderRadius: 14,
+          borderRadius: RADIUS,
           boxShadow: softShadows[4],
           border: `1px solid ${colors.surface.border}`,
         },
       },
     },
-    MuiPopover: { styleOverrides: { paper: { borderRadius: 14, boxShadow: softShadows[4] } } },
-    MuiDialog: { styleOverrides: { paper: { borderRadius: 20, boxShadow: softShadows[5] } } },
+    MuiMenuItem: {
+      // MUI's default is a 48px row at body1 (1rem), which next to a 40px control reads as a
+      // much heavier list than the field that opened it. Same height and text size as the
+      // trigger, so an open dropdown looks like a continuation of it.
+      styleOverrides: {
+        root: {
+          minHeight: CONTROL_HEIGHT,
+          fontSize: '0.9rem',
+          paddingBlock: 6,
+        },
+      },
+    },
+    MuiPopover: { styleOverrides: { paper: { borderRadius: RADIUS, boxShadow: softShadows[4] } } },
+    MuiDialog: { styleOverrides: { paper: { borderRadius: RADIUS, boxShadow: softShadows[5] } } },
     MuiTooltip: {
       styleOverrides: {
         tooltip: {
           backgroundColor: colors.ink[900],
-          borderRadius: 8,
+          borderRadius: RADIUS,
           fontWeight: 500,
           fontSize: '0.75rem',
           padding: '6px 10px',
@@ -205,7 +250,7 @@ export const theme = createTheme({
       },
     },
     MuiListItemButton: {
-      styleOverrides: { root: { borderRadius: 10 } },
+      styleOverrides: { root: { borderRadius: RADIUS } },
     },
     MuiDivider: { styleOverrides: { root: { borderColor: colors.surface.border } } },
     MuiTableCell: {
@@ -224,7 +269,7 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           border: 'none',
-          borderRadius: 16,
+          borderRadius: RADIUS,
           overflow: 'hidden', // clip the grey header's square corners to the rounded grid (no white nub)
           backgroundColor: colors.surface.paper,
           '--DataGrid-rowBorderColor': colors.surface.border,

@@ -329,7 +329,7 @@ export function RecordPaymentModal({
                   py: 2.25,
                   textAlign: 'center',
                   cursor: saving ? 'default' : 'pointer',
-                  borderRadius: 2,
+                  borderRadius: 1,
                   border: '1.5px dashed',
                   borderColor: errors.proof ? 'error.main' : 'divider',
                   transition: 'border-color .16s ease, background-color .16s ease',
@@ -361,7 +361,7 @@ export function RecordPaymentModal({
                 direction="row"
                 spacing={1.5}
                 alignItems="center"
-                sx={{ p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
+                sx={{ p: 1, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
               >
                 <Box
                   component="img"
@@ -371,7 +371,7 @@ export function RecordPaymentModal({
                     width: 44,
                     height: 44,
                     objectFit: 'cover',
-                    borderRadius: 1.5,
+                    borderRadius: 1,
                     border: '1px solid',
                     borderColor: 'divider',
                     flexShrink: 0,

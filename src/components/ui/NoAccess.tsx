@@ -25,7 +25,7 @@ export function NoAccess({ title = 'No access', message }: { title?: string; mes
             height: 48,
             mx: 'auto',
             mb: 1.5,
-            borderRadius: 2,
+            borderRadius: 1,
             color: 'text.secondary',
             bgcolor: 'action.hover',
           }}

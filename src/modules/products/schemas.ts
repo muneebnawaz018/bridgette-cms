@@ -34,36 +34,33 @@ const optionalText = (max: number) =>
     .or(z.literal(''))
     .transform((v) => (v ? v : undefined));
 
-/** A Mongo id, or '' / undefined meaning "no fabric linked". */
-const optionalId = z
-  .string()
-  .trim()
-  .optional()
-  .or(z.literal(''))
-  .transform((v) => (v ? v : undefined));
+/** Every product is made of something: a fabric id is required on create and on every edit. */
+const fabricIdField = z.string().trim().min(1, 'A fabric is required');
+
+/** SKU is mandatory and unique — a catalogue item is always identifiable by its code. */
+const skuField = z.string().trim().min(1, 'A SKU is required').max(SKU_MAX, 'That SKU is too long');
 
 export const productCreateSchema = z.object({
   name: nameField,
-  sku: optionalText(SKU_MAX),
+  sku: skuField,
   defaultRate: rateField,
   unit: optionalText(UNIT_MAX),
-  fabric: optionalId,
+  fabric: fabricIdField,
   description: optionalText(DESC_MAX),
-  notes: optionalText(NOTES_MAX),
 });
 
+// Partial so a PATCH can touch one field — but when fabric IS sent it must be a real id, so a
+// product can never be edited back to fabric-less.
 export const productUpdateSchema = productCreateSchema.partial();
 
 /** Form-shaped (client) — no transforms so inputs stay strings; rate is a string in the input. */
 export const productFormSchema = z.object({
   name: nameField,
-  sku: z.string().trim().max(SKU_MAX, 'That SKU is too long'),
+  sku: skuField,
   defaultRate: rateField,
   unit: z.string().trim().max(UNIT_MAX, 'That value is too long'),
-  // '' = no fabric linked.
-  fabric: z.string().trim(),
+  fabric: fabricIdField,
   description: z.string().trim().max(DESC_MAX, 'That value is too long'),
-  notes: z.string().trim().max(NOTES_MAX, 'That note is too long'),
 });
 
 // --- Fabrics ---

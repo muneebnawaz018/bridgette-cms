@@ -78,16 +78,18 @@ export function Modal({
             ? { position: 'relative', borderRadius: 0 }
             : {
                 position: 'relative',
-                borderRadius: 3,
+                // The app's one radius (theme RADIUS), same as the buttons stacked inside it.
+                borderRadius: 1,
                 // MUI's default 32px margin costs 64px of a phone's width, which is most of the
-                // room a 320px screen has for content. Claw it back below sm.
+                // room a 320px screen has for content. 16px reads as a card floating on the
+                // backdrop while still leaving 288px of content at 320px.
                 //
                 // maxWidth is deliberately left to MUI's own paperWidth* class. Setting it here
                 // would leak: sx breakpoints are min-width, so an `xs` value with no `sm` value
                 // above it applies at every width and silently overrides the maxWidth prop.
-                m: { xs: 1.5, sm: 4 },
-                width: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
-                maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+                m: { xs: 3, sm: 4 },
+                width: { xs: 'calc(100% - 32px)', sm: 'calc(100% - 64px)' },
+                maxHeight: { xs: 'calc(100% - 32px)', sm: 'calc(100% - 64px)' },
               },
         },
       }}
@@ -131,7 +133,7 @@ export function Modal({
             alignItems: 'center',
             gap: 1.5,
             px: { xs: 2, sm: 3 },
-            pt: 2.75,
+            pt: { xs: 2.25, sm: 2.75 },
             pb: description ? 0.5 : 1.5,
             // Room for the close button, which is pinned to the top-right corner. Only from
             // sm up, since that is the only place it renders — reserving it on a phone was
@@ -146,7 +148,7 @@ export function Modal({
                 placeItems: 'center',
                 width: 40,
                 height: 40,
-                borderRadius: 2,
+                borderRadius: 1,
                 color: 'primary.main',
                 bgcolor: 'action.hover',
                 flexShrink: 0,

@@ -173,7 +173,7 @@ export function AvatarPicker({
                 height: 'auto',
                 maxWidth: '100%',
                 maxHeight: '82vh',
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             />
           </Box>

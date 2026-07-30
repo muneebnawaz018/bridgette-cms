@@ -26,7 +26,6 @@ import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
 import { apiDelete } from '@/lib/api/client';
-import { CustomerType, CUSTOMER_TYPE_LABEL } from '@/modules/customers/enums';
 import type { AddressParts } from '@/modules/customers/address';
 
 interface CustomerRow {
@@ -34,11 +33,9 @@ interface CustomerRow {
   name: string;
   firstName?: string;
   lastName?: string;
-  customerType?: string;
   addressParts?: AddressParts | null;
   email?: string;
   phone?: string;
-  company?: string;
   address?: string;
   reseller?: boolean;
   invoiceType?: string;
@@ -47,10 +44,15 @@ interface CustomerRow {
 
 const TYPE_LABEL: Record<string, string> = { tax: 'US Tax', cash: 'US Cash', pk: 'Pakistan' };
 
-// Name + actions always survive; company goes first as the grid narrows, then phone, then email.
+/*
+ * Name + actions always survive. Widths below are floors, not targets — `flex` governs on a
+ * roomy screen — so they are set to what actually fits the narrowest viewport each tier has to
+ * serve: 568px at 900 (the rail costs 268 from 768 up), 436 at 768, 288 at 320.
+ */
 const CUSTOMER_COLUMN_TIERS: ColumnTiers = {
-  lg: ['company', 'invoiceType', 'customerType'],
-  md: ['phone'],
+  // Address and billing default are reference data, not scanning data: first to go.
+  lg: ['location', 'invoiceType'],
+  md: ['reseller'],
   sm: ['email'],
 };
 
@@ -127,48 +129,48 @@ export default function CustomersPage() {
 
   const columns: GridColDef<CustomerRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1.3, minWidth: 160 },
-      {
-        field: 'customerType',
-        headerName: 'Type',
-        flex: 0.8,
-        minWidth: 110,
-        valueGetter: (_v, r) =>
-          r.customerType ? CUSTOMER_TYPE_LABEL[r.customerType as CustomerType] : '—',
-      },
-      {
-        field: 'company',
-        headerName: 'Team / business',
-        flex: 1.1,
-        minWidth: 150,
-        valueGetter: (_v, r) => r.company || '—',
-      },
+      { field: 'name', headerName: 'Name', flex: 1.3, minWidth: 130 },
       {
         field: 'email',
         headerName: 'Email',
         flex: 1.6,
-        minWidth: 190,
+        minWidth: 180,
         valueGetter: (_v, r) => r.email || '—',
       },
       {
-        field: 'phone',
-        headerName: 'Phone',
-        flex: 1,
-        minWidth: 130,
-        valueGetter: (_v, r) => r.phone || '—',
+        // Where they are, not how to call them: the state is what drives sales tax, so it earns
+        // the column ahead of a phone number nobody scans a list for.
+        field: 'location',
+        headerName: 'Location',
+        flex: 1.1,
+        minWidth: 140,
+        sortable: false,
+        valueGetter: (_v, r) => {
+          const a = r.addressParts;
+          const region = [a?.state, a?.country === 'PK' ? 'PK' : null].filter(Boolean).join(' · ');
+          return [a?.city, region].filter(Boolean).join(', ') || '—';
+        },
       },
       {
         field: 'invoiceType',
-        headerName: 'Invoices',
-        flex: 0.9,
-        minWidth: 120,
+        headerName: 'Default invoice type',
+        flex: 1.1,
+        minWidth: 150,
         valueGetter: (_v, r) =>
-          `${r.invoiceType ? (TYPE_LABEL[r.invoiceType] ?? r.invoiceType) : '—'}${r.reseller ? ' · reseller' : ''}`,
+          r.invoiceType ? (TYPE_LABEL[r.invoiceType] ?? r.invoiceType) : '—',
+      },
+      {
+        // Tax exemption deserves its own column rather than a suffix on another one.
+        field: 'reseller',
+        headerName: 'Reseller',
+        flex: 0.6,
+        minWidth: 90,
+        valueGetter: (_v, r) => (r.reseller ? 'Yes' : 'No'),
       },
       {
         field: 'actions',
         headerName: '',
-        width: 64,
+        width: 56,
         sortable: false,
         renderCell: (p) => {
           const actions: RowAction[] = [];
@@ -206,7 +208,7 @@ export default function CustomersPage() {
         <SearchBar
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search by name, email or company"
+          placeholder="Search by name or email"
         />
       </Box>
 

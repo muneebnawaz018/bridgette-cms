@@ -327,7 +327,7 @@ export function ExportInvoicesModal({
               overflowY: 'auto',
               overflowX: 'auto',
               border: `1px solid ${colors.surface.border}`,
-              borderRadius: '12px',
+              borderRadius: 1,
             }}
           >
             <Table size="small" stickyHeader sx={{ minWidth: 460 }}>

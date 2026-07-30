@@ -201,6 +201,7 @@ export function FabricFormDialog({
               <TextInput
                 name="name"
                 label="Name"
+                placeholder="e.g. Cotton Jersey"
                 defaultValue={initial.name}
                 helperText={shown('name') ?? 'Unique across live fabrics'}
                 error={Boolean(shown('name'))}
@@ -215,6 +216,7 @@ export function FabricFormDialog({
               <TextInput
                 name="gsm"
                 label="GSM"
+                placeholder="e.g. 180"
                 defaultValue={initial.gsm}
                 helperText={shown('gsm') ?? 'Grams per square metre — optional'}
                 error={Boolean(shown('gsm'))}

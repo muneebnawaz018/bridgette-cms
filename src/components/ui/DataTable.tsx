@@ -81,11 +81,25 @@ export function DataTable<T extends GridValidRowModel>({
   // drew a second, smaller spinner in the table's top-left while the overlay was already up.
   useGlobalLoading(Boolean(loading));
 
+  // Tag the first column so its header and cells can be indented to match the breathing room the
+  // actions column has on the right. DataGrid's own per-column class hook — a structural CSS
+  // selector like :first-of-type misses, because the grid renders filler elements before the
+  // first real cell.
+  const paddedColumns = columns.map((c, i) =>
+    i === 0
+      ? {
+          ...c,
+          cellClassName: `dg-lead ${c.cellClassName ?? ''}`.trim(),
+          headerClassName: `dg-lead ${c.headerClassName ?? ''}`.trim(),
+        }
+      : c,
+  );
+
   return (
     <Box sx={{ height: boxHeight, width: '100%' }}>
       <DataGrid
         rows={rows as GridValidRowModel[]}
-        columns={columns as GridColDef<GridValidRowModel>[]}
+        columns={paddedColumns as GridColDef<GridValidRowModel>[]}
         getRowId={getRowId as (row: GridValidRowModel) => string}
         pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
         paginationMode={server ? 'server' : 'client'}
@@ -114,7 +128,11 @@ export function DataTable<T extends GridValidRowModel>({
             : { pagination: { paginationModel: { pageSize: DEFAULT_PAGE_SIZE, page: 0 } } }
         }
         disableRowSelectionOnClick
-        sx={onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : undefined}
+        sx={{
+          // Matches the ~20px the actions column leaves on the right edge.
+          '& .dg-lead': { pl: 2.5 },
+          ...(onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : null),
+        }}
       />
     </Box>
   );

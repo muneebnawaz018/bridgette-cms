@@ -1,13 +1,12 @@
 import { z } from 'zod';
 import { InvoiceType } from '@/modules/invoicing/enums';
-import { CustomerType } from './enums';
 import { isStateCode } from './address';
 
 /**
  * A customer is a reusable billing party admins maintain once, so every role can pick it on an
  * invoice instead of retyping the same name/email each time. Only `name` is required; the rest
- * mirror the invoice `party` shape (email/phone/address) plus a company field, so a chosen
- * customer can populate `billTo` directly.
+ * mirror the invoice `party` shape (email/phone/address), so a chosen customer can populate
+ * `billTo` directly.
  */
 
 const NAME_MAX = 160;
@@ -31,24 +30,65 @@ const optionalText = (max: number) =>
     .or(z.literal(''))
     .transform((v) => (v ? v : undefined));
 
-/** Optional email: blank is allowed, but a typo is still caught. */
-const optionalEmail = z
-  .union([z.literal(''), z.string().trim().email('Enter a valid email address')])
-  .optional()
-  .transform((v) => (v ? v : undefined));
+/** Email is mandatory — invoices and reminders need somewhere to go. */
+const emailField = z
+  .string()
+  .trim()
+  .min(1, 'An email is required')
+  .email('Enter a valid email address');
 
 /**
- * Structured US address. Everything is optional so a half-known address still saves; what IS
- * given is checked — a state must be a real USPS code, a ZIP exactly 5 digits, the add-on 4.
+ * The address, as the client spec'd it: line1/city/state/zip required, line2 optional. Both
+ * countries use the same shape — only the state list differs (US states vs PK provinces), and
+ * the +4 add-on is US-only routing, so Pakistan never carries it.
  */
-export const addressPartsSchema = z.object({
-  line1: optionalText(FIELD_MAX),
-  line2: optionalText(FIELD_MAX),
-  city: optionalText(FIELD_MAX),
-  state: optionalText(2).refine((v) => !v || isStateCode(v), 'Enter a US state code, e.g. CA'),
-  zip: optionalText(5).refine((v) => !v || /^\d{5}$/.test(v), 'A ZIP code is 5 digits'),
-  zipPlus4: optionalText(4).refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
-});
+const addressRules = (
+  a: { country?: string; city?: string; state?: string; zip?: string },
+  ctx: z.RefinementCtx,
+) => {
+  const isPk = a.country === 'PK';
+  if (!a.city) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['city'], message: 'A city is required' });
+  }
+  if (!a.state) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['state'],
+      message: isPk ? 'A province is required' : 'A state is required',
+    });
+  } else if (!isStateCode(a.state, a.country)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['state'],
+      message: isPk ? 'Pick a Pakistani province' : 'Enter a US state code, e.g. CA',
+    });
+  }
+  if (!a.zip || !/^\d{5}$/.test(a.zip)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['zip'],
+      message: isPk ? 'A postal code is 5 digits' : 'A ZIP code is 5 digits',
+    });
+  }
+};
+
+export const addressPartsSchema = z
+  .object({
+    country: z.enum(['US', 'PK']).default('US'),
+    line1: z
+      .string()
+      .trim()
+      .min(1, 'A street address is required')
+      .max(FIELD_MAX, 'That value is too long'),
+    line2: optionalText(FIELD_MAX),
+    city: optionalText(FIELD_MAX),
+    state: optionalText(2),
+    zip: optionalText(5),
+    zipPlus4: optionalText(4).refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
+  })
+  .superRefine(addressRules)
+  // The +4 add-on is US-only, whatever the client sent.
+  .transform((a) => (a.country === 'PK' ? { ...a, zipPlus4: undefined } : a));
 
 export const customerCreateSchema = z.object({
   // Full name stays accepted for callers (and older clients) that only have one; when first/last
@@ -56,12 +96,10 @@ export const customerCreateSchema = z.object({
   name: nameField.optional(),
   firstName: optionalText(FIELD_MAX),
   lastName: optionalText(FIELD_MAX),
-  email: optionalEmail,
+  email: emailField,
   phone: optionalText(FIELD_MAX),
-  company: optionalText(FIELD_MAX),
-  customerType: z.nativeEnum(CustomerType).optional(),
   address: optionalText(ADDRESS_MAX),
-  addressParts: addressPartsSchema.optional(),
+  addressParts: addressPartsSchema,
   notes: optionalText(NOTES_MAX),
   reseller: z.boolean().optional(),
   invoiceType: z.nativeEnum(InvoiceType).optional(),
@@ -82,22 +120,18 @@ export const customerFormSchema = z.object({
     .min(1, 'A first name is required')
     .max(FIELD_MAX, 'That value is too long'),
   lastName: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  email: z.union([z.literal(''), z.string().trim().email('Enter a valid email address')]),
+  email: emailField,
   phone: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  company: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  // '' = no type set.
-  customerType: z.union([z.literal(''), z.nativeEnum(CustomerType)]),
-  line1: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  country: z.enum(['US', 'PK']),
+  line1: z
+    .string()
+    .trim()
+    .min(1, 'A street address is required')
+    .max(FIELD_MAX, 'That value is too long'),
   line2: z.string().trim().max(FIELD_MAX, 'That value is too long'),
   city: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  state: z
-    .string()
-    .trim()
-    .refine((v) => !v || isStateCode(v), 'Enter a US state code, e.g. CA'),
-  zip: z
-    .string()
-    .trim()
-    .refine((v) => !v || /^\d{5}$/.test(v), 'A ZIP code is 5 digits'),
+  state: z.string().trim(),
+  zip: z.string().trim(),
   zipPlus4: z
     .string()
     .trim()
@@ -107,6 +141,7 @@ export const customerFormSchema = z.object({
   // '' = no default type.
   invoiceType: z.union([z.literal(''), z.nativeEnum(InvoiceType)]),
 });
+export const customerFormSchemaChecked = customerFormSchema.superRefine(addressRules);
 
 export const listCustomerSchema = z.object({
   page: z.coerce.number().int().positive().optional(),

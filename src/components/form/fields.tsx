@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, type ReactNode } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
@@ -158,6 +158,23 @@ export const SelectInput = memo(function SelectInput({
   onChange: (name: string, value: string) => void;
   onBlur?: (name: string) => void;
 }) {
+  // With displayEmpty, MUI renders the empty value's menu text at full body colour — unlike a
+  // real input's ::placeholder. renderValue greys it out so select placeholders match.
+  const selectProps = useMemo(() => {
+    if (!placeholderLabel) return DISPLAY_EMPTY;
+    return {
+      displayEmpty: true,
+      renderValue: (v: unknown) =>
+        v ? (
+          (options.find((o) => o.value === v)?.label ?? String(v))
+        ) : (
+          <Box component="span" sx={{ color: 'text.disabled' }}>
+            {placeholderLabel}
+          </Box>
+        ),
+    };
+  }, [placeholderLabel, options]);
+
   return (
     <TextField
       select
@@ -171,7 +188,7 @@ export const SelectInput = memo(function SelectInput({
       required={required}
       disabled={disabled}
       InputLabelProps={SHRINK_LABEL}
-      SelectProps={DISPLAY_EMPTY}
+      SelectProps={selectProps}
     >
       {placeholderLabel && (
         <MenuItem value="" disabled>

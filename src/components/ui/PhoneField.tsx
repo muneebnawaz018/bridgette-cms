@@ -21,7 +21,16 @@ const INPUT_PROPS = { inputMode: 'tel', autoComplete: 'tel-national', maxLength:
 const MENU_SLOT_PROPS = {
   paper: { sx: { maxHeight: 340, width: { xs: 'calc(100vw - 32px)', sm: 300 } } },
 } as const;
-const ROOT_SX = { '& .MuiInputBase-root': { pl: 1 } } as const;
+// Tabbing to the country button focuses part of the field, so the FIELD should light up the way
+// every other input in a form does — the standard notched outline — rather than the button
+// drawing a ring of its own.
+const ROOT_SX = {
+  '& .MuiInputBase-root': { pl: 1 },
+  '&:has(.phone-cc:focus-visible) .MuiOutlinedInput-notchedOutline': {
+    borderColor: 'primary.main',
+    borderWidth: 2,
+  },
+} as const;
 const PICKER_SX = {
   display: 'flex',
   alignItems: 'center',
@@ -33,6 +42,9 @@ const PICKER_SX = {
   borderRadius: 1,
   borderRight: `1px solid ${colors.surface.border}`,
   '&:hover': { bgcolor: 'action.hover' },
+  // No ring of its own — ROOT_SX lights the whole field's outline instead. The tint alone marks
+  // which half of the field has focus.
+  '&:focus-visible': { bgcolor: 'action.hover' },
 } as const;
 
 export const PhoneField = memo(function PhoneField({
@@ -109,6 +121,7 @@ export const PhoneField = memo(function PhoneField({
           startAdornment: (
             <InputAdornment position="start" sx={{ mr: 0 }}>
               <ButtonBase
+                className="phone-cc"
                 onClick={(e) => !disabled && setAnchor(e.currentTarget)}
                 disabled={disabled}
                 aria-label="Select country code"

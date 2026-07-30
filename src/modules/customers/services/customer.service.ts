@@ -5,7 +5,6 @@ import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
 import { Customer, type CustomerDoc } from '../models/customer.model';
-import { CustomerType } from '../enums';
 import { formatAddress, isBlankAddress } from '../address';
 import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
 
@@ -18,7 +17,7 @@ function activeMatch(search?: string): Record<string, unknown> {
   const match: Record<string, unknown> = { isDeleted: { $ne: true } };
   if (search?.trim()) {
     const rx = new RegExp(escapeRegex(search.trim()), 'i');
-    match.$or = [{ name: rx }, { email: rx }, { company: rx }];
+    match.$or = [{ name: rx }, { email: rx }];
   }
   return match;
 }
@@ -27,18 +26,16 @@ const LIST_PROJECTION = {
   name: 1,
   firstName: 1,
   lastName: 1,
-  customerType: 1,
   addressParts: 1,
   email: 1,
   phone: 1,
-  company: 1,
   address: 1,
   reseller: 1,
   invoiceType: 1,
   createdAt: 1,
 } as const;
 
-/** Paginated customer list (search over name/email/company). */
+/** Paginated customer list (search over name/email). */
 export async function listCustomers(
   actor: SessionUser,
   query: ListCustomerInput,
@@ -65,7 +62,7 @@ const OPTIONS_PAGE_MAX = 50;
 
 /**
  * Paginated list for the invoice customer picker — name + party fields only. With `q` it does a
- * server-side name/email/company search. Returns one page plus `hasMore` so the dropdown can load
+ * server-side name/email search. Returns one page plus `hasMore` so the dropdown can load
  * the next page as the user scrolls, rather than ever shipping the whole book at once.
  */
 export async function listCustomerOptions(
@@ -83,12 +80,12 @@ export async function listCustomerOptions(
     // Escape regex metacharacters so a typed "." or "(" searches literally.
     const safe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const rx = new RegExp(safe, 'i');
-    filter.$or = [{ name: rx }, { email: rx }, { company: rx }];
+    filter.$or = [{ name: rx }, { email: rx }];
   }
 
   // Fetch one extra row to detect a next page without a separate count query.
   const rows = await Customer.find(filter)
-    .select({ name: 1, email: 1, phone: 1, company: 1, address: 1, reseller: 1, invoiceType: 1 })
+    .select({ name: 1, email: 1, phone: 1, address: 1, reseller: 1, invoiceType: 1 })
     .sort({ name: 1 })
     .skip(skip)
     .limit(limit + 1)
@@ -136,13 +133,10 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
     lastName: input.lastName,
     email: input.email,
     phone: input.phone,
-    company: input.company,
-    customerType: input.customerType,
     address: printableAddress(input),
     addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
     notes: input.notes,
-    // The Reseller account type IS the tax-exempt flag; an explicit flag still wins.
-    reseller: input.reseller ?? input.customerType === CustomerType.Reseller,
+    reseller: input.reseller ?? false,
     invoiceType: input.invoiceType,
     createdBy: actor.userId,
   });
@@ -168,8 +162,6 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   if (derived) doc.name = derived;
   if (input.email !== undefined) doc.email = input.email;
   if (input.phone !== undefined) doc.phone = input.phone;
-  if (input.company !== undefined) doc.company = input.company;
-  if (input.customerType !== undefined) doc.customerType = input.customerType;
   if (input.addressParts !== undefined) {
     const blank = isBlankAddress(input.addressParts);
     doc.addressParts = (blank ? undefined : input.addressParts) as CustomerDoc['addressParts'];

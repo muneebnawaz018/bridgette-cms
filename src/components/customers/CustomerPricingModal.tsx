@@ -127,7 +127,17 @@ export function CustomerPricingModal({
             const negotiated = r.rate != null;
             const busy = busyId === r.productId;
             return (
-              <Box key={r.productId} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              // The rate field and its two buttons need ~260px between them, which is everything a
+              // 320px phone has — so below sm the product name takes its own line above them.
+              <Box
+                key={r.productId}
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: { xs: 'stretch', sm: 'center' },
+                  gap: 1,
+                }}
+              >
                 <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                   <Stack direction="row" spacing={0.75} alignItems="center">
                     <Typography sx={{ fontWeight: 600 }} noWrap>
@@ -142,35 +152,38 @@ export function CustomerPricingModal({
                     {r.unit ? ` / ${r.unit}` : ''}
                   </Typography>
                 </Box>
-                <TextField
-                  label="Rate"
-                  size="small"
-                  type="number"
-                  value={drafts[r.productId] ?? ''}
-                  placeholder={String(r.defaultRate)}
-                  onChange={(e) => setDrafts((d) => ({ ...d, [r.productId]: e.target.value }))}
-                  disabled={busy}
-                  sx={{ width: 110, flexShrink: 0 }}
-                  slotProps={{ htmlInput: { inputMode: 'decimal', min: 0 } }}
-                />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={busy || drafts[r.productId] === '' || drafts[r.productId] == null}
-                  onClick={() => set(r.productId)}
-                  sx={{ flexShrink: 0 }}
-                >
-                  Set
-                </Button>
-                <Button
-                  size="small"
-                  color="inherit"
-                  disabled={busy || !negotiated}
-                  onClick={() => clear(r.productId)}
-                  sx={{ flexShrink: 0 }}
-                >
-                  Clear
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                  <TextField
+                    label="Rate"
+                    size="small"
+                    type="number"
+                    value={drafts[r.productId] ?? ''}
+                    placeholder={String(r.defaultRate)}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [r.productId]: e.target.value }))}
+                    disabled={busy}
+                    // Takes the leftover width on its own line below sm, fixed beside the name above.
+                    sx={{ width: { xs: 'auto', sm: 110 }, flexGrow: { xs: 1, sm: 0 } }}
+                    slotProps={{ htmlInput: { inputMode: 'decimal', min: 0 } }}
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={busy || drafts[r.productId] === '' || drafts[r.productId] == null}
+                    onClick={() => set(r.productId)}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Set
+                  </Button>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    disabled={busy || !negotiated}
+                    onClick={() => clear(r.productId)}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Clear
+                  </Button>
+                </Box>
               </Box>
             );
           })}

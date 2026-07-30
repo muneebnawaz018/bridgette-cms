@@ -19,6 +19,7 @@ import DateRangeRounded from '@mui/icons-material/DateRangeRounded';
 import ArrowDropDownRounded from '@mui/icons-material/ArrowDropDownRounded';
 import { formatDateShort } from '@/lib/format/date';
 import { redA } from '@/lib/colors';
+import { CONTROL_HEIGHT } from '@/lib/theme';
 
 export interface FilterConfig {
   /** Shown when nothing narrower is selected, e.g. "All types". */
@@ -76,7 +77,7 @@ function DateRangeFilter({ config }: { config: DateRangeConfig }) {
           minWidth: { xs: '100%', sm: 140, md: 168 },
           flexGrow: { xs: 0, sm: 1, lg: 0 },
           flexShrink: 0,
-          minHeight: 48,
+          minHeight: CONTROL_HEIGHT,
           pl: 1.25,
           pr: 0.5,
           transition: 'background-color .16s ease',
@@ -111,7 +112,7 @@ function DateRangeFilter({ config }: { config: DateRangeConfig }) {
         onClose={() => setAnchor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        slotProps={{ paper: { sx: { mt: 1, p: 2, borderRadius: '12px', width: 268 } } }}
+        slotProps={{ paper: { sx: { mt: 1, p: 2, borderRadius: 1, width: 268 } } }}
       >
         {/* maxDate/minDate cross-bind the fields, so an end-before-start range can't be picked. */}
         <Stack spacing={2}>
@@ -199,9 +200,8 @@ export function SearchBar({
         flexDirection: { xs: 'column', lg: 'row' },
         alignItems: 'stretch',
         width: '100%',
-        // Match the table card exactly. Note a bare `2` here would mean 2 * shape.borderRadius
-        // (24px), not 16px — the Paper override uses raw px, so this must too.
-        borderRadius: '16px',
+        // 1 * shape.borderRadius — the app's one radius, same as the table card below it.
+        borderRadius: 1,
         overflow: 'hidden',
         transition: 'border-color .16s ease, box-shadow .16s ease',
         '&:focus-within': { borderColor: 'primary.main', boxShadow: `0 0 0 3px ${redA(0.14)}` },
@@ -217,7 +217,7 @@ export function SearchBar({
           flexGrow: 1,
           minWidth: 0,
           px: 1.75,
-          minHeight: 48,
+          minHeight: CONTROL_HEIGHT,
         }}
       >
         <SearchRounded fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
@@ -285,10 +285,17 @@ export function SearchBar({
                 pl: 1.25,
                 pr: 0.5,
                 '& .MuiSelect-icon': { right: 4 },
+                // The root carries the shared height so a filter is never taller than the search
+                // box beside it. It stays on the root, not on .MuiSelect-select — MUI gives that
+                // element height:auto and overflow:hidden for its ellipsis, and a min-height
+                // there fights both.
+                minHeight: CONTROL_HEIGHT,
                 '& .MuiSelect-select': {
                   display: 'flex',
                   alignItems: 'center',
-                  py: 1.5,
+                  // 9.6px either side of a 20.7px line box lands on 40 — the value that was
+                  // here (1.5) made the filter 45.6px and set the whole bar's height.
+                  py: 1.2,
                   pr: '26px !important',
                   fontWeight: 600,
                   fontSize: '0.9rem',

@@ -22,7 +22,7 @@ export function StatusChip({ label, tone }: { label: string; tone: Tone }) {
         bgcolor: c.bg,
         color: c.fg,
         fontWeight: 600,
-        borderRadius: 2,
+        borderRadius: 1,
         '& .MuiChip-label': { px: 1 },
       }}
     />

@@ -40,7 +40,12 @@ interface ProductRow {
   createdAt: string;
 }
 
-// Name + rate + actions always survive; unit goes first as it narrows, then fabric, then SKU.
+/*
+ * Name + rate + actions always survive; unit goes first as it narrows, then SKU and fabric.
+ * Widths below are floors, not targets — `flex` governs on a roomy screen — so they are set to
+ * what fits the narrowest viewport each tier serves: 568px at 900 (the rail costs 268 from 768
+ * up), 436 at 768, 288 at 320.
+ */
 const PRODUCT_COLUMN_TIERS: ColumnTiers = {
   lg: ['unit'],
   md: ['sku', 'fabricName'],
@@ -119,19 +124,19 @@ export default function ProductsPage() {
 
   const columns: GridColDef<ProductRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1.4, minWidth: 160 },
+      { field: 'name', headerName: 'Name', flex: 1.4, minWidth: 120 },
       {
         field: 'sku',
         headerName: 'SKU',
         flex: 0.9,
-        minWidth: 120,
+        minWidth: 110,
         valueGetter: (_v, r) => r.sku || '—',
       },
       {
         field: 'fabricName',
         headerName: 'Fabric',
         flex: 1.1,
-        minWidth: 140,
+        minWidth: 130,
         sortable: false,
         valueGetter: (_v, r) =>
           r.fabricName
@@ -144,14 +149,14 @@ export default function ProductsPage() {
         field: 'unit',
         headerName: 'Unit',
         flex: 0.7,
-        minWidth: 100,
+        minWidth: 90,
         valueGetter: (_v, r) => r.unit || '—',
       },
       {
         field: 'defaultRate',
         headerName: 'Default rate',
         flex: 0.9,
-        minWidth: 130,
+        minWidth: 100,
         headerAlign: 'right',
         align: 'right',
         valueGetter: (_v, r) => formatMoney('USD', r.defaultRate),
@@ -159,7 +164,7 @@ export default function ProductsPage() {
       {
         field: 'actions',
         headerName: '',
-        width: 64,
+        width: 56,
         sortable: false,
         renderCell: (p) => {
           const actions: RowAction[] = [];

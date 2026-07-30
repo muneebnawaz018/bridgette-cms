@@ -392,6 +392,7 @@ export function UserFormDialog({
               <TextInput
                 name="name"
                 label="Name"
+                placeholder="e.g. John Smith"
                 defaultValue={initial.name}
                 helperText={shown('name')}
                 error={Boolean(shown('name'))}
@@ -407,6 +408,7 @@ export function UserFormDialog({
               <TextInput
                 name="email"
                 label="Email"
+                placeholder="e.g. john@company.com"
                 type="email"
                 defaultValue={initial.email}
                 helperText={

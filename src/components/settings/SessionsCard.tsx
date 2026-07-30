@@ -59,7 +59,7 @@ function SessionRow({
           placeItems: 'center',
           width: 40,
           height: 40,
-          borderRadius: 2,
+          borderRadius: 1,
           color: revoked ? 'text.disabled' : 'primary.main',
           bgcolor: 'action.hover',
           flexShrink: 0,

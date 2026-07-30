@@ -68,7 +68,6 @@ export interface CustomerOption {
   name: string;
   email?: string;
   phone?: string;
-  company?: string;
   address?: string;
   reseller?: boolean;
   invoiceType?: InvoiceType;
@@ -223,9 +222,7 @@ function CustomerNameField({
               }}
             >
               <span className="cust-nm">{c.name}</span>
-              {(c.company || c.email) && (
-                <span className="cust-sub">{[c.company, c.email].filter(Boolean).join(' · ')}</span>
-              )}
+              {c.email && <span className="cust-sub">{c.email}</span>}
             </li>
           ))}
           {busy && (

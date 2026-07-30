@@ -38,7 +38,7 @@ const railItemSx = {
   my: 0.35,
   py: 1.05,
   px: 1.75,
-  borderRadius: '12px',
+  borderRadius: '10px',
   transition: 'background-color .16s ease, color .16s ease',
 } as const;
 
@@ -124,9 +124,9 @@ function RailContent({
                     : undefined,
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 38, color: active ? 'primary.light' : 'inherit' }}>
-                  {it.icon}
-                </ListItemIcon>
+                {/* Icon keeps the text colour when active — the red bar/label already mark the
+                    selection, and a red icon on the tinted row read as too much. */}
+                <ListItemIcon sx={{ minWidth: 38, color: 'inherit' }}>{it.icon}</ListItemIcon>
                 <ListItemText
                   primary={it.label}
                   primaryTypographyProps={{ fontWeight: 600, fontSize: '0.925rem' }}
@@ -159,7 +159,7 @@ function RailContent({
       <Box sx={{ p: 2, pt: 1 }}>
         <Box
           sx={{
-            borderRadius: 3,
+            borderRadius: 1,
             py: 1.5,
             px: 1.75,
             bgcolor: colors.rail.bgElevated,
@@ -261,7 +261,7 @@ export function AppShell({
             bgcolor: colors.rail.bg,
             backgroundImage: 'none',
             border: 'none',
-            borderRadius: '0 16px 16px 0',
+            borderRadius: '0 10px 10px 0',
             overflow: 'hidden',
           },
         }}
