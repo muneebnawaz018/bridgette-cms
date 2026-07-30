@@ -30,10 +30,15 @@ const optionalText = (max: number) =>
     .or(z.literal(''))
     .transform((v) => (v ? v : undefined));
 
-/** Email is mandatory — invoices and reminders need somewhere to go. */
+/**
+ * Email is mandatory — invoices and reminders need somewhere to go — and unique across live
+ * customers. Lower-cased on the way in, since the uniqueness index is a plain byte comparison
+ * and "Bob@x.com" and "bob@x.com" are the same mailbox.
+ */
 const emailField = z
   .string()
   .trim()
+  .toLowerCase()
   .min(1, 'An email is required')
   .email('Enter a valid email address');
 

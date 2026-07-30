@@ -81,6 +81,10 @@ export const OPTIONS_LIMIT = 2000;
  * Lightweight product list for the invoice line picker. When `customerId` is given, each item's
  * `rate` is that customer's negotiated rate where one exists, otherwise the default rate — so a
  * picked line lands on the right price with no extra lookup.
+ *
+ * Products the customer has a negotiated rate for are `linked: true` and sort to the front. They
+ * lead rather than filter the list: a customer with no rates set would otherwise have an empty
+ * picker and could not be invoiced at all, and a one-off item still has to be billable.
  */
 export async function listProductOptions(actor: SessionUser, customerId?: string) {
   assertCan(actor.role, Permission.ProductView);
@@ -100,7 +104,7 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
     for (const r of rows) overrides.set(String(r.product), r.rate);
   }
 
-  return products.map((p) => {
+  const items = products.map((p) => {
     const override = overrides.get(String(p._id));
     return {
       _id: String(p._id),
@@ -110,8 +114,13 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
       defaultRate: p.defaultRate,
       rate: override ?? p.defaultRate,
       negotiated: override != null,
+      linked: override != null,
     };
   });
+
+  // Stable within each group: the DB sort already ordered by name, and sort() is stable, so
+  // linked products keep their alphabetical order and the rest follow in theirs.
+  return items.sort((a, b) => Number(b.linked) - Number(a.linked));
 }
 
 export async function getProduct(actor: SessionUser, id: string) {

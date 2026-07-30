@@ -277,7 +277,11 @@ export function CustomerFormDialog({
     setSaving(false);
 
     if (!res.ok) {
-      setErrors(serverFieldErrors(res.details));
+      const fieldErrors = serverFieldErrors(res.details);
+      // A duplicate email comes back as a plain message, not a field path; pin it to the field
+      // so the form marks it rather than only flashing a toast.
+      if (res.error && /email/i.test(res.error)) fieldErrors.email = res.error;
+      setErrors(fieldErrors);
       enqueueSnackbar(
         res.error ?? (isEdit ? 'Could not update customer' : 'Could not create customer'),
         { variant: 'error' },

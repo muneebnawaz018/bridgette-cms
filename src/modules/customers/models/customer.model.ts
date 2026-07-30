@@ -66,7 +66,18 @@ const customerSchema = new Schema(
 
 // List is name-sorted and search matches name/email; index the active set by name.
 customerSchema.index({ isDeleted: 1, name: 1 });
-customerSchema.index({ email: 1 });
+
+// One live customer per email address. Partial, on three counts: a soft-deleted record must not
+// block re-adding that customer later, legacy rows saved before email was mandatory carry no
+// email at all, and a plain unique index would treat every one of those missing values as the
+// same null and collide. Values are lower-cased in the schema so the comparison is meaningful.
+customerSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false, email: { $type: 'string', $gt: '' } },
+  },
+);
 
 export type CustomerDoc = InferSchemaType<typeof customerSchema>;
 

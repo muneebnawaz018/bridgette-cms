@@ -11,7 +11,9 @@ const { Schema, model, models } = mongoose;
  */
 const fabricSchema = new Schema(
   {
-    name: { type: String, required: true, index: true },
+    // No `index: true` here — the unique partial index below already covers { name: 1 }, and
+    // declaring both makes Mongoose warn about a duplicate.
+    name: { type: String, required: true },
     // Grams per square metre. Optional — not every fabric is spec'd by weight.
     gsm: { type: Number, min: 0 },
     // Free text (Knit, Woven, Fleece, …) rather than an enum: the mill's vocabulary changes

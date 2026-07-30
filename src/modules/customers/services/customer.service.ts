@@ -123,24 +123,36 @@ function printableAddress(input: CustomerCreateInput): string | undefined {
   return input.address;
 }
 
+/** A duplicate email surfaces as a Mongo 11000; translate it to a field-level message. */
+function isDuplicateKey(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);
+}
+
+const DUPLICATE_EMAIL = 'A customer with that email already exists';
+
 /** Create a customer. Admin only. */
 export async function createCustomer(actor: SessionUser, input: CustomerCreateInput) {
   assertCan(actor.role, Permission.CustomerCreate);
   await connectDb();
-  const doc = await Customer.create({
-    name: fullName(input),
-    firstName: input.firstName,
-    lastName: input.lastName,
-    email: input.email,
-    phone: input.phone,
-    address: printableAddress(input),
-    addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
-    notes: input.notes,
-    reseller: input.reseller ?? false,
-    invoiceType: input.invoiceType,
-    createdBy: actor.userId,
-  });
-  return doc.toObject();
+  try {
+    const doc = await Customer.create({
+      name: fullName(input),
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      address: printableAddress(input),
+      addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
+      notes: input.notes,
+      reseller: input.reseller ?? false,
+      invoiceType: input.invoiceType,
+      createdBy: actor.userId,
+    });
+    return doc.toObject();
+  } catch (err) {
+    if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
+    throw err;
+  }
 }
 
 /** Edit a customer. Admin only. Only provided fields change; blanks clear the field. */
@@ -173,7 +185,12 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   if (input.reseller !== undefined) doc.reseller = input.reseller;
   if (input.invoiceType !== undefined) doc.invoiceType = input.invoiceType;
 
-  await doc.save();
+  try {
+    await doc.save();
+  } catch (err) {
+    if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
+    throw err;
+  }
   return doc.toObject();
 }
 

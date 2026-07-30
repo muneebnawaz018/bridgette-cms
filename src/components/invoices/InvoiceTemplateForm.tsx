@@ -8,6 +8,7 @@ import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
 import { formatMoney } from '@/lib/format/money';
+import { formatPhone } from '@/lib/format/countries';
 import { cashappAmount, CASHAPP_PCT } from '@/components/invoices/InvoiceDocument';
 import { colors } from '@/lib/colors';
 import type { FieldErrors } from '@/lib/form/errors';
@@ -80,6 +81,8 @@ export interface ProductOption {
   defaultRate: number;
   rate: number;
   negotiated: boolean;
+  /** This customer has a negotiated rate for it — shown first, under its own heading. */
+  linked?: boolean;
 }
 
 export const TYPE_OPTIONS = [
@@ -87,6 +90,12 @@ export const TYPE_OPTIONS = [
   { value: InvoiceType.Cash, label: 'US Cash (no tax)' },
   { value: InvoiceType.PK, label: 'Pakistan' },
 ];
+/** Short forms for the customer picker's badges — the full labels are too long for a chip. */
+const TYPE_TAG: Record<InvoiceType, string> = {
+  [InvoiceType.Tax]: 'US Tax',
+  [InvoiceType.Cash]: 'US Cash',
+  [InvoiceType.PK]: 'Pakistan',
+};
 const TYPE_LABEL: Record<InvoiceType, string> = {
   [InvoiceType.Tax]: 'TAX INVOICE',
   [InvoiceType.Cash]: 'CASH INVOICE',
@@ -212,7 +221,7 @@ function CustomerNameField({
           {page.items.map((c) => (
             <li
               key={c._id}
-              className="cust-opt"
+              className="pick-opt"
               // mousedown (not click) so it fires before the input's blur closes the menu.
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -221,8 +230,21 @@ function CustomerNameField({
                 setOpen(false);
               }}
             >
-              <span className="cust-nm">{c.name}</span>
-              {c.email && <span className="cust-sub">{c.email}</span>}
+              <span className="pick-top">
+                <span className="pick-nm">{c.name}</span>
+                {/* What actually changes the invoice: a reseller pays no sales tax, and the
+                    default type picks the template. Worth seeing before committing to a pick. */}
+                {c.reseller && <span className="pick-tag is-reseller">Reseller</span>}
+                {c.invoiceType && <span className="pick-tag">{TYPE_TAG[c.invoiceType]}</span>}
+              </span>
+              {/* Email first — two customers can share a name (and often do), so it is the line
+                  that tells them apart. */}
+              {(c.email || c.phone) && (
+                <span className="pick-sub">
+                  {[c.email, formatPhone(c.phone)].filter(Boolean).join('  ·  ')}
+                </span>
+              )}
+              {c.address && <span className="pick-addr">{c.address}</span>}
             </li>
           ))}
           {busy && (
@@ -286,6 +308,38 @@ export function InvoiceTemplateForm({
       if (last && last.description.trim() === '') return f;
       return { ...f, items: [...f.items, { description: '', quantity: 1, unitPrice: 0 }] };
     });
+
+  /*
+   * Auto-fill: a customer with exactly one linked product has only one thing they can be billed
+   * for, so picking them fills the first line with it — product, description and their rate, all
+   * still editable. Two or more linked products stay a choice, which is what the dropdown is for.
+   *
+   * Only fires on a form whose lines are all still blank, so it can never overwrite work in
+   * progress or re-add itself to a draft being edited. The ref makes it once-per-product: clear
+   * the line back out and it stays cleared.
+   */
+  const autoFilledRef = useRef<string | null>(null);
+  useEffect(() => {
+    const linked = products.filter((p) => p.linked);
+    if (linked.length !== 1) return;
+    const only = linked[0];
+    if (autoFilledRef.current === only._id) return;
+
+    setForm((f) => {
+      const untouched = f.items.every((l) => !l.productId && !l.description.trim());
+      if (!untouched || f.items.length === 0) return f;
+      autoFilledRef.current = only._id;
+      const items = f.items.slice();
+      items[0] = {
+        ...items[0],
+        productId: only._id,
+        productName: only.name,
+        description: only.name,
+        unitPrice: only.rate,
+      };
+      return { ...f, items };
+    });
+  }, [products, setForm]);
 
   // A picker fills the party fields programmatically, so bump the remount key to refresh the
   // uncontrolled inputs' defaults.
@@ -372,11 +426,52 @@ export function InvoiceTemplateForm({
         .cust-field { position: relative; }
         .cust-menu { list-style: none; margin: 2px 0 0; padding: 4px 0; position: absolute;
           z-index: 20; left: 0; right: 0; background: ${PAPER}; border: 1px solid ${FIELD};
-          border-radius: 6px; box-shadow: 0 6px 18px ${HAIR}; max-height: 240px; overflow-y: auto; }
-        .cust-opt { padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column; }
-        .cust-opt:hover { background: ${FOCUS}; }
-        .cust-nm { font-weight: 700; }
-        .cust-sub { font-size: 11px; color: ${MUTED}; }
+          border-radius: 10px; box-shadow: 0 6px 18px ${HAIR}; max-height: 300px; overflow-y: auto; }
+        /* One option style for both pickers (customer + product): name and the tags that change
+           the invoice on top, the detail that decides the pick beneath. Every line clips rather
+           than wraps, so rows are a fixed height and the list scans. */
+        .pick-opt { padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column;
+          align-items: flex-start; justify-content: flex-start; text-align: left; gap: 1px;
+          border-bottom: 1px solid ${HAIR};
+          font-size: 13px; line-height: 1.35; color: ${BODY}; }
+        .pick-opt:last-child { border-bottom: none; }
+        .pick-opt:hover { background: ${FOCUS}; }
+        .pick-top { display: flex; align-items: center; gap: 6px; width: 100%; }
+        .pick-nm { font-weight: 700; min-width: 0; flex: 0 1 auto; overflow: hidden;
+          text-overflow: ellipsis; white-space: nowrap; }
+        /* margin-left:auto pins it right whatever the name's length; tabular figures keep the
+           column of prices aligned down the list. */
+        .pick-rate { margin-left: auto; padding-left: 12px; flex-shrink: 0; font-weight: 700;
+          font-variant-numeric: tabular-nums; }
+        .pick-tag { flex-shrink: 0; font-size: 9px; font-weight: 700; letter-spacing: .05em;
+          text-transform: uppercase; padding: 1px 6px; border-radius: 999px; line-height: 1.5;
+          background: ${CONTROL_BG}; color: ${MUTED}; }
+        .pick-tag.is-reseller { background: ${PINK}; color: ${RED}; }
+        .pick-sub, .pick-addr { font-size: 11px; color: ${MUTED}; max-width: 100%;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pick-addr { color: ${FAINT}; }
+        /* The product picker is a MUI Autocomplete, so its popup arrives with the app's Paper
+           and 1rem body type — twice the template's scale. Pull it back to the same card the
+           customer menu draws, and strip the option padding MUI applies to the li we style. */
+        .pick-pop { border: 1px solid ${FIELD} !important; border-radius: 10px !important;
+          box-shadow: 0 6px 18px ${HAIR} !important;
+          /* At least the cell's width, up to a line length that still reads. */
+          min-width: 300px; max-width: 480px; }
+        .pick-pop .MuiAutocomplete-listbox { padding: 0; max-height: 300px; }
+        /* Two classes, to outrank MUI's own listbox-scoped option rule — that one is a row with
+           align-items:center, which left our two stacked lines centred. */
+        .pick-pop .MuiAutocomplete-option.pick-opt { display: flex; flex-direction: column;
+          align-items: flex-start; justify-content: flex-start; text-align: left;
+          padding: 8px 10px; min-height: 0; }
+        .pick-pop .MuiAutocomplete-noOptions { font-size: 11px; color: ${MUTED};
+          font-style: italic; text-align: center; padding: 14px 10px; }
+        /* Group headings ("For this customer" / "All products"). Sticky is MUI's own behaviour,
+           kept — it tells you which half of the list you have scrolled into. */
+        .pick-pop .MuiAutocomplete-groupLabel { font-size: 9px; font-weight: 700;
+          letter-spacing: .08em; text-transform: uppercase; color: ${MUTED};
+          background: ${CONTROL_BG}; line-height: 1; padding: 7px 10px;
+          border-bottom: 1px solid ${HAIR}; }
+        .pick-pop .MuiAutocomplete-groupUl { padding: 0; }
         .cust-empty { padding: 14px 10px; color: ${MUTED}; font-size: 11px; font-style: italic;
           text-align: center; }
         .cust-loading { padding: 14px 10px; display: flex; align-items: center;
@@ -592,6 +687,13 @@ export function InvoiceTemplateForm({
                       options={products}
                       getOptionLabel={(o) => (o.sku ? `${o.name} (${o.sku})` : o.name)}
                       isOptionEqualToValue={(o, v) => o._id === v._id}
+                      // Only worth splitting when the customer actually has linked products;
+                      // otherwise every row would sit under one pointless "All products" header.
+                      groupBy={
+                        products.some((p) => p.linked)
+                          ? (o) => (o.linked ? 'For this customer' : 'All products')
+                          : undefined
+                      }
                       value={products.find((p) => p._id === line.productId) ?? null}
                       disabled={saving}
                       onChange={(_e, picked) =>
@@ -604,10 +706,35 @@ export function InvoiceTemplateForm({
                           unitPrice: picked.rate,
                         })
                       }
+                      slotProps={{
+                        paper: { className: 'pick-pop' },
+                        // MUI pins the popup to the anchor's width, and the PRODUCT cell is
+                        // narrower than a product name. Let it size to its content instead,
+                        // bounded by the CSS below, so names stop truncating.
+                        popper: { style: { width: 'auto' } },
+                      }}
+                      // Same option layout as the customer picker: name and code on top, the
+                      // numbers that decide the pick beneath. MUI owns the li (keyboard nav,
+                      // highlight), so pick-opt only styles what is inside it.
                       renderOption={(props, o) => (
-                        <li {...props} key={o._id}>
-                          {o.name} · {usd(o.rate)}
-                          {o.negotiated ? ' (negotiated)' : ''}
+                        <li {...props} key={o._id} className={`${props.className ?? ''} pick-opt`}>
+                          {/* Price sits at the right edge, where the table's UNIT PRICE column
+                              puts it — the row then spans the width instead of trailing off. */}
+                          <span className="pick-top">
+                            <span className="pick-nm">{o.name}</span>
+                            {o.sku && <span className="pick-tag">{o.sku}</span>}
+                            <span className="pick-rate">
+                              {usd(o.rate)}
+                              {o.unit ? ` / ${o.unit}` : ''}
+                            </span>
+                          </span>
+                          {/* Only worth a second line when this customer is not on the list
+                              price — otherwise the rate above says everything. */}
+                          {o.negotiated && (
+                            <span className="pick-sub">
+                              Negotiated&nbsp;&nbsp;·&nbsp;&nbsp;list {usd(o.defaultRate)}
+                            </span>
+                          )}
                         </li>
                       )}
                       renderInput={(params) => (
