@@ -219,54 +219,60 @@ export default function ProductsPage() {
         />
       )}
 
-      {/* Hidden rather than unmounted, so switching tabs keeps the grid's page and search. */}
-      <Box sx={{ display: isFabrics ? 'none' : 'block' }}>
-        <Box sx={{ mb: 2 }}>
-          <SearchBar
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder="Search by name or SKU"
+      {/*
+        Unmounted while on the fabrics tab, not display:none — the DataGrid measures a hidden
+        container as zero-wide and collapses its flex columns. Search/page state lives in this
+        component (not the grid), so it survives the switch anyway.
+      */}
+      {!isFabrics && (
+        <Box>
+          <Box sx={{ mb: 2 }}>
+            <SearchBar
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search by name or SKU"
+            />
+          </Box>
+
+          <Paper sx={{ p: 0, overflow: 'hidden' }}>
+            <DataTable
+              rows={rows}
+              columns={columns}
+              getRowId={(r) => r._id}
+              loading={isLoading}
+              rowCount={rowCount}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
+              columnVisibilityModel={columnVisibility}
+            />
+          </Paper>
+
+          <ProductFormDialog
+            open={formOpen}
+            product={formProduct}
+            onClose={() => setFormOpen(false)}
+            onSaved={() => void mutate()}
+          />
+
+          <ConfirmDialog
+            open={Boolean(toDelete)}
+            title="Delete this product?"
+            description={
+              <>
+                {toDelete?.name} will be removed from the catalogue and its negotiated rates
+                cleared. Existing invoices are unaffected.
+              </>
+            }
+            confirmLabel="Delete"
+            confirmIcon={<DeleteOutlineRounded />}
+            confirmColor="error"
+            loading={deleting}
+            onConfirm={confirmDelete}
+            onClose={() => setToDelete(null)}
           />
         </Box>
-
-        <Paper sx={{ p: 0, overflow: 'hidden' }}>
-          <DataTable
-            rows={rows}
-            columns={columns}
-            getRowId={(r) => r._id}
-            loading={isLoading}
-            rowCount={rowCount}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
-            columnVisibilityModel={columnVisibility}
-          />
-        </Paper>
-
-        <ProductFormDialog
-          open={formOpen}
-          product={formProduct}
-          onClose={() => setFormOpen(false)}
-          onSaved={() => void mutate()}
-        />
-
-        <ConfirmDialog
-          open={Boolean(toDelete)}
-          title="Delete this product?"
-          description={
-            <>
-              {toDelete?.name} will be removed from the catalogue and its negotiated rates cleared.
-              Existing invoices are unaffected.
-            </>
-          }
-          confirmLabel="Delete"
-          confirmIcon={<DeleteOutlineRounded />}
-          confirmColor="error"
-          loading={deleting}
-          onConfirm={confirmDelete}
-          onClose={() => setToDelete(null)}
-        />
-      </Box>
+      )}
     </Box>
   );
 }

@@ -103,21 +103,21 @@ export function FabricsPanel({
 
   const columns: GridColDef<FabricRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1.4, minWidth: 160 },
+      // Three data columns only, so keep the flexes near-equal — a dominant Name column makes
+      // the grid read as one wide column with leftovers.
+      { field: 'name', headerName: 'Name', flex: 1.1, minWidth: 160 },
       {
         field: 'gsm',
         headerName: 'GSM',
-        flex: 0.6,
-        minWidth: 100,
-        headerAlign: 'right',
-        align: 'right',
+        flex: 0.7,
+        minWidth: 90,
         valueGetter: (_v, r) => (r.gsm != null ? String(r.gsm) : '—'),
       },
       {
         field: 'type',
         headerName: 'Type',
         flex: 1,
-        minWidth: 120,
+        minWidth: 140,
         valueGetter: (_v, r) => r.type || '—',
       },
       {

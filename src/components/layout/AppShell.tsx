@@ -52,7 +52,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/invoices/new')) return 'New invoice';
   if (pathname.startsWith('/invoices')) return 'Invoices';
   if (pathname.startsWith('/customers')) return 'Customers';
-  if (pathname.startsWith('/products')) return 'Products';
+  if (pathname.startsWith('/products')) return 'Products & Fabrics';
   if (pathname.startsWith('/users')) return 'Users';
   if (pathname.startsWith('/settings')) return 'Settings';
   if (pathname.startsWith('/profile')) return 'My profile';
@@ -202,15 +202,23 @@ export function AppShell({
   const [signOutOpen, setSignOutOpen] = useState(false);
   const { signOut, signingOut } = useSignOut();
 
+  // Ordered as the data flows: the catalogue exists first, customers buy from it, invoices are
+  // raised from both, admin areas trail.
   const items: NavItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: <SpaceDashboardRounded fontSize="small" /> },
-    { href: '/invoices', label: 'Invoices', icon: <ReceiptLongRounded fontSize="small" /> },
+    ...(canViewProducts
+      ? [
+          {
+            href: '/products',
+            label: 'Products & Fabrics',
+            icon: <Inventory2Rounded fontSize="small" />,
+          },
+        ]
+      : []),
     ...(canViewCustomers
       ? [{ href: '/customers', label: 'Customers', icon: <ContactsRounded fontSize="small" /> }]
       : []),
-    ...(canViewProducts
-      ? [{ href: '/products', label: 'Products', icon: <Inventory2Rounded fontSize="small" /> }]
-      : []),
+    { href: '/invoices', label: 'Invoices', icon: <ReceiptLongRounded fontSize="small" /> },
     ...(canViewUsers
       ? [{ href: '/users', label: 'Users', icon: <GroupRounded fontSize="small" /> }]
       : []),
