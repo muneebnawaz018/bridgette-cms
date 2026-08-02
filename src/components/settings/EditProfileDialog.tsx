@@ -11,6 +11,7 @@ import EditRounded from '@mui/icons-material/EditRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
+import { useFormGuard } from '@/components/form/useFormGuard';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import { PhoneField } from '@/components/ui/PhoneField';
 import { TextInput } from '@/components/form/fields';
@@ -58,28 +59,64 @@ export function EditProfileDialog({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formKey, setFormKey] = useState(0);
 
+  /*
+   * Save state. This dialog keeps its values in three different places — a ref for the name, and
+   * state for the phone and the avatar — so the guard is fed a small object assembled from all
+   * three rather than a single values ref.
+   */
+  const valuesRef = useRef({
+    name: initial.name,
+    phone: initial.phone,
+    avatarUrl: initial.avatarUrl,
+  });
+  const isValid = useCallback(
+    (v: { name: string; phone: string }) =>
+      updateProfileSchema.safeParse({ name: v.name.trim(), phone: v.phone }).success,
+    [],
+  );
+  const guard = useFormGuard({ valuesRef, isValid });
+
   // Reopening should show the current record, not whatever was typed last time.
   useLayoutEffect(() => {
     if (!open) return;
     nameRef.current = initial.name;
     setPhone(splitPhone(initial.phone));
     setAvatarUrl(initial.avatarUrl);
+    valuesRef.current = { name: initial.name, phone: initial.phone, avatarUrl: initial.avatarUrl };
+    guard.reset(valuesRef.current);
     setErrors({});
     setFormKey((k) => k + 1);
   }, [open, initial.name, initial.phone, initial.avatarUrl]);
 
-  const setName = useCallback((_field: string, value: string) => {
-    nameRef.current = value;
-  }, []);
+  const setName = useCallback(
+    (_field: string, value: string) => {
+      nameRef.current = value;
+      valuesRef.current = { ...valuesRef.current, name: value };
+      guard.refresh();
+    },
+    [guard],
+  );
 
-  const handlePhone = useCallback((next: { iso2: string; national: string }) => {
-    setPhone({ iso2: next.iso2, national: next.national });
-  }, []);
+  const handlePhone = useCallback(
+    (next: { iso2: string; national: string }) => {
+      setPhone({ iso2: next.iso2, national: next.national });
+      // Stored the way the API takes it, so "same number" compares equal however it was typed.
+      valuesRef.current = {
+        ...valuesRef.current,
+        phone: next.national ? joinPhone(next.iso2, next.national) : '',
+      };
+      guard.refresh();
+    },
+    [guard],
+  );
 
   async function pickAvatar(file: File) {
     setProcessing(true);
     try {
-      setAvatarUrl(await fileToAvatarDataUrl(file, 256));
+      const next = await fileToAvatarDataUrl(file, 256);
+      setAvatarUrl(next);
+      valuesRef.current = { ...valuesRef.current, avatarUrl: next };
+      guard.refresh();
     } catch (err) {
       enqueueSnackbar(err instanceof Error ? err.message : 'Could not read that image', {
         variant: 'error',
@@ -95,7 +132,6 @@ export function EditProfileDialog({
     const parsed = updateProfileSchema.safeParse({ name: nameRef.current.trim(), phone: e164 });
     if (!parsed.success) {
       setErrors(toFieldErrors(parsed.error));
-      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
       return;
     }
 
@@ -131,6 +167,16 @@ export function EditProfileDialog({
       busy={busy}
       actions={
         <>
+          {/* Says which of the two reasons Save is disabled for. */}
+          {guard.reason && !busy && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mr: { sm: 'auto' }, alignSelf: 'center' }}
+            >
+              {guard.reason}
+            </Typography>
+          )}
           <Button
             onClick={onClose}
             disabled={busy}
@@ -141,7 +187,12 @@ export function EditProfileDialog({
             Cancel
           </Button>
           {/* No spinner here — the global overlay already covers the request. */}
-          <Button variant="contained" onClick={submit} disabled={busy} startIcon={<SaveRounded />}>
+          <Button
+            variant="contained"
+            onClick={submit}
+            disabled={busy || !guard.dirty || !guard.valid}
+            startIcon={<SaveRounded />}
+          >
             Save
           </Button>
         </>

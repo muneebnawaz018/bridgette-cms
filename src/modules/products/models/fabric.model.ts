@@ -1,6 +1,7 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 /**
  * Fabric — the material a product is made of (name, GSM, type). Kept in its own collection so the
@@ -37,5 +38,4 @@ fabricSchema.index({ isDeleted: 1, name: 1 });
 
 export type FabricDoc = InferSchemaType<typeof fabricSchema>;
 
-export const Fabric: Model<FabricDoc> =
-  (models.Fabric as Model<FabricDoc>) ?? model<FabricDoc>('Fabric', fabricSchema);
+export const Fabric: Model<FabricDoc> = registerModel<FabricDoc>('Fabric', fabricSchema);

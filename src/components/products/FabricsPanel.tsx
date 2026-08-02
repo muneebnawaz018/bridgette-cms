@@ -14,6 +14,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FabricFormDialog, type EditableFabric } from '@/components/products/FabricFormDialog';
+import type { FormMode } from '@/components/ui/Modal';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
@@ -87,8 +88,18 @@ export function FabricsPanel({
   const [editing, setEditing] = useState<EditableFabric | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
+  // Rows open read-only. Editing is reached from the pencil inside, or from the row menu.
+  const [editMode, setEditMode] = useState<FormMode>('edit');
+
+  const openView = useCallback((row: FabricRow) => {
+    setEditing(row);
+    setEditMode('view');
+    setEditOpen(true);
+  }, []);
+
   const openEdit = useCallback((row: FabricRow) => {
     setEditing(row);
+    setEditMode('edit');
     setEditOpen(true);
   }, []);
 
@@ -135,6 +146,7 @@ export function FabricsPanel({
         sortable: false,
         renderCell: (p) => {
           const actions: RowAction[] = [];
+          actions.push({ label: 'View', onClick: () => openView(p.row) });
           if (canEdit) actions.push({ label: 'Edit', onClick: () => openEdit(p.row) });
           if (canDelete)
             actions.push({ label: 'Delete', danger: true, onClick: () => setToDelete(p.row) });
@@ -143,7 +155,7 @@ export function FabricsPanel({
         },
       },
     ],
-    [canEdit, canDelete, openEdit],
+    [canEdit, canDelete, openEdit, openView],
   );
 
   return (
@@ -165,15 +177,17 @@ export function FabricsPanel({
           rowCount={rowCount}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
-          onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
+          onRowClick={(id) => openView(rows.find((r) => r._id === id)!)}
           columnVisibilityModel={columnVisibility}
         />
       </Paper>
 
-      {/* One dialog, two entry points: the header's New button and a row's Edit. */}
+      {/* One dialog, two entry points: the header's New button and a row's View / Edit. */}
       <FabricFormDialog
         open={createOpen || editOpen}
         fabric={createOpen ? null : editing}
+        initialMode={editMode}
+        canEdit={canEdit}
         onClose={() => {
           setEditOpen(false);
           onCreateClose();

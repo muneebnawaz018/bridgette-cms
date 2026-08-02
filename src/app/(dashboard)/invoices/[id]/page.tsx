@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { AppLink } from '@/components/ui/AppLink';
 import { useParams, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -33,6 +33,7 @@ import {
   type TemplateForm,
   type CustomerOption,
   type ProductOption,
+  shipToFor,
 } from '@/components/invoices/InvoiceTemplateForm';
 import { InvoiceDocument, type InvoiceDocumentData } from '@/components/invoices/InvoiceDocument';
 import Link from '@mui/material/Link';
@@ -54,6 +55,8 @@ interface Item {
   quantity: number;
   unitPrice: number;
   taxable?: boolean;
+  /** Percent off this line, stored on the invoice at pick time. */
+  discountPercent?: number;
   discount?: number;
   lineTotal?: number;
 }
@@ -122,6 +125,7 @@ function toForm(inv: Invoice): TemplateForm {
       description: it.description,
       quantity: it.quantity,
       unitPrice: it.unitPrice,
+      discountPercent: it.discountPercent ?? 0,
     })),
     reseller: inv.reseller ?? false,
     applyTax: inv.applyTax ?? false,
@@ -150,6 +154,13 @@ export default function InvoiceDetailPage() {
   );
 
   const [form, setForm] = useState<TemplateForm | null>(null); // non-null == form
+  // What the form looked like when editing started, so Save can be dead until something differs.
+  const baselineRef = useRef<string>('');
+  const startEdit = useCallback((inv: Invoice) => {
+    const next = toForm(inv);
+    baselineRef.current = JSON.stringify(next);
+    setForm(next);
+  }, []);
   // Selected customer id, so per-customer product rates resolve in the line picker.
   const [customerId, setCustomerId] = useState<string | null>(null);
   const { data: productData } = useApi<{ items: ProductOption[] }>(
@@ -167,6 +178,10 @@ export default function InvoiceDetailPage() {
             billEmail: opt ? (opt.email ?? '') : f.billEmail,
             billPhone: opt ? (opt.phone ?? '') : f.billPhone,
             billAddress: opt ? (opt.address ?? '') : f.billAddress,
+            // SHIP TO follows the customer as well — their delivery address, or the billing
+            // party repeated when they ship to the same place.
+            shipName: opt ? shipToFor(opt).name : f.shipName,
+            shipAddress: opt ? shipToFor(opt).address : f.shipAddress,
             // Reseller exemption follows the customer. Type is fixed once the invoice exists.
             reseller: opt ? Boolean(opt.reseller) : f.reseller,
           }
@@ -194,7 +209,18 @@ export default function InvoiceDetailPage() {
   const resellerExempt =
     invoice.type === InvoiceType.Tax && (form ? form.reseller : Boolean(invoice.reseller));
 
-  const canSave = Boolean(form && form.billName && form.items.length > 0);
+  const dirty = form ? JSON.stringify(form) !== baselineRef.current : false;
+  const complete = Boolean(form && form.billName.trim() && form.items.length > 0);
+  const canSave = complete && dirty;
+  // Why Save is dead. "Nothing changed" first: it is the more useful thing to say about a form
+  // someone has only just opened.
+  const blockedReason = !form
+    ? undefined
+    : !dirty
+      ? 'No changes to save'
+      : !complete
+        ? 'A customer and at least one line are required'
+        : undefined;
 
   const preview =
     form &&
@@ -204,6 +230,7 @@ export default function InvoiceDetailPage() {
         quantity: Number(it.quantity) || 0,
         unitPrice: Number(it.unitPrice) || 0,
         taxable: true,
+        discountPercent: Number(it.discountPercent) || 0,
         discount: 0,
       })),
       shippingHandlingTariff: Number(form.shippingHandling) || 0,
@@ -226,6 +253,7 @@ export default function InvoiceDetailPage() {
       description: it.description,
       quantity: it.quantity,
       unitPrice: it.unitPrice,
+      discountPercent: it.discountPercent ?? 0,
       lineTotal: it.lineTotal ?? it.quantity * it.unitPrice,
     })),
     subtotal: invoice.subtotal,
@@ -261,6 +289,7 @@ export default function InvoiceDetailPage() {
         description: it.description,
         quantity: Number(it.quantity),
         unitPrice: Number(it.unitPrice),
+        discountPercent: Number(it.discountPercent) || 0,
       })),
       shippingHandlingTariff: Number(form.shippingHandling) || undefined,
       invoiceDiscount: Number(form.discount) || undefined,
@@ -342,7 +371,7 @@ export default function InvoiceDetailPage() {
             <Button
               variant="contained"
               startIcon={<EditRounded />}
-              onClick={() => setForm(toForm(invoice))}
+              onClick={() => startEdit(invoice)}
             >
               Edit
             </Button>
@@ -370,6 +399,11 @@ export default function InvoiceDetailPage() {
           )}
           {form && (
             <>
+              {blockedReason && !saving && (
+                <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                  {blockedReason}
+                </Typography>
+              )}
               <Button
                 variant="outlined"
                 color="inherit"

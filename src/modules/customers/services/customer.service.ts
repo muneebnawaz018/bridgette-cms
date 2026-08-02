@@ -4,6 +4,7 @@ import { connectDb } from '@/lib/db/connection';
 import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
+import { clearCustomerRates } from '@/modules/products/services/product.service';
 import { Customer, type CustomerDoc } from '../models/customer.model';
 import { formatAddress, isBlankAddress } from '../address';
 import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
@@ -32,6 +33,8 @@ const LIST_PROJECTION = {
   address: 1,
   reseller: 1,
   invoiceType: 1,
+  products: 1,
+  shipping: 1,
   createdAt: 1,
 } as const;
 
@@ -85,7 +88,18 @@ export async function listCustomerOptions(
 
   // Fetch one extra row to detect a next page without a separate count query.
   const rows = await Customer.find(filter)
-    .select({ name: 1, email: 1, phone: 1, address: 1, reseller: 1, invoiceType: 1 })
+    // `products` and `shipping` ride along: picking a customer on an invoice fills its lines and
+    // its SHIP TO block, and a second round trip for either would show as a visible lag.
+    .select({
+      name: 1,
+      email: 1,
+      phone: 1,
+      address: 1,
+      reseller: 1,
+      invoiceType: 1,
+      products: 1,
+      shipping: 1,
+    })
     .sort({ name: 1 })
     .skip(skip)
     .limit(limit + 1)
@@ -112,6 +126,24 @@ function fullName(input: {
 }): string | undefined {
   const joined = [input.firstName, input.lastName].filter(Boolean).join(' ').trim();
   return joined || input.name;
+}
+
+/**
+ * The shipping block, with its printable one-liner derived the same way the billing one is.
+ * `sameAsBilling` stores nothing else: a copy of the billing address would go stale the moment
+ * the billing address was corrected, so readers fall back to the billing party instead.
+ */
+function shippingBlock(input: Pick<CustomerUpdateInput, 'shipping'>) {
+  const ship = input.shipping;
+  if (!ship || ship.sameAsBilling !== false) return { sameAsBilling: true };
+  const parts = isBlankAddress(ship.addressParts) ? undefined : ship.addressParts;
+  return {
+    sameAsBilling: false,
+    name: ship.name,
+    phone: ship.phone,
+    addressParts: parts,
+    address: parts ? formatAddress(parts) : undefined,
+  };
 }
 
 /**
@@ -143,6 +175,8 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
       phone: input.phone,
       address: printableAddress(input),
       addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
+      shipping: shippingBlock(input),
+      products: input.products ?? [],
       notes: input.notes,
       reseller: input.reseller ?? false,
       invoiceType: input.invoiceType,
@@ -181,6 +215,14 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   } else if (input.address !== undefined) {
     doc.address = input.address;
   }
+  if (input.shipping !== undefined) {
+    doc.shipping = shippingBlock(input) as unknown as CustomerDoc['shipping'];
+  }
+  // An empty array is a real value here — it means "unlink everything" — so only an absent
+  // field leaves the list alone.
+  if (input.products !== undefined) {
+    doc.products = input.products as unknown as CustomerDoc['products'];
+  }
   if (input.notes !== undefined) doc.notes = input.notes;
   if (input.reseller !== undefined) doc.reseller = input.reseller;
   if (input.invoiceType !== undefined) doc.invoiceType = input.invoiceType;
@@ -209,5 +251,8 @@ export async function deleteCustomer(actor: SessionUser, id: string, reason?: st
   doc.deletedAt = new Date();
   doc.deleteReason = reason;
   await doc.save();
+  // Their negotiated rates go with them, the same way deleting a product clears its own. The
+  // customer row itself stays for invoice history; the pricing attached to it does not.
+  await clearCustomerRates(String(doc._id));
   return doc.toObject();
 }

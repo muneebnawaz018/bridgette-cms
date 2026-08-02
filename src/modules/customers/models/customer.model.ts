@@ -1,7 +1,31 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 import { InvoiceType } from '@/modules/invoicing/enums';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
+
+/**
+ * One structured address shape, used for both the billing and the shipping block. A factory
+ * rather than a shared instance: mongoose binds a sub-schema to its parent path, so reusing the
+ * same object in two places is asking for trouble.
+ */
+const addressPartsSchema = () =>
+  new Schema(
+    {
+      // 'US' or 'PK'. Same field set either way; only the state list and the US-only +4 add-on
+      // differ. Defaulted rather than left optional so an address always states its country — a
+      // missing one used to read back as US and quietly relabel a PK address.
+      country: { type: String, enum: ['US', 'PK'], default: 'US' },
+      line1: { type: String },
+      line2: { type: String },
+      city: { type: String },
+      // USPS two-letter code, e.g. 'CA'.
+      state: { type: String, uppercase: true, trim: true },
+      zip: { type: String },
+      zipPlus4: { type: String },
+    },
+    { _id: false },
+  );
 
 /**
  * Customer — a reusable billing party. Admins maintain the record; every role reads it to fill
@@ -25,25 +49,38 @@ const customerSchema = new Schema(
     // are filled in, so the two can never drift; still writable on its own for records that
     // predate the structured form.
     address: { type: String },
-    // Structured US address (street / unit / city / state / ZIP+4).
-    addressParts: {
+    // Structured address (street / unit / city / state / ZIP+4). Built by a factory because the
+    // shipping block below needs the identical shape — one definition, two uses, no drift.
+    addressParts: { type: addressPartsSchema(), default: undefined },
+
+    /*
+     * Where goods go, when that is not where the bill goes. `sameAsBilling` is the normal case
+     * and the default, in which case the name and address here stay empty and every reader falls
+     * back to the billing party — storing a copy would go stale the moment the billing address
+     * was corrected.
+     */
+    shipping: {
       type: new Schema(
         {
-          // 'US' (the default) or 'PK'. Same field set either way; only the state list and the
-          // US-only +4 add-on differ. Absent on rows that predate the field = US.
-          country: { type: String, enum: ['US', 'PK'] },
-          line1: { type: String },
-          line2: { type: String },
-          city: { type: String },
-          // USPS two-letter code, e.g. 'CA'.
-          state: { type: String, uppercase: true, trim: true },
-          zip: { type: String },
-          zipPlus4: { type: String },
+          sameAsBilling: { type: Boolean, default: true },
+          name: { type: String },
+          phone: { type: String },
+          address: { type: String },
+          addressParts: { type: addressPartsSchema(), default: undefined },
         },
         { _id: false },
       ),
       default: undefined,
     },
+    // The products this customer buys. A plain ref array, so the catalogue a customer works
+    // from is a fact on the customer record rather than something inferred from pricing rows.
+    // Rate, discount and unit are read from the Product itself — never copied here, so editing
+    // the catalogue is enough to change what an invoice offers.
+    //
+    // Separate from ProductRate, which stays the *exceptional* price for a customer: this
+    // array answers "which products", a rate row answers "at what price, unusually".
+    products: [{ type: Schema.Types.ObjectId, ref: 'Product', index: true }],
+
     notes: { type: String },
 
     // A reseller is tax-exempt: invoices raised for this customer charge no sales tax. Picking
@@ -81,5 +118,4 @@ customerSchema.index(
 
 export type CustomerDoc = InferSchemaType<typeof customerSchema>;
 
-export const Customer: Model<CustomerDoc> =
-  (models.Customer as Model<CustomerDoc>) ?? model<CustomerDoc>('Customer', customerSchema);
+export const Customer: Model<CustomerDoc> = registerModel<CustomerDoc>('Customer', customerSchema);

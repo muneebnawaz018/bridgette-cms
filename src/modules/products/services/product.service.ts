@@ -7,6 +7,7 @@ import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
 import { Product, type ProductDoc } from '../models/product.model';
 import { ProductRate } from '../models/productRate.model';
+import { Customer } from '@/modules/customers/models/customer.model';
 import type { ProductCreateInput, ProductUpdateInput, ListProductInput } from '../schemas';
 
 /** Lean docs from a projection carry `_id`, which InferSchemaType omits. */
@@ -29,6 +30,7 @@ const LIST_PROJECTION = {
   name: 1,
   sku: 1,
   defaultRate: 1,
+  discount: 1,
   unit: 1,
   fabric: 1,
   fabricName: '$fabricDoc.name',
@@ -78,43 +80,55 @@ export async function listProducts(
 export const OPTIONS_LIMIT = 2000;
 
 /**
- * Lightweight product list for the invoice line picker. When `customerId` is given, each item's
- * `rate` is that customer's negotiated rate where one exists, otherwise the default rate — so a
- * picked line lands on the right price with no extra lookup.
+ * Lightweight product list for the invoice line picker. With a `customerId` each item carries
+ * everything the line needs, so picking one costs no further lookup:
  *
- * Products the customer has a negotiated rate for are `linked: true` and sort to the front. They
- * lead rather than filter the list: a customer with no rates set would otherwise have an empty
- * picker and could not be invoiced at all, and a one-off item still has to be billable.
+ *  - `linked`   — on the customer's own product list. These sort to the front under their own
+ *                 heading. They lead rather than filter the list: a customer with none linked
+ *                 would otherwise have an empty picker, and a one-off item still has to be
+ *                 billable.
+ *  - `rate`     — the customer's negotiated rate where a ProductRate exists, else the catalogue
+ *                 rate. `negotiated` says which of the two it is.
+ *  - `discount` — the product's standing percentage, prefilled onto the line.
  */
 export async function listProductOptions(actor: SessionUser, customerId?: string) {
   assertCan(actor.role, Permission.ProductView);
   await connectDb();
 
-  const products = await Product.find({ isDeleted: { $ne: true } })
-    .select({ name: 1, sku: 1, unit: 1, defaultRate: 1 })
-    .sort({ name: 1 })
-    .limit(OPTIONS_LIMIT)
-    .lean<LeanProduct[]>();
+  const validCustomer = Boolean(customerId && Types.ObjectId.isValid(customerId));
+  const customerOid = validCustomer ? new Types.ObjectId(customerId) : null;
+
+  const [products, rateRows, customer] = await Promise.all([
+    Product.find({ isDeleted: { $ne: true } })
+      .select({ name: 1, sku: 1, unit: 1, defaultRate: 1, discount: 1 })
+      .sort({ name: 1 })
+      .limit(OPTIONS_LIMIT)
+      .lean<LeanProduct[]>(),
+    customerOid
+      ? ProductRate.find({ customer: customerOid }).select({ product: 1, rate: 1 }).lean()
+      : Promise.resolve([]),
+    customerOid
+      ? Customer.findById(customerOid).select({ products: 1 }).lean<{ products?: unknown[] }>()
+      : Promise.resolve(null),
+  ]);
 
   const overrides = new Map<string, number>();
-  if (customerId && Types.ObjectId.isValid(customerId)) {
-    const rows = await ProductRate.find({ customer: new Types.ObjectId(customerId) })
-      .select({ product: 1, rate: 1 })
-      .lean();
-    for (const r of rows) overrides.set(String(r.product), r.rate);
-  }
+  for (const r of rateRows) overrides.set(String(r.product), r.rate);
+  const linkedIds = new Set((customer?.products ?? []).map((id) => String(id)));
 
   const items = products.map((p) => {
-    const override = overrides.get(String(p._id));
+    const id = String(p._id);
+    const override = overrides.get(id);
     return {
-      _id: String(p._id),
+      _id: id,
       name: p.name,
       sku: p.sku ?? '',
       unit: p.unit ?? '',
       defaultRate: p.defaultRate,
+      discount: p.discount ?? 0,
       rate: override ?? p.defaultRate,
       negotiated: override != null,
-      linked: override != null,
+      linked: linkedIds.has(id),
     };
   });
 
@@ -139,6 +153,7 @@ export async function createProduct(actor: SessionUser, input: ProductCreateInpu
       name: input.name,
       sku: input.sku,
       defaultRate: input.defaultRate,
+      discount: input.discount ?? 0,
       unit: input.unit,
       fabric: input.fabric,
       description: input.description,
@@ -160,6 +175,7 @@ export async function updateProduct(actor: SessionUser, id: string, input: Produ
   if (input.name !== undefined) doc.name = input.name;
   if (input.sku !== undefined) doc.sku = input.sku;
   if (input.defaultRate !== undefined) doc.defaultRate = input.defaultRate;
+  if (input.discount !== undefined) doc.discount = input.discount;
   if (input.unit !== undefined) doc.unit = input.unit;
   // Absent leaves it alone; the schema guarantees a present value is a real id (never blank).
   if (input.fabric !== undefined) doc.fabric = input.fabric as unknown as ProductDoc['fabric'];
@@ -193,38 +209,7 @@ export async function deleteProduct(actor: SessionUser, id: string, reason?: str
   return doc.toObject();
 }
 
-// --- Per-customer rate overrides (shared by the product-side and customer-side views) ---
-
-export interface ProductRateRow {
-  customerId: string;
-  customerName: string;
-  customerEmail?: string;
-  rate: number;
-}
-
-/** Overrides set for one product, joined with customer name/email, name-sorted. */
-export async function listProductRates(
-  actor: SessionUser,
-  productId: string,
-): Promise<ProductRateRow[]> {
-  assertCan(actor.role, Permission.ProductView);
-  await connectDb();
-  const rows = await ProductRate.find({ product: productId })
-    .populate<{ customer: { _id: Types.ObjectId; name: string; email?: string } }>(
-      'customer',
-      'name email',
-    )
-    .lean();
-  return rows
-    .filter((r) => r.customer) // a deleted customer leaves a dangling ref; skip it
-    .map((r) => ({
-      customerId: String(r.customer._id),
-      customerName: r.customer.name,
-      customerEmail: r.customer.email,
-      rate: r.rate,
-    }))
-    .sort((a, b) => a.customerName.localeCompare(b.customerName));
-}
+// --- Per-customer rate overrides, owned from the customer's side ---
 
 export interface CustomerRateRow {
   productId: string;
@@ -290,6 +275,21 @@ export async function setProductRate(
 }
 
 /** Remove a per-customer rate (reverts the customer to the default). Admin only. */
+/**
+ * Drop every negotiated rate belonging to one customer. Called when a customer is deleted — the
+ * mirror of deleteProduct clearing a product's rates. Without it the rows outlive the customer
+ * and quietly reattach if that id is ever reused.
+ *
+ * No permission check of its own: the caller has already proven CustomerDelete, which is a
+ * stronger right than the ProductEdit this would otherwise ask for.
+ */
+export async function clearCustomerRates(customerId: string) {
+  await connectDb();
+  if (!Types.ObjectId.isValid(customerId)) return { deleted: 0 };
+  const res = await ProductRate.deleteMany({ customer: new Types.ObjectId(customerId) });
+  return { deleted: res.deletedCount ?? 0 };
+}
+
 export async function removeProductRate(actor: SessionUser, productId: string, customerId: string) {
   assertCan(actor.role, Permission.ProductEdit);
   await connectDb();

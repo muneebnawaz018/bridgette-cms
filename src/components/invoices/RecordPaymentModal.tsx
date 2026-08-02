@@ -71,6 +71,8 @@ export function RecordPaymentModal({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formKey, setFormKey] = useState(0);
+  // Bumped by every field change so the Record button can re-evaluate what is missing.
+  const [tick, setTick] = useState(0);
   // Set once a validated payment turns out to be less than the balance due: holds the payload to
   // record and how much would remain, so the confirm step can spell it out before committing.
   const [confirmPartial, setConfirmPartial] = useState<{
@@ -98,10 +100,12 @@ export function RecordPaymentModal({
 
   const setAmount = useCallback((_name: string, value: string) => {
     amountRef.current = value;
+    setTick((t) => t + 1);
   }, []);
 
   const setDetail = useCallback((name: string, value: string) => {
     detailsRef.current[name] = value;
+    setTick((t) => t + 1);
   }, []);
 
   const setNotes = useCallback((_name: string, value: string) => {
@@ -114,6 +118,7 @@ export function RecordPaymentModal({
     // inputs so their defaults refresh.
     detailsRef.current = {};
     setErrors({});
+    setTick((t) => t + 1);
     setFormKey((k) => k + 1);
   }, []);
 
@@ -149,6 +154,24 @@ export function RecordPaymentModal({
 
   const fields = PAYMENT_METHOD_FIELDS[method];
   const needsProof = proofRequired();
+
+  /*
+   * What is still missing, in words. The values live in refs (typing must not re-render the
+   * dialog), so this is recomputed from a counter the change handlers bump rather than from
+   * render state. It drives both the disabled Record button and the line beside it — a dead
+   * button with no reason is worse than no button.
+   */
+  const missing = useMemo(() => {
+    void tick; // recomputed whenever a field changes
+    const out: string[] = [];
+    const amount = Number(amountRef.current);
+    if (!amountRef.current.trim() || !Number.isFinite(amount) || amount <= 0) out.push('amount');
+    for (const f of fields) {
+      if (f.required && !detailsRef.current[f.key]?.trim()) out.push(f.label.toLowerCase());
+    }
+    if (needsProof && !proof) out.push('proof of payment');
+    return out;
+  }, [tick, fields, needsProof, proof]);
 
   async function submit() {
     if (!invoice) return;
@@ -230,6 +253,15 @@ export function RecordPaymentModal({
         busy={saving}
         actions={
           <>
+            {missing.length > 0 && !saving && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mr: { sm: 'auto' }, alignSelf: 'center' }}
+              >
+                {`Still needed: ${missing.join(', ')}`}
+              </Typography>
+            )}
             <Button
               onClick={close}
               disabled={saving}
@@ -243,7 +275,7 @@ export function RecordPaymentModal({
             <Button
               variant="contained"
               onClick={submit}
-              disabled={saving}
+              disabled={saving || missing.length > 0}
               startIcon={<PaymentsRounded />}
             >
               Record

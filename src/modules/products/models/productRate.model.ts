@@ -1,6 +1,7 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 /**
  * ProductRate — a per-customer negotiated price for one product. Its existence means "this
@@ -28,6 +29,7 @@ productRateSchema.index({ product: 1, customer: 1 }, { unique: true });
 
 export type ProductRateDoc = InferSchemaType<typeof productRateSchema>;
 
-export const ProductRate: Model<ProductRateDoc> =
-  (models.ProductRate as Model<ProductRateDoc>) ??
-  model<ProductRateDoc>('ProductRate', productRateSchema);
+export const ProductRate: Model<ProductRateDoc> = registerModel<ProductRateDoc>(
+  'ProductRate',
+  productRateSchema,
+);

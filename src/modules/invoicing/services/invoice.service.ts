@@ -38,6 +38,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     quantity: it.quantity,
     unitPrice: it.unitPrice,
     taxable: it.taxable ?? true,
+    discountPercent: it.discountPercent ?? 0,
     discount: it.discount ?? 0,
     lineTotal: calc.lineTotals[i],
   }));
@@ -292,6 +293,7 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
       quantity: it.quantity,
       unitPrice: it.unitPrice,
       taxable: it.taxable ?? true,
+      discountPercent: it.discountPercent ?? 0,
       discount: it.discount ?? 0,
     }));
 
@@ -312,6 +314,7 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
       quantity: it.quantity,
       unitPrice: it.unitPrice,
       taxable: it.taxable ?? true,
+      discountPercent: it.discountPercent ?? 0,
       discount: it.discount ?? 0,
       lineTotal: calc.lineTotals[i],
     })),

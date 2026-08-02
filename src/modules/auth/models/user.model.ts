@@ -1,8 +1,9 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 import { Role } from '../rbac';
 import { UserStatus } from '../enums';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 const userSchema = new Schema(
   {
@@ -36,5 +37,4 @@ const userSchema = new Schema(
 
 export type UserDoc = InferSchemaType<typeof userSchema>;
 
-export const User: Model<UserDoc> =
-  (models.User as Model<UserDoc>) ?? model<UserDoc>('User', userSchema);
+export const User: Model<UserDoc> = registerModel<UserDoc>('User', userSchema);

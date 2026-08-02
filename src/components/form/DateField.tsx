@@ -1,28 +1,21 @@
 'use client';
 
-import dayjs, { type Dayjs } from 'dayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dynamic from 'next/dynamic';
+import TextField from '@mui/material/TextField';
 
 /**
  * The app's one date input — a themed MUI DatePicker with a proper calendar popup, replacing
  * the browser-native `<input type="date">` (whose calendar cannot be styled and looked out of
  * place). Values go in and out as plain `YYYY-MM-DD` strings so the surrounding forms keep the
  * same shape they had with the native input; display is DD/MM/YYYY.
+ *
+ * The picker is loaded on demand (see DatePickerInner). @mui/x-date-pickers + dayjs is one of
+ * the heaviest imports in the app and only two places use it — the invoice list's date-range
+ * filter and the export modal — both behind a click. Splitting it keeps the package out of
+ * every other route's compile and bundle.
  */
-export function DateField({
-  label,
-  value,
-  onChange,
-  size = 'small',
-  disabled,
-  readOnly,
-  error,
-  helperText,
-  fullWidth = true,
-  clearable = true,
-  minDate,
-  maxDate,
-}: {
+
+export interface DateFieldProps {
   label: string;
   /** `YYYY-MM-DD`, or '' for empty. */
   value: string;
@@ -38,28 +31,11 @@ export function DateField({
   /** `YYYY-MM-DD` bounds, e.g. to cross-bind a start/end range. */
   minDate?: string;
   maxDate?: string;
-}) {
-  return (
-    <DatePicker
-      label={label}
-      value={value ? dayjs(value) : null}
-      onChange={(d: Dayjs | null) => onChange(d && d.isValid() ? d.format('YYYY-MM-DD') : '')}
-      disabled={disabled}
-      readOnly={readOnly}
-      minDate={minDate ? dayjs(minDate) : undefined}
-      maxDate={maxDate ? dayjs(maxDate) : undefined}
-      format="DD/MM/YYYY"
-      slotProps={{
-        textField: {
-          size,
-          fullWidth,
-          error,
-          helperText,
-          InputLabelProps: { shrink: true },
-        },
-        // A read-only field has nothing to clear; hide the clear affordance too.
-        field: { clearable: clearable && !readOnly },
-      }}
-    />
-  );
 }
+
+export const DateField = dynamic(() => import('./DatePickerInner'), {
+  // Client-only anyway — server-rendering it just to swap it out costs a hydration pass.
+  ssr: false,
+  // A same-sized disabled box, so the row does not jump when the chunk lands.
+  loading: () => <TextField size="small" fullWidth disabled />,
+});

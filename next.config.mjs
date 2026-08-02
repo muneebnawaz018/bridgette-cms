@@ -13,6 +13,16 @@ const nextConfig = {
   // Improves build speed and avoids bundling issues as the data layer grows.
   serverExternalPackages: ['mongoose', 'bcryptjs', 'pino', 'pino-pretty'],
 
+  experimental: {
+    /*
+     * Rewrite `import { DataGrid } from '@mui/x-data-grid'` into the one deep path it actually
+     * needs, so a route that touches the grid does not pull the whole package's module graph
+     * through the compiler. Next already does this for @mui/material and @mui/icons-material by
+     * default; the x-* packages are not on that list and are the heaviest things we import.
+     */
+    optimizePackageImports: ['@mui/x-data-grid', '@mui/x-date-pickers', 'notistack'],
+  },
+
   /**
    * Baseline security headers.
    *

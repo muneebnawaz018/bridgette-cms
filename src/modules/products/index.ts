@@ -7,12 +7,11 @@ export {
   createProduct,
   updateProduct,
   deleteProduct,
-  listProductRates,
   listCustomerRates,
   setProductRate,
   removeProductRate,
+  clearCustomerRates,
   OPTIONS_LIMIT,
-  type ProductRateRow,
   type CustomerRateRow,
 } from './services/product.service';
 export {

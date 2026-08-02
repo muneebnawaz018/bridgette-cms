@@ -35,7 +35,14 @@ export interface InvoiceDocumentData {
   dueDate?: string | Date;
   billTo?: { name?: string; email?: string; phone?: string; address?: string };
   shipTo?: { name?: string; email?: string; phone?: string; address?: string };
-  items: { description: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  items: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    /** Percent off this line. Absent or 0 on invoices raised before line discounts existed. */
+    discountPercent?: number;
+    lineTotal: number;
+  }[];
   subtotal: number;
   shippingHandlingTariff: number;
   totalBeforeTax: number;
@@ -80,12 +87,18 @@ const MIN_ROWS = 8;
 export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
   const rows = invoice.items ?? [];
   const pad = Math.max(0, MIN_ROWS - rows.length);
+  // The column only earns its width when something is actually discounted — most invoices would
+  // otherwise print a column of dashes.
+  const hasLineDiscount = rows.some((it) => (it.discountPercent ?? 0) > 0);
   const typeLabel = TYPE_LABEL[invoice.type] ?? 'INVOICE';
 
   return (
     <div className="inv-doc">
       <style>{`
-        .inv-doc { width: 820px; margin: 0 auto; background: ${PAPER}; color: ${BODY};
+        /* max-width, not just width: without it the whole narrow-screen block below is dead —
+           the rules fire but the document stays 820px wide and scrolls sideways inside its card,
+           stacked content and all. Matches InvoiceTemplateForm, its editable twin. */
+        .inv-doc { width: 820px; max-width: 100%; margin: 0 auto; background: ${PAPER}; color: ${BODY};
           font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.35; }
         .inv-doc * { box-sizing: border-box; }
         .inv-bar { height: 14px; background: ${RED}; }
@@ -218,6 +231,7 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
               <th className="desc">DESCRIPTION</th>
               <th style={{ width: 70 }}>QTY</th>
               <th style={{ width: 110 }}>UNIT PRICE</th>
+              {hasLineDiscount && <th style={{ width: 70 }}>DISC %</th>}
               <th style={{ width: 110 }}>TOTAL</th>
             </tr>
           </thead>
@@ -227,6 +241,9 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
                 <td>{it.description}</td>
                 <td className="qty">{it.quantity}</td>
                 <td className="num">{usd(it.unitPrice)}</td>
+                {hasLineDiscount && (
+                  <td className="qty">{it.discountPercent ? `${it.discountPercent}%` : '—'}</td>
+                )}
                 <td className="num">{usd(it.lineTotal)}</td>
               </tr>
             ))}
@@ -235,6 +252,7 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
                 <td>&nbsp;</td>
                 <td />
                 <td />
+                {hasLineDiscount && <td />}
                 <td />
               </tr>
             ))}

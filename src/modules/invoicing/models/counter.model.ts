@@ -1,6 +1,7 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 // One document per (type, period), e.g. _id = "TAX-26-06". Atomically incremented.
 const counterSchema = new Schema({
@@ -10,5 +11,4 @@ const counterSchema = new Schema({
 
 export type CounterDoc = InferSchemaType<typeof counterSchema>;
 
-export const Counter: Model<CounterDoc> =
-  (models.Counter as Model<CounterDoc>) ?? model<CounterDoc>('Counter', counterSchema);
+export const Counter: Model<CounterDoc> = registerModel<CounterDoc>('Counter', counterSchema);

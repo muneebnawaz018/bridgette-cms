@@ -1,7 +1,8 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 import { OtpPurpose } from '../enums';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 const otpTokenSchema = new Schema(
   {
@@ -19,5 +20,4 @@ otpTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export type OtpTokenDoc = InferSchemaType<typeof otpTokenSchema>;
 
-export const OtpToken: Model<OtpTokenDoc> =
-  (models.OtpToken as Model<OtpTokenDoc>) ?? model<OtpTokenDoc>('OtpToken', otpTokenSchema);
+export const OtpToken: Model<OtpTokenDoc> = registerModel<OtpTokenDoc>('OtpToken', otpTokenSchema);

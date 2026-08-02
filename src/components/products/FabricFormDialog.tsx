@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
@@ -11,6 +12,8 @@ import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { FormSection, TextInput } from '@/components/form/fields';
+import { useFormGuard } from '@/components/form/useFormGuard';
+import type { FormMode } from '@/components/ui/Modal';
 import { fabricFormSchema } from '@/modules/products/schemas';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
@@ -61,31 +64,52 @@ function buildPayload(f: FormValues) {
 export function FabricFormDialog({
   open,
   fabric,
+  initialMode = 'edit',
+  canEdit = true,
   onClose,
   onSaved,
 }: {
   open: boolean;
   /** null → create mode; a row → edit mode. */
   fabric: EditableFabric | null;
+  /** Rows open read-only; the pencil in the footer switches to editing. Ignored when creating. */
+  initialMode?: FormMode;
+  /** Whether the viewer may switch to editing — drives the pencil, not the fields. */
+  canEdit?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
   const isEdit = Boolean(fabric);
+  const [mode, setMode] = useState<FormMode>('edit');
+  const readOnly = mode === 'view';
 
   const valuesRef = useRef<FormValues>(EMPTY);
   const [initial, setInitial] = useState<FormValues>(EMPTY);
   const [saving, setSaving] = useState(false);
+  /** Every input is inert while saving or while the dialog is being read rather than edited. */
+  const locked = saving || readOnly;
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [formKey, setFormKey] = useState(0);
+
+  // Drives the Save button: same parse the field errors use, reduced to a boolean.
+  const isValid = useCallback(
+    (f: FormValues) =>
+      fabricFormSchema.safeParse({ ...f, gsm: f.gsm.trim() ? Number(f.gsm) : undefined }).success,
+    [],
+  );
+  const guard = useFormGuard<FormValues>({ valuesRef, isValid });
 
   useLayoutEffect(() => {
     if (!open) return;
     const next = fabric ? valuesFromFabric(fabric) : { ...EMPTY };
     valuesRef.current = next;
     setInitial(next);
+    // Creating has nothing to view, so it always opens editable.
+    setMode(fabric ? initialMode : 'edit');
+    guard.reset(next);
     setErrors({});
     setTouched({});
     setSubmitted(false);
@@ -100,9 +124,13 @@ export function FabricFormDialog({
     return result.success ? {} : toFieldErrors(result.error);
   }, []);
 
-  const setText = useCallback((key: string, value: string) => {
-    valuesRef.current[key as FieldKey] = value;
-  }, []);
+  const setText = useCallback(
+    (key: string, value: string) => {
+      valuesRef.current[key as FieldKey] = value;
+      guard.refresh();
+    },
+    [guard],
+  );
 
   const blurField = useCallback(
     (key: string) => {
@@ -130,7 +158,6 @@ export function FabricFormDialog({
     const found = validate(values);
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
       return;
     }
 
@@ -163,35 +190,71 @@ export function FabricFormDialog({
     <Modal
       open={open}
       onClose={close}
-      title={isEdit ? `Edit ${fabric?.name ?? 'fabric'}` : 'New fabric'}
+      title={
+        !isEdit
+          ? 'New fabric'
+          : readOnly
+            ? (fabric?.name ?? 'Fabric')
+            : `Edit ${fabric?.name ?? 'fabric'}`
+      }
       description={
-        isEdit
-          ? 'Update this material — every product linked to it picks up the change.'
-          : 'Add a material products can be made of.'
+        !isEdit
+          ? 'Add a material products can be made of.'
+          : readOnly
+            ? 'Read-only. Use Edit to make changes.'
+            : 'Update this material — every product linked to it picks up the change.'
       }
       icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="sm"
       busy={saving}
       actions={
-        <>
-          <Button
-            onClick={close}
-            disabled={saving}
-            variant="outlined"
-            color="inherit"
-            startIcon={<CloseRounded />}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={submit}
-            disabled={saving}
-            startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
-          >
-            {isEdit ? 'Save' : 'Create'}
-          </Button>
-        </>
+        readOnly ? (
+          <>
+            <Button onClick={close} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+              Close
+            </Button>
+            {canEdit && (
+              <Button
+                variant="contained"
+                onClick={() => setMode('edit')}
+                startIcon={<EditRounded />}
+              >
+                Edit
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Says which of the two reasons Save is disabled for, rather than leaving a dead
+              button and no explanation. */}
+            {guard.reason && !saving && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mr: { sm: 'auto' }, alignSelf: 'center' }}
+              >
+                {guard.reason}
+              </Typography>
+            )}
+            <Button
+              onClick={close}
+              disabled={saving}
+              variant="outlined"
+              color="inherit"
+              startIcon={<CloseRounded />}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={submit}
+              disabled={saving || !guard.dirty || !guard.valid}
+              startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
+            >
+              {isEdit ? 'Save' : 'Create'}
+            </Button>
+          </>
+        )
       }
     >
       <Stack key={formKey} spacing={3}>
@@ -207,7 +270,7 @@ export function FabricFormDialog({
                 error={Boolean(shown('name'))}
                 required
                 autoFocus={!isEdit}
-                disabled={saving}
+                disabled={locked}
                 onChange={setText}
                 onBlur={blurField}
               />
@@ -221,7 +284,7 @@ export function FabricFormDialog({
                 helperText={shown('gsm') ?? 'Grams per square metre — optional'}
                 error={Boolean(shown('gsm'))}
                 inputMode="numeric"
-                disabled={saving}
+                disabled={locked}
                 onChange={setText}
                 onBlur={blurField}
               />
@@ -233,7 +296,7 @@ export function FabricFormDialog({
                 defaultValue={initial.type}
                 helperText={shown('type')}
                 error={Boolean(shown('type'))}
-                disabled={saving}
+                disabled={locked}
                 placeholder="e.g. Knit, Woven, Fleece"
                 onChange={setText}
                 onBlur={blurField}
@@ -249,7 +312,7 @@ export function FabricFormDialog({
             defaultValue={initial.notes}
             helperText={shown('notes')}
             error={Boolean(shown('notes'))}
-            disabled={saving}
+            disabled={locked}
             multiline
             minRows={2}
             placeholder="Only visible to admins"

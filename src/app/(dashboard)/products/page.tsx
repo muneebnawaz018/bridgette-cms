@@ -20,6 +20,7 @@ import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ProductFormDialog, type EditableProduct } from '@/components/products/ProductFormDialog';
+import type { FormMode } from '@/components/ui/Modal';
 import { FabricsPanel } from '@/components/products/FabricsPanel';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
@@ -32,6 +33,8 @@ interface ProductRow {
   name: string;
   sku: string;
   defaultRate: number;
+  /** Standing discount, percent. */
+  discount?: number;
   unit?: string;
   /** Fabric id, plus the joined name/GSM the list renders. */
   fabric?: string | null;
@@ -47,7 +50,7 @@ interface ProductRow {
  * up), 436 at 768, 288 at 320.
  */
 const PRODUCT_COLUMN_TIERS: ColumnTiers = {
-  lg: ['unit'],
+  lg: ['unit', 'discount'],
   md: ['sku', 'fabricName'],
 };
 
@@ -95,13 +98,24 @@ export default function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formProduct, setFormProduct] = useState<EditableProduct | null>(null);
 
+  // Rows open read-only. Editing is reached from the pencil inside, or from the row menu.
+  const [formMode, setFormMode] = useState<FormMode>('edit');
+
   const openCreate = useCallback(() => {
     setFormProduct(null);
+    setFormMode('edit');
+    setFormOpen(true);
+  }, []);
+
+  const openView = useCallback((row: ProductRow) => {
+    setFormProduct(row);
+    setFormMode('view');
     setFormOpen(true);
   }, []);
 
   const openEdit = useCallback((row: ProductRow) => {
     setFormProduct(row);
+    setFormMode('edit');
     setFormOpen(true);
   }, []);
 
@@ -162,12 +176,22 @@ export default function ProductsPage() {
         valueGetter: (_v, r) => formatMoney('USD', r.defaultRate),
       },
       {
+        field: 'discount',
+        headerName: 'Discount',
+        flex: 0.7,
+        minWidth: 90,
+        headerAlign: 'right',
+        align: 'right',
+        valueGetter: (_v, r) => (r.discount ? `${r.discount}%` : '—'),
+      },
+      {
         field: 'actions',
         headerName: '',
         width: 56,
         sortable: false,
         renderCell: (p) => {
           const actions: RowAction[] = [];
+          actions.push({ label: 'View', onClick: () => openView(p.row) });
           if (canEdit) actions.push({ label: 'Edit', onClick: () => openEdit(p.row) });
           if (canDelete)
             actions.push({ label: 'Delete', danger: true, onClick: () => setToDelete(p.row) });
@@ -176,7 +200,7 @@ export default function ProductsPage() {
         },
       },
     ],
-    [canEdit, canDelete, openEdit],
+    [canEdit, canDelete, openEdit, openView],
   );
 
   if (!canView) {
@@ -248,7 +272,7 @@ export default function ProductsPage() {
               rowCount={rowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
+              onRowClick={(id) => openView(rows.find((r) => r._id === id)!)}
               columnVisibilityModel={columnVisibility}
             />
           </Paper>
@@ -256,6 +280,8 @@ export default function ProductsPage() {
           <ProductFormDialog
             open={formOpen}
             product={formProduct}
+            initialMode={formMode}
+            canEdit={canEdit}
             onClose={() => setFormOpen(false)}
             onSaved={() => void mutate()}
           />

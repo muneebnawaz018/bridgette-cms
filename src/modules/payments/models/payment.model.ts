@@ -1,7 +1,8 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 import { Currency, PaymentMethod } from '@/modules/invoicing/enums';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 // Proof of payment — a client-compressed JPEG kept as a base64 data URL. Stored inline rather
 // than in external object storage: this app has none configured, and a bounded (~3MB) image per
@@ -39,5 +40,4 @@ paymentSchema.index({ invoiceId: 1, paidAt: -1 });
 
 export type PaymentDoc = InferSchemaType<typeof paymentSchema>;
 
-export const Payment: Model<PaymentDoc> =
-  (models.Payment as Model<PaymentDoc>) ?? model<PaymentDoc>('Payment', paymentSchema);
+export const Payment: Model<PaymentDoc> = registerModel<PaymentDoc>('Payment', paymentSchema);

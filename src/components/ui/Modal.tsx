@@ -15,6 +15,13 @@ import { colors, gradients, redA } from '@/lib/colors';
 export type ModalWidth = 'xs' | 'sm' | 'md' | 'lg';
 
 /**
+ * How a record dialog opens: read-only from a row click, or editable from the Edit action.
+ * Viewing is the default so a stray click cannot put an edit one keystroke away; the pencil in
+ * the footer is the deliberate step across. Saving closes the dialog — there is no half-state.
+ */
+export type FormMode = 'view' | 'edit';
+
+/**
  * The one modal used across the app: rounded card, close (X) top-right, click-outside /
  * Esc to dismiss, and a grow-in transition. Keeps every dialog visually consistent.
  * Set `busy` to lock it (X, backdrop, and Esc) while a request is in flight.

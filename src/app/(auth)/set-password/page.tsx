@@ -66,9 +66,21 @@ function SetPasswordForm() {
     return result.success ? {} : toFieldErrors(result.error);
   }, []);
 
-  const setField = useCallback((name: string, value: string) => {
-    valuesRef.current[name as keyof FormValues] = value;
-  }, []);
+  // Drives the submit button. Same rules as `validate`, reduced to a boolean and recomputed on
+  // each keystroke — only a flip reaches state, so typing still costs no re-render.
+  const [valid, setValid] = useState(false);
+  const refreshValid = useCallback(() => {
+    const ok = Object.keys(validate()).length === 0;
+    setValid((v) => (v === ok ? v : ok));
+  }, [validate]);
+
+  const setField = useCallback(
+    (name: string, value: string) => {
+      valuesRef.current[name as keyof FormValues] = value;
+      refreshValid();
+    },
+    [refreshValid],
+  );
 
   const blurField = useCallback(
     (name: string) => {
@@ -89,10 +101,8 @@ function SetPasswordForm() {
     setSubmitted(true);
     const found = validate();
     setErrors(found);
-    if (Object.keys(found).length > 0) {
-      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
-      return;
-    }
+    // The button is disabled while this fails; re-checked because Enter also submits.
+    if (Object.keys(found).length > 0) return;
 
     setLoading(true);
     const { email, code, password } = valuesRef.current;
@@ -169,7 +179,14 @@ function SetPasswordForm() {
           fullWidth
           disabled={loading}
         />
-        <SubmitButton type="submit" variant="contained" size="large" loading={loading} fullWidth>
+        <SubmitButton
+          type="submit"
+          variant="contained"
+          size="large"
+          loading={loading}
+          disabled={!valid}
+          fullWidth
+        >
           {loading ? 'Saving…' : 'Set password'}
         </SubmitButton>
       </Stack>

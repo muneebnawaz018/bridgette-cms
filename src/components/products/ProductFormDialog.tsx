@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
@@ -13,7 +14,8 @@ import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import { Modal } from '@/components/ui/Modal';
 import { FormSection, TextInput, type SelectOption } from '@/components/form/fields';
-import { ProductRatesEditor } from '@/components/products/ProductRatesEditor';
+import { useFormGuard } from '@/components/form/useFormGuard';
+import type { FormMode } from '@/components/ui/Modal';
 import { productFormSchema } from '@/modules/products/schemas';
 import { useApi } from '@/lib/api/useApi';
 import { apiPost, apiPatch } from '@/lib/api/client';
@@ -21,8 +23,11 @@ import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/e
 
 /*
  * One dialog for creating and editing a product (admin only). Typed values live in a ref so a
- * keystroke re-renders only the input being typed in. `product` null = create mode. Per-customer
- * pricing is only offered in edit mode (it needs a saved product id) via ProductRatesEditor.
+ * keystroke re-renders only the input being typed in. `product` null = create mode.
+ *
+ * No customer pricing here: the relationship is owned from the customer's side — a customer
+ * lists the products it buys, and its Pricing action sets what it pays for them. Editing the
+ * same link from both ends was two places to look and two places to disagree.
  */
 
 export interface EditableProduct {
@@ -30,6 +35,8 @@ export interface EditableProduct {
   name: string;
   sku: string;
   defaultRate: number;
+  /** Standing discount, percent. */
+  discount?: number;
   unit?: string;
   /** Fabric id, when the product is linked to one. */
   fabric?: string | null;
@@ -47,6 +54,7 @@ interface FormValues {
   name: string;
   sku: string;
   defaultRate: string;
+  discount: string;
   unit: string;
   fabric: string;
   description: string;
@@ -58,6 +66,7 @@ const EMPTY: FormValues = {
   name: '',
   sku: '',
   defaultRate: '',
+  discount: '',
   unit: '',
   fabric: '',
   description: '',
@@ -68,6 +77,8 @@ function valuesFromProduct(p: EditableProduct): FormValues {
     name: p.name ?? '',
     sku: p.sku ?? '',
     defaultRate: p.defaultRate != null ? String(p.defaultRate) : '',
+    // 0 shows as blank: "no discount" reads better as an empty field than as a typed zero.
+    discount: p.discount ? String(p.discount) : '',
     unit: p.unit ?? '',
     fabric: p.fabric ? String(p.fabric) : '',
     description: p.description ?? '',
@@ -80,6 +91,7 @@ function buildPayload(f: FormValues) {
     name: f.name.trim(),
     sku: f.sku.trim(),
     defaultRate: Number(f.defaultRate),
+    discount: f.discount.trim() === '' ? 0 : Number(f.discount),
     unit: f.unit.trim() || undefined,
     // Sent as '' rather than omitted so clearing the picker actually unlinks the fabric.
     fabric: f.fabric,
@@ -97,17 +109,25 @@ function fabricLabel(f: FabricOption): string {
 export function ProductFormDialog({
   open,
   product,
+  initialMode = 'edit',
+  canEdit = true,
   onClose,
   onSaved,
 }: {
   open: boolean;
   /** null → create mode; a row → edit mode. */
   product: EditableProduct | null;
+  /** Rows open read-only; the pencil in the footer switches to editing. Ignored when creating. */
+  initialMode?: FormMode;
+  /** Whether the viewer may switch to editing — drives the pencil, not the fields. */
+  canEdit?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
   const isEdit = Boolean(product);
+  const [mode, setMode] = useState<FormMode>('edit');
+  const readOnly = mode === 'view';
 
   const valuesRef = useRef<FormValues>(EMPTY);
   const [initial, setInitial] = useState<FormValues>(EMPTY);
@@ -118,6 +138,20 @@ export function ProductFormDialog({
   const [formKey, setFormKey] = useState(0);
   // The picker is controlled (a pick has to re-render the select), unlike the text fields.
   const [fabric, setFabric] = useState('');
+  /** Every input is inert while saving or while the dialog is being read rather than edited. */
+  const locked = saving || readOnly;
+
+  // Drives the Save button: same parse the field errors use, reduced to a boolean.
+  const isValid = useCallback(
+    (f: FormValues) =>
+      productFormSchema.safeParse({
+        ...f,
+        defaultRate: Number(f.defaultRate),
+        discount: f.discount.trim() === '' ? 0 : Number(f.discount),
+      }).success,
+    [],
+  );
+  const guard = useFormGuard<FormValues>({ valuesRef, isValid });
 
   // Only fetched while the dialog is open — the catalogue list itself has no use for it.
   // globalLoading off: the fetch shows as the picker's own loading state, not an app overlay
@@ -137,6 +171,9 @@ export function ProductFormDialog({
     valuesRef.current = next;
     setInitial(next);
     setFabric(next.fabric);
+    // Creating has nothing to view, so it always opens editable.
+    setMode(product ? initialMode : 'edit');
+    guard.reset(next);
     setErrors({});
     setTouched({});
     setSubmitted(false);
@@ -145,18 +182,30 @@ export function ProductFormDialog({
 
   const validate = useCallback((f: FormValues): FieldErrors => {
     // Rate is a string in the form; validate the coerced number the payload will send.
-    const result = productFormSchema.safeParse({ ...f, defaultRate: Number(f.defaultRate) });
+    const result = productFormSchema.safeParse({
+      ...f,
+      defaultRate: Number(f.defaultRate),
+      discount: f.discount.trim() === '' ? 0 : Number(f.discount),
+    });
     return result.success ? {} : toFieldErrors(result.error);
   }, []);
 
-  const setText = useCallback((key: string, value: string) => {
-    valuesRef.current[key as FieldKey] = value;
-  }, []);
+  const setText = useCallback(
+    (key: string, value: string) => {
+      valuesRef.current[key as FieldKey] = value;
+      guard.refresh();
+    },
+    [guard],
+  );
 
-  const pickFabric = useCallback((_key: string, value: string) => {
-    valuesRef.current.fabric = value;
-    setFabric(value);
-  }, []);
+  const pickFabric = useCallback(
+    (_key: string, value: string) => {
+      valuesRef.current.fabric = value;
+      setFabric(value);
+      guard.refresh();
+    },
+    [guard],
+  );
 
   const blurField = useCallback(
     (key: string) => {
@@ -181,12 +230,10 @@ export function ProductFormDialog({
   async function submit() {
     setSubmitted(true);
     const values = valuesRef.current;
+    // Save is disabled while the form does not parse; re-checked because Enter also submits.
     const found = validate(values);
     setErrors(found);
-    if (Object.keys(found).length > 0) {
-      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
-      return;
-    }
+    if (Object.keys(found).length > 0) return;
 
     setSaving(true);
     const payload = buildPayload(values);
@@ -215,35 +262,74 @@ export function ProductFormDialog({
     <Modal
       open={open}
       onClose={close}
-      title={isEdit ? `Edit ${product?.name ?? 'product'}` : 'New product'}
+      title={
+        !isEdit
+          ? 'New product'
+          : readOnly
+            ? (product?.name ?? 'Product')
+            : `Edit ${product?.name ?? 'product'}`
+      }
       description={
-        isEdit
-          ? 'Update the catalogue entry and its per-customer pricing.'
-          : 'Add a catalogue item. Set per-customer rates after saving.'
+        !isEdit
+          ? 'Add a catalogue item. Set per-customer rates after saving.'
+          : readOnly
+            ? 'Read-only. Use Edit to make changes.'
+            : 'Update the catalogue entry and its per-customer pricing.'
       }
       icon={isEdit ? <EditRounded /> : <AddRounded />}
-      maxWidth="sm"
+      // md (900px), same as the customer form: at sm the two-up fields are ~250px wide and every
+      // helper text wraps to two lines, which drags the dialog into scrolling. 900 + the 64px
+      // margins still clears a 1024 screen.
+      maxWidth="md"
       busy={saving}
       actions={
-        <>
-          <Button
-            onClick={close}
-            disabled={saving}
-            variant="outlined"
-            color="inherit"
-            startIcon={<CloseRounded />}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={submit}
-            disabled={saving}
-            startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
-          >
-            {isEdit ? 'Save' : 'Create'}
-          </Button>
-        </>
+        readOnly ? (
+          <>
+            <Button onClick={close} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+              Close
+            </Button>
+            {canEdit && (
+              <Button
+                variant="contained"
+                onClick={() => setMode('edit')}
+                startIcon={<EditRounded />}
+              >
+                Edit
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Says which of the two reasons Save is disabled for, rather than leaving a dead
+              button and no explanation. */}
+            {guard.reason && !saving && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mr: { sm: 'auto' }, alignSelf: 'center' }}
+              >
+                {guard.reason}
+              </Typography>
+            )}
+            <Button
+              onClick={close}
+              disabled={saving}
+              variant="outlined"
+              color="inherit"
+              startIcon={<CloseRounded />}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={submit}
+              disabled={saving || !guard.dirty || !guard.valid}
+              startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
+            >
+              {isEdit ? 'Save' : 'Create'}
+            </Button>
+          </>
+        )
       }
     >
       <Stack key={formKey} spacing={3}>
@@ -259,7 +345,7 @@ export function ProductFormDialog({
                 error={Boolean(shown('name'))}
                 required
                 autoFocus={!isEdit}
-                disabled={saving}
+                disabled={locked}
                 onChange={setText}
                 onBlur={blurField}
               />
@@ -273,7 +359,7 @@ export function ProductFormDialog({
                 helperText={shown('sku') ?? 'Unique product code'}
                 error={Boolean(shown('sku'))}
                 required
-                disabled={saving}
+                disabled={locked}
                 onChange={setText}
                 onBlur={blurField}
               />
@@ -290,7 +376,7 @@ export function ProductFormDialog({
                 error={Boolean(shown('defaultRate'))}
                 required
                 inputMode="decimal"
-                disabled={saving}
+                disabled={locked}
                 onChange={setText}
                 onBlur={blurField}
               />
@@ -305,7 +391,7 @@ export function ProductFormDialog({
                 value={fabricOptions.find((o) => o.value === fabric) ?? null}
                 onChange={(_e, picked) => pickFabric('fabric', picked?.value ?? '')}
                 loading={fabricsLoading}
-                disabled={saving}
+                disabled={locked}
                 noOptionsText={fabricOptions.length === 0 ? 'No fabrics yet' : 'No match'}
                 renderInput={(params) => (
                   <TextField
@@ -321,12 +407,28 @@ export function ProductFormDialog({
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextInput
+                name="discount"
+                label="Discount (%)"
+                placeholder="e.g. 10"
+                defaultValue={initial.discount}
+                helperText={
+                  shown('discount') ?? 'Prefilled onto an invoice line; leave blank for none'
+                }
+                error={Boolean(shown('discount'))}
+                inputMode="decimal"
+                disabled={locked}
+                onChange={setText}
+                onBlur={blurField}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextInput
                 name="unit"
                 label="Unit"
                 defaultValue={initial.unit}
                 helperText={shown('unit')}
                 error={Boolean(shown('unit'))}
-                disabled={saving}
+                disabled={locked}
                 placeholder="e.g. hour, item, kg"
                 onChange={setText}
                 onBlur={blurField}
@@ -340,7 +442,7 @@ export function ProductFormDialog({
                 defaultValue={initial.description}
                 helperText={shown('description')}
                 error={Boolean(shown('description'))}
-                disabled={saving}
+                disabled={locked}
                 multiline
                 minRows={2}
                 onChange={setText}
@@ -349,12 +451,6 @@ export function ProductFormDialog({
             </Grid>
           </Grid>
         </FormSection>
-
-        {isEdit && product && (
-          <FormSection title="Customer pricing">
-            <ProductRatesEditor productId={product._id} defaultRate={product.defaultRate} />
-          </FormSection>
-        )}
       </Stack>
     </Modal>
   );

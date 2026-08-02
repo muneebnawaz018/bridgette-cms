@@ -21,7 +21,7 @@ import {
   CustomerFormDialog,
   type EditableCustomer,
 } from '@/components/customers/CustomerFormDialog';
-import { CustomerPricingModal } from '@/components/customers/CustomerPricingModal';
+import type { FormMode } from '@/components/ui/Modal';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
@@ -39,6 +39,16 @@ interface CustomerRow {
   address?: string;
   reseller?: boolean;
   invoiceType?: string;
+  /** Product ids this customer buys — the edit form prefills its picker from these. */
+  products?: string[];
+  /** Delivery details, when they differ from billing. */
+  shipping?: {
+    sameAsBilling?: boolean;
+    name?: string;
+    phone?: string;
+    address?: string;
+    addressParts?: AddressParts | null;
+  } | null;
   createdAt: string;
 }
 
@@ -62,8 +72,6 @@ export default function CustomersPage() {
   const canCreate = useCan(Permission.CustomerCreate);
   const canEdit = useCan(Permission.CustomerEdit);
   const canDelete = useCan(Permission.CustomerDelete);
-  // Per-customer product pricing is a product-catalogue edit, so it is gated on ProductEdit.
-  const canPrice = useCan(Permission.ProductEdit);
 
   const columnVisibility = useBreakpointColumns(CUSTOMER_COLUMN_TIERS);
 
@@ -97,18 +105,26 @@ export default function CustomersPage() {
   // One dialog handles create and edit; null = create.
   const [formOpen, setFormOpen] = useState(false);
   const [formCustomer, setFormCustomer] = useState<EditableCustomer | null>(null);
+  // Rows open read-only. Editing is reached from the pencil inside, or from the row menu.
+  const [formMode, setFormMode] = useState<FormMode>('edit');
 
   const openCreate = useCallback(() => {
     setFormCustomer(null);
+    setFormMode('edit');
+    setFormOpen(true);
+  }, []);
+
+  const openView = useCallback((row: CustomerRow) => {
+    setFormCustomer(row);
+    setFormMode('view');
     setFormOpen(true);
   }, []);
 
   const openEdit = useCallback((row: CustomerRow) => {
     setFormCustomer(row);
+    setFormMode('edit');
     setFormOpen(true);
   }, []);
-
-  const [pricing, setPricing] = useState<CustomerRow | null>(null);
 
   const [toDelete, setToDelete] = useState<CustomerRow | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -174,8 +190,8 @@ export default function CustomersPage() {
         sortable: false,
         renderCell: (p) => {
           const actions: RowAction[] = [];
+          actions.push({ label: 'View', onClick: () => openView(p.row) });
           if (canEdit) actions.push({ label: 'Edit', onClick: () => openEdit(p.row) });
-          if (canPrice) actions.push({ label: 'Pricing', onClick: () => setPricing(p.row) });
           if (canDelete)
             actions.push({ label: 'Delete', danger: true, onClick: () => setToDelete(p.row) });
           if (actions.length === 0) return null;
@@ -183,7 +199,7 @@ export default function CustomersPage() {
         },
       },
     ],
-    [canEdit, canPrice, canDelete, openEdit],
+    [canEdit, canDelete, openEdit, openView],
   );
 
   if (!canView) {
@@ -221,7 +237,7 @@ export default function CustomersPage() {
           rowCount={rowCount}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
-          onRowClick={canEdit ? (id) => openEdit(rows.find((r) => r._id === id)!) : undefined}
+          onRowClick={(id) => openView(rows.find((r) => r._id === id)!)}
           columnVisibilityModel={columnVisibility}
         />
       </Paper>
@@ -229,14 +245,10 @@ export default function CustomersPage() {
       <CustomerFormDialog
         open={formOpen}
         customer={formCustomer}
+        initialMode={formMode}
+        canEdit={canEdit}
         onClose={() => setFormOpen(false)}
         onSaved={() => void mutate()}
-      />
-
-      <CustomerPricingModal
-        customerId={pricing?._id ?? null}
-        customerName={pricing?.name ?? ''}
-        onClose={() => setPricing(null)}
       />
 
       <ConfirmDialog

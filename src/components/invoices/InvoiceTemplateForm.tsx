@@ -10,7 +10,7 @@ import type { CalcResult } from '@/modules/invoicing/calc';
 import { formatMoney } from '@/lib/format/money';
 import { formatPhone } from '@/lib/format/countries';
 import { cashappAmount, CASHAPP_PCT } from '@/components/invoices/InvoiceDocument';
-import { colors } from '@/lib/colors';
+import { colors, redA } from '@/lib/colors';
 import type { FieldErrors } from '@/lib/form/errors';
 
 /*
@@ -43,6 +43,8 @@ export interface TemplateLine {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** Percent off this line (0–100). Prefilled from the product, editable per line. */
+  discountPercent?: number;
 }
 
 export interface TemplateForm {
@@ -72,6 +74,14 @@ export interface CustomerOption {
   address?: string;
   reseller?: boolean;
   invoiceType?: InvoiceType;
+  /** Product ids this customer buys — the lines are filled from these on pick. */
+  products?: string[];
+  /** Where goods go. `sameAsBilling` means SHIP TO repeats the billing party. */
+  shipping?: {
+    sameAsBilling?: boolean;
+    name?: string;
+    address?: string;
+  } | null;
 }
 export interface ProductOption {
   _id: string;
@@ -79,6 +89,8 @@ export interface ProductOption {
   sku: string;
   unit: string;
   defaultRate: number;
+  /** The product's standing discount %, prefilled onto the line when picked. */
+  discount?: number;
   rate: number;
   negotiated: boolean;
   /** This customer has a negotiated rate for it — shown first, under its own heading. */
@@ -101,6 +113,18 @@ const TYPE_LABEL: Record<InvoiceType, string> = {
   [InvoiceType.Cash]: 'CASH INVOICE',
   [InvoiceType.PK]: 'INVOICE',
 };
+
+/**
+ * SHIP TO for a picked customer. A customer that ships to its billing address stores no separate
+ * copy, so the billing party is repeated here rather than read back from a stale duplicate.
+ */
+export function shipToFor(opt: CustomerOption): { name: string; address: string } {
+  const ship = opt.shipping;
+  if (!ship || ship.sameAsBilling !== false) {
+    return { name: opt.name, address: opt.address ?? '' };
+  }
+  return { name: ship.name || opt.name, address: ship.address ?? '' };
+}
 
 const usd = (n: number) => formatMoney('USD', Number(n ?? 0));
 
@@ -288,6 +312,8 @@ export function InvoiceTemplateForm({
   // defaults.
   const [billKey, setBillKey] = useState(0);
   const [shipKey, setShipKey] = useState(0);
+  // Bumped (not toggled) so a second impatient click restarts the flash instead of being swallowed.
+  const [nudge, setNudge] = useState(0);
 
   const setField = <K extends keyof TemplateForm>(key: K, value: TemplateForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -306,38 +332,57 @@ export function InvoiceTemplateForm({
     setForm((f) => {
       const last = f.items[f.items.length - 1];
       if (last && last.description.trim() === '') return f;
-      return { ...f, items: [...f.items, { description: '', quantity: 1, unitPrice: 0 }] };
+      return {
+        ...f,
+        items: [...f.items, { description: '', quantity: 1, unitPrice: 0, discountPercent: 0 }],
+      };
     });
 
   /*
-   * Auto-fill: a customer with exactly one linked product has only one thing they can be billed
-   * for, so picking them fills the first line with it — product, description and their rate, all
-   * still editable. Two or more linked products stay a choice, which is what the dropdown is for.
+   * The empty rows below the last line are part of the printed template, not spare inputs. Clicking
+   * one claims it as the next line — but only when the line above is actually filled, otherwise the
+   * invoice collects blank rows. A click that cannot be honoured used to do nothing at all, which
+   * reads as a broken table, so it flashes the offending line and says what to do instead.
+   */
+  const claimPadRow = () => {
+    if (lastFilled) {
+      addLine();
+      return;
+    }
+    setNudge((n) => n + 1);
+  };
+
+  /*
+   * Auto-fill: picking a customer writes their linked products straight onto the lines — product,
+   * description, the rate they pay and the product's discount, one line each, all still editable.
+   * That is the whole point of linking them; making someone re-pick the same list by hand would
+   * be busywork.
    *
    * Only fires on a form whose lines are all still blank, so it can never overwrite work in
-   * progress or re-add itself to a draft being edited. The ref makes it once-per-product: clear
-   * the line back out and it stays cleared.
+   * progress or refill a draft being edited. The ref keys on the product set, so switching to a
+   * different customer refills, while clearing the lines by hand leaves them cleared.
    */
-  const autoFilledRef = useRef<string | null>(null);
+  const autoFilledRef = useRef<string>('');
   useEffect(() => {
     const linked = products.filter((p) => p.linked);
-    if (linked.length !== 1) return;
-    const only = linked[0];
-    if (autoFilledRef.current === only._id) return;
+    if (linked.length === 0) return;
+    // Keyed by the set itself, so switching customer refills and re-rendering does not.
+    const key = linked.map((p) => p._id).join(',');
+    if (autoFilledRef.current === key) return;
 
     setForm((f) => {
       const untouched = f.items.every((l) => !l.productId && !l.description.trim());
-      if (!untouched || f.items.length === 0) return f;
-      autoFilledRef.current = only._id;
-      const items = f.items.slice();
-      items[0] = {
-        ...items[0],
-        productId: only._id,
-        productName: only.name,
-        description: only.name,
-        unitPrice: only.rate,
-      };
-      return { ...f, items };
+      if (!untouched) return f;
+      autoFilledRef.current = key;
+      const filled = linked.map((p) => ({
+        productId: p._id,
+        productName: p.name,
+        description: p.name,
+        quantity: 1,
+        unitPrice: p.rate,
+        discountPercent: p.discount ?? 0,
+      }));
+      return { ...f, items: filled };
     });
   }, [products, setForm]);
 
@@ -368,6 +413,13 @@ export function InvoiceTemplateForm({
   };
 
   const rows = form.items;
+  // The flash clears itself; it is a hint, not a state anyone has to dismiss.
+  useEffect(() => {
+    if (nudge === 0) return;
+    const t = setTimeout(() => setNudge(0), 1800);
+    return () => clearTimeout(t);
+  }, [nudge]);
+
   const pad = Math.max(0, MIN_ROWS - rows.length);
   const lastFilled = rows.length === 0 || rows[rows.length - 1].description.trim() !== '';
   const balanceDue = preview.grandTotal; // no payment recorded yet at creation
@@ -415,6 +467,24 @@ export function InvoiceTemplateForm({
         .tpl-meta .big { font-size: 26px; color: ${FAINT}; font-weight: 500; line-height: 1.05; }
         .tpl-meta .row { font-size: 11px; font-weight: 700; color: ${META}; padding: 3px 0;
           text-align: right; }
+        /* The title doubles as the type picker: it is already the biggest statement of what this
+           document is, so changing it there beats adding a labelled control the print never uses.
+           A real <select> sits invisibly on top, which keeps the keyboard and mobile pickers. */
+        .tpl-meta .type-pick { position: relative; display: inline-block; cursor: pointer; }
+        .tpl-meta .type-pick select { position: absolute; inset: 0; width: 100%; height: 100%;
+          opacity: 0; cursor: pointer; font-size: 16px; }
+        .tpl-meta .type-pick select:disabled { cursor: default; }
+        /* The caret hangs outside the title's box rather than sitting in the text flow: in flow it
+           ate into the right edge and pushed the heading left of the DATE / DUE / INVOICE NO rows
+           it is supposed to line up with. Absolute means it costs no width, so the alignment of
+           the four lines is the same as it was before the picker existed. */
+        .tpl-meta .type-pick .caret { position: absolute; left: 100%; top: 50%; margin-left: 2px;
+          width: 22px; height: 22px; display: block; color: ${RED}; opacity: .5;
+          transform: translateY(-50%) rotate(0deg); transform-origin: 50% 50%;
+          transition: transform .22s cubic-bezier(.4, 0, .2, 1), opacity .22s ease; }
+        .tpl-meta .type-pick:hover .caret,
+        .tpl-meta .type-pick:focus-within .caret { opacity: 1;
+          transform: translateY(-50%) rotate(180deg); }
         .tpl-meta .due-row { position: relative; cursor: pointer; }
         .tpl-meta .due-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
           opacity: 0; padding: 0; pointer-events: none; }
@@ -456,7 +526,9 @@ export function InvoiceTemplateForm({
         .pick-pop { border: 1px solid ${FIELD} !important; border-radius: 10px !important;
           box-shadow: 0 6px 18px ${HAIR} !important;
           /* At least the cell's width, up to a line length that still reads. */
-          min-width: 300px; max-width: 480px; }
+          /* The floor is dropped on a phone: 300px anchored near the right edge is wider than the
+             room left for it, and the popper would rather overflow than shrink. */
+          min-width: min(300px, calc(100vw - 24px)); max-width: min(480px, calc(100vw - 24px)); }
         .pick-pop .MuiAutocomplete-listbox { padding: 0; max-height: 300px; }
         /* Two classes, to outrank MUI's own listbox-scoped option rule — that one is a row with
            align-items:center, which left our two stacked lines centred. */
@@ -485,6 +557,16 @@ export function InvoiceTemplateForm({
           color: ${CELL}; }
         table.tpl-items tr.pad { cursor: pointer; }
         table.tpl-items tr.pad:hover td { background: ${FOCUS}; }
+        /* Flashed when a click lands on an empty row while the line above is still blank: the
+           answer is on that line, so that is where the eye is sent. */
+        table.tpl-items tr.nudge td { animation: tpl-nudge 1.8s ease-out; }
+        @keyframes tpl-nudge {
+          0%, 55% { background: ${redA(0.14)}; }
+          100% { background: transparent; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          table.tpl-items tr.nudge td { animation: none; background: ${redA(0.1)}; }
+        }
         table.tpl-items td.rm { border: none; width: 30px; text-align: center; }
         .tpl-items .rm button { border: none; background: none; cursor: pointer; color: ${RED};
           font-size: 16px; line-height: 1; }
@@ -493,7 +575,8 @@ export function InvoiceTemplateForm({
         .tpl-addline button { border: none; background: none; color: ${RED}; font-weight: 700;
           cursor: pointer; font-size: 13px; padding: 4px 0; }
         .tpl-addline button:disabled { color: ${HAIR}; cursor: default; }
-        .tpl-hint { color: ${MUTED}; font-size: 12px; }
+        .tpl-hint { color: ${MUTED}; font-size: 12px; transition: color .2s ease; }
+        .tpl-hint.loud { color: ${RED}; font-weight: 700; }
         .tpl-lower { display: flex; gap: 30px; margin-top: 10px; }
         .tpl-terms { flex: 1; font-size: 12px; }
         .tpl-terms a { color: ${LINK}; text-decoration: underline; word-break: break-all; }
@@ -594,7 +677,36 @@ export function InvoiceTemplateForm({
           <p>{COMPANY_CONTACT.email}</p>
         </div>
         <div className="tpl-meta">
-          <div className="big">{TYPE_LABEL[form.type]}</div>
+          <div className="big type-pick">
+            {TYPE_LABEL[form.type]}
+            {/* A drawn chevron, not the ▾ glyph: the glyph is a solid triangle whose weight and
+                baseline come from the font, so it sat heavy against a 26px light heading and
+                could not be aligned reliably across platforms. */}
+            <svg
+              className="caret"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <select
+              aria-label="Invoice type"
+              value={form.type}
+              disabled={saving}
+              onChange={(e) => setField('type', e.target.value as InvoiceType)}
+            >
+              {Object.values(InvoiceType).map((t) => (
+                <option key={t} value={t}>
+                  {TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="row">DATE: {fmtDate(form.issueDate)}</div>
           <div className="row due-row" onClick={openDuePicker}>
             DUE: {fmtDate(form.dueDate)}
@@ -674,13 +786,14 @@ export function InvoiceTemplateForm({
               <th>DESCRIPTION</th>
               <th style={{ width: 70 }}>QTY</th>
               <th style={{ width: 120 }}>UNIT PRICE</th>
+              <th style={{ width: 70 }}>DISC %</th>
               <th style={{ width: 110 }}>TOTAL</th>
               <th className="rm" />
             </tr>
           </thead>
           <tbody>
             {rows.map((line, i) => (
-              <tr key={i}>
+              <tr key={i} className={nudge > 0 && i === rows.length - 1 ? 'nudge' : undefined}>
                 <td>
                   {products.length > 0 ? (
                     <Autocomplete<ProductOption, false, false, false>
@@ -704,6 +817,7 @@ export function InvoiceTemplateForm({
                           productName: picked.name,
                           description: picked.name,
                           unitPrice: picked.rate,
+                          discountPercent: picked.discount ?? 0,
                         })
                       }
                       slotProps={{
@@ -773,6 +887,23 @@ export function InvoiceTemplateForm({
                     onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })}
                   />
                 </td>
+                <td>
+                  <input
+                    className="num-in"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={line.discountPercent ?? 0}
+                    disabled={saving}
+                    onChange={(e) =>
+                      // Clamped here as well as server-side, so the live total on screen can
+                      // never disagree with what the invoice will be saved as.
+                      setLine(i, {
+                        discountPercent: Math.min(Math.max(Number(e.target.value) || 0, 0), 100),
+                      })
+                    }
+                  />
+                </td>
                 <td className="tot">{usd(preview.lineTotals[i] ?? 0)}</td>
                 <td className="rm">
                   <button
@@ -792,10 +923,11 @@ export function InvoiceTemplateForm({
               <tr
                 key={`pad-${i}`}
                 className="pad"
-                onClick={saving ? undefined : addLine}
-                title="Click to add a line"
+                onClick={saving ? undefined : claimPadRow}
+                title={lastFilled ? 'Click to add a line' : 'Fill the line above first'}
               >
                 <td>&nbsp;</td>
+                <td />
                 <td />
                 <td />
                 <td />
@@ -811,7 +943,12 @@ export function InvoiceTemplateForm({
           <button type="button" disabled={saving || !lastFilled} onClick={addLine}>
             + Add line
           </button>
-          {!lastFilled && <span className="tpl-hint"> — fill the last line first</span>}
+          {!lastFilled && (
+            <span className={nudge > 0 ? 'tpl-hint loud' : 'tpl-hint'}>
+              {' '}
+              — fill the last line first
+            </span>
+          )}
         </div>
 
         <div className="tpl-lower">

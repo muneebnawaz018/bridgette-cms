@@ -3,6 +3,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
@@ -12,6 +13,8 @@ import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneField } from '@/components/ui/PhoneField';
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
+import { useFormGuard } from '@/components/form/useFormGuard';
+import type { FormMode } from '@/components/ui/Modal';
 import { Role } from '@/modules/auth/rbac';
 import { UserStatus } from '@/modules/auth/enums';
 import { createUserSchema, editUserFormSchema } from '@/modules/auth/schemas';
@@ -156,6 +159,8 @@ const PhoneInput = memo(function PhoneInput({
 export function UserFormDialog({
   open,
   user,
+  initialMode = 'edit',
+  canEdit = true,
   onClose,
   canCreateAdmin,
   onSaved,
@@ -163,12 +168,18 @@ export function UserFormDialog({
   open: boolean;
   /** null → create mode; a row → edit mode. */
   user: EditableUser | null;
+  /** Rows open read-only; the pencil in the footer switches to editing. Ignored when creating. */
+  initialMode?: FormMode;
+  /** Whether the viewer may switch to editing — drives the pencil, not the fields. */
+  canEdit?: boolean;
   onClose: () => void;
   canCreateAdmin: boolean;
   onSaved: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
   const isEdit = Boolean(user);
+  const [mode, setMode] = useState<FormMode>('edit');
+  const readOnly = mode === 'view';
 
   // Live values. Typing writes here, which costs no render.
   const valuesRef = useRef<FormValues>(EMPTY);
@@ -181,6 +192,8 @@ export function UserFormDialog({
   const [status, setStatus] = useState<UserStatus>(UserStatus.Active);
 
   const [saving, setSaving] = useState(false);
+  /** Every input is inert while saving or while the dialog is being read rather than edited. */
+  const inert = saving || readOnly;
   const [errors, setErrors] = useState<FieldErrors>({});
   // Errors stay hidden until a field is left or the form is submitted, so a blank form never
   // opens covered in red.
@@ -192,21 +205,6 @@ export function UserFormDialog({
   const isEditRef = useRef(isEdit);
   isEditRef.current = isEdit;
 
-  // Reset whenever the dialog opens, or switches to a different user. useLayoutEffect rather
-  // than useEffect so the remount lands before paint and no stale value is ever visible.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const next = user ? valuesFromUser(user) : { ...EMPTY };
-    valuesRef.current = next;
-    setInitial(next);
-    setRole(next.role);
-    setStatus(next.status);
-    setErrors({});
-    setTouched({});
-    setSubmitted(false);
-    setFormKey((k) => k + 1);
-  }, [open, user]);
-
   /** Blank optional fields go as undefined so an empty box never stores "". */
   const buildPayload = useCallback((f: FormValues, edit: boolean) => {
     const shared = {
@@ -217,6 +215,35 @@ export function UserFormDialog({
     };
     return edit ? shared : { ...shared, email: f.email.trim(), role: f.role || undefined };
   }, []);
+
+  // Drives the Save button: the same schema the API uses, reduced to a boolean.
+  const isValid = useCallback(
+    (f: FormValues) => {
+      const edit = isEditRef.current;
+      const schema = edit ? editUserFormSchema : createUserSchema;
+      return schema.safeParse(buildPayload(f, edit)).success;
+    },
+    [buildPayload],
+  );
+  const guard = useFormGuard<FormValues>({ valuesRef, isValid });
+
+  // Reset whenever the dialog opens, or switches to a different user. useLayoutEffect rather
+  // than useEffect so the remount lands before paint and no stale value is ever visible.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const next = user ? valuesFromUser(user) : { ...EMPTY };
+    valuesRef.current = next;
+    setInitial(next);
+    setRole(next.role);
+    setStatus(next.status);
+    // Creating has nothing to view, so it always opens editable.
+    setMode(user ? initialMode : 'edit');
+    guard.reset(next);
+    setErrors({});
+    setTouched({});
+    setSubmitted(false);
+    setFormKey((k) => k + 1);
+  }, [open, user]);
 
   /** Validates with the very same Zod schema the API uses, so the two can never disagree. */
   const validate = useCallback(
@@ -238,25 +265,37 @@ export function UserFormDialog({
   // --- Handlers below never change identity. That is what lets a memoized input skip
   // rendering when a different field changes. ---
 
-  const setText = useCallback((key: string, value: string) => {
-    valuesRef.current[key as TextKey] = value;
-  }, []);
+  const setText = useCallback(
+    (key: string, value: string) => {
+      valuesRef.current[key as TextKey] = value;
+      guard.refresh();
+    },
+    [guard],
+  );
 
-  const setPhone = useCallback((next: { iso2: string; national: string; e164: string }) => {
-    valuesRef.current.phoneIso2 = next.iso2;
-    valuesRef.current.phoneNational = next.national;
-    valuesRef.current.phone = next.e164;
-  }, []);
+  const setPhone = useCallback(
+    (next: { iso2: string; national: string; e164: string }) => {
+      valuesRef.current.phoneIso2 = next.iso2;
+      valuesRef.current.phoneNational = next.national;
+      valuesRef.current.phone = next.e164;
+      guard.refresh();
+    },
+    [guard],
+  );
 
-  const setSelect = useCallback((key: string, value: string) => {
-    if (key === 'role') {
-      valuesRef.current.role = value as Role;
-      setRole(value as Role);
-    } else {
-      valuesRef.current.status = value as UserStatus;
-      setStatus(value as UserStatus);
-    }
-  }, []);
+  const setSelect = useCallback(
+    (key: string, value: string) => {
+      if (key === 'role') {
+        valuesRef.current.role = value as Role;
+        setRole(value as Role);
+      } else {
+        valuesRef.current.status = value as UserStatus;
+        setStatus(value as UserStatus);
+      }
+      guard.refresh();
+    },
+    [guard],
+  );
 
   const blurField = useCallback(
     (key: string) => {
@@ -290,7 +329,6 @@ export function UserFormDialog({
     const found = validate(values, isEdit);
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
       return;
     }
 
@@ -355,34 +393,68 @@ export function UserFormDialog({
     <Modal
       open={open}
       onClose={close}
-      title={isEdit ? `Edit ${user?.name ?? 'user'}` : 'New user'}
+      title={
+        !isEdit ? 'New user' : readOnly ? (user?.name ?? 'User') : `Edit ${user?.name ?? 'user'}`
+      }
       description={
-        isEdit ? 'Changes take effect immediately.' : 'They get an email to set a password.'
+        !isEdit
+          ? 'They get an email to set a password.'
+          : readOnly
+            ? 'Read-only. Use Edit to make changes.'
+            : 'Changes take effect immediately.'
       }
       icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="sm"
       busy={saving}
       actions={
-        <>
-          <Button
-            onClick={close}
-            disabled={saving}
-            variant="outlined"
-            color="inherit"
-            startIcon={<CloseRounded />}
-          >
-            Cancel
-          </Button>
-          {/* No spinner here — the global overlay already covers the request. */}
-          <Button
-            variant="contained"
-            onClick={submit}
-            disabled={saving}
-            startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
-          >
-            {isEdit ? 'Save' : 'Create'}
-          </Button>
-        </>
+        readOnly ? (
+          <>
+            <Button onClick={close} variant="outlined" color="inherit" startIcon={<CloseRounded />}>
+              Close
+            </Button>
+            {canEdit && (
+              <Button
+                variant="contained"
+                onClick={() => setMode('edit')}
+                startIcon={<EditRounded />}
+              >
+                Edit
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Says which of the two reasons Save is disabled for, rather than leaving a dead
+              button and no explanation. */}
+            {guard.reason && !saving && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mr: { sm: 'auto' }, alignSelf: 'center' }}
+              >
+                {guard.reason}
+              </Typography>
+            )}
+            <Button
+              onClick={close}
+              disabled={saving}
+              variant="outlined"
+              color="inherit"
+              startIcon={<CloseRounded />}
+            >
+              Cancel
+            </Button>
+            {/* No spinner here — the global overlay already covers the request. */}
+            <Button
+              variant="contained"
+              onClick={submit}
+              disabled={saving || !guard.dirty || !guard.valid}
+              startIcon={isEdit ? <SaveRounded /> : <AddRounded />}
+            >
+              {isEdit ? 'Save' : 'Create'}
+            </Button>
+          </>
+        )
       }
     >
       <Stack key={formKey} spacing={3}>
@@ -398,7 +470,7 @@ export function UserFormDialog({
                 error={Boolean(shown('name'))}
                 required
                 autoFocus={!isEdit}
-                disabled={saving}
+                disabled={inert}
                 onChange={setText}
                 onBlur={blurField}
               />
@@ -428,7 +500,7 @@ export function UserFormDialog({
                 helperText={shown('phone')}
                 error={Boolean(shown('phone'))}
                 required
-                disabled={saving}
+                disabled={inert}
                 onChange={setPhone}
                 onBlur={blurPhone}
               />
@@ -448,7 +520,7 @@ export function UserFormDialog({
                 helperText={locked ? 'Protected user role cannot be changed.' : shown('role')}
                 error={!locked && Boolean(shown('role'))}
                 required
-                disabled={saving || locked}
+                disabled={inert || locked}
                 onChange={setSelect}
                 onBlur={blurField}
               />
@@ -462,7 +534,7 @@ export function UserFormDialog({
                   label="Status"
                   value={status}
                   options={STATUS_OPTIONS}
-                  disabled={saving || locked}
+                  disabled={inert || locked}
                   onChange={setSelect}
                   onBlur={blurField}
                 />
@@ -476,7 +548,7 @@ export function UserFormDialog({
                 defaultValue={initial.jobTitle}
                 helperText={shown('jobTitle')}
                 error={Boolean(shown('jobTitle'))}
-                disabled={saving}
+                disabled={inert}
                 placeholder="e.g. Office Manager"
                 onChange={setText}
                 onBlur={blurField}
@@ -492,7 +564,7 @@ export function UserFormDialog({
             defaultValue={initial.notes}
             helperText={shown('notes')}
             error={Boolean(shown('notes'))}
-            disabled={saving}
+            disabled={inert}
             multiline
             minRows={2}
             placeholder="Only visible to admins"

@@ -25,6 +25,18 @@ const rateField = z
   .nonnegative('Rate cannot be negative')
   .max(MAX_RATE, 'That rate is too large');
 
+/**
+ * A standing discount in percent. Blank arrives from the form as NaN (or ''), which means "no
+ * discount" rather than an error, so it is preprocessed to 0.
+ */
+const discountField = z.preprocess(
+  (v) => (v === '' || v == null || Number.isNaN(v) ? 0 : v),
+  z
+    .number({ invalid_type_error: 'Enter a discount' })
+    .min(0, 'Discount cannot be negative')
+    .max(100, 'Discount cannot exceed 100%'),
+);
+
 const optionalText = (max: number) =>
   z
     .string()
@@ -44,6 +56,7 @@ export const productCreateSchema = z.object({
   name: nameField,
   sku: skuField,
   defaultRate: rateField,
+  discount: discountField,
   unit: optionalText(UNIT_MAX),
   fabric: fabricIdField,
   description: optionalText(DESC_MAX),
@@ -58,6 +71,7 @@ export const productFormSchema = z.object({
   name: nameField,
   sku: skuField,
   defaultRate: rateField,
+  discount: discountField,
   unit: z.string().trim().max(UNIT_MAX, 'That value is too long'),
   fabric: fabricIdField,
   description: z.string().trim().max(DESC_MAX, 'That value is too long'),

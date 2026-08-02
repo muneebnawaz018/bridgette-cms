@@ -20,6 +20,8 @@ const item = z.object({
   quantity: z.number().nonnegative().max(MAX_QUANTITY, 'Quantity is too large'),
   unitPrice: z.number().nonnegative().max(MAX_UNIT_PRICE, 'Unit price is too large'),
   taxable: z.boolean().optional(),
+  // Per-line percentage off, prefilled from the product's standing discount.
+  discountPercent: z.number().min(0).max(100, 'Discount cannot exceed 100%').optional(),
   discount: z.number().nonnegative().max(MAX_AMOUNT, 'Discount is too large').optional(),
 });
 

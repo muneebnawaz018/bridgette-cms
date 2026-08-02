@@ -1,7 +1,8 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 import { InvoiceType, InvoiceState, Currency, PaymentMethod } from '../enums';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 const partySchema = new Schema(
   {
@@ -19,6 +20,9 @@ const itemSchema = new Schema(
     quantity: { type: Number, required: true, min: 0 },
     unitPrice: { type: Number, required: true, min: 0 },
     taxable: { type: Boolean, default: true },
+    // Copied from the product at pick time, then owned by the line — editing the catalogue later
+    // must never change an invoice that has already been raised.
+    discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     discount: { type: Number, default: 0, min: 0 },
     lineTotal: { type: Number, required: true }, // server-computed
   },
@@ -109,5 +113,4 @@ invoiceSchema.index({ 'billTo.name': 1 });
 
 export type InvoiceDoc = InferSchemaType<typeof invoiceSchema>;
 
-export const Invoice: Model<InvoiceDoc> =
-  (models.Invoice as Model<InvoiceDoc>) ?? model<InvoiceDoc>('Invoice', invoiceSchema);
+export const Invoice: Model<InvoiceDoc> = registerModel<InvoiceDoc>('Invoice', invoiceSchema);

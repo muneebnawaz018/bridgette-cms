@@ -1,6 +1,7 @@
 import mongoose, { type Model, type InferSchemaType } from 'mongoose';
+import { registerModel } from '@/lib/db/registerModel';
 
-const { Schema, model, models } = mongoose;
+const { Schema } = mongoose;
 
 /**
  * Product — a catalogue item with a default USD rate. Per-customer negotiated rates are NOT
@@ -18,6 +19,10 @@ const productSchema = new Schema(
     // next edit. The partial index below keeps those legacy SKU-less rows from colliding.
     sku: { type: String },
     defaultRate: { type: Number, required: true, min: 0 },
+    // A standing discount on this product, in percent (0–100). Prefills an invoice line's own
+    // discount when the product is picked; the line keeps its own copy from then on, so editing
+    // the catalogue never rewrites an invoice that has already been raised.
+    discount: { type: Number, default: 0, min: 0, max: 100 },
     unit: { type: String },
     // The material this product is made of. Optional so the catalogue predating fabrics stays
     // valid; a soft-deleted fabric leaves the ref in place (reads filter it out).
@@ -51,5 +56,4 @@ productSchema.index({ isDeleted: 1, name: 1 });
 
 export type ProductDoc = InferSchemaType<typeof productSchema>;
 
-export const Product: Model<ProductDoc> =
-  (models.Product as Model<ProductDoc>) ?? model<ProductDoc>('Product', productSchema);
+export const Product: Model<ProductDoc> = registerModel<ProductDoc>('Product', productSchema);

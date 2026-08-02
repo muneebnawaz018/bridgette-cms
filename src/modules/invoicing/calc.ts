@@ -5,6 +5,7 @@ export interface CalcLineInput {
   quantity: number;
   unitPrice: number;
   taxable?: boolean; // defaults true; ignored for types that never tax
+  discountPercent?: number; // 0–100 off this line, taken before the fixed amount
   discount?: number; // fixed amount off this line
 }
 
@@ -45,9 +46,14 @@ export function calcInvoice(input: CalcInput): CalcResult {
   const shipping = round2(input.shippingHandlingTariff ?? 0);
   const invoiceDiscount = round2(input.invoiceDiscount ?? 0);
 
-  const lineTotals = input.items.map((it) =>
-    nonNegative(multiply(it.quantity, it.unitPrice) - round2(it.discount ?? 0)),
-  );
+  // qty × price, less the line's own percentage, less any fixed amount. Percent first: it is a
+  // discount off the goods, so a fixed amount on the same line comes off what remains.
+  const lineTotals = input.items.map((it) => {
+    const gross = multiply(it.quantity, it.unitPrice);
+    const pct = Math.min(Math.max(it.discountPercent ?? 0, 0), 100);
+    const afterPercent = pct > 0 ? round2(gross * (1 - pct / 100)) : gross;
+    return nonNegative(round2(afterPercent - round2(it.discount ?? 0)));
+  });
   const subtotal = sum(lineTotals);
 
   // A reseller is tax-exempt: even a Tax invoice charges no sales tax when the flag is set.

@@ -77,23 +77,82 @@ const addressRules = (
   }
 };
 
+const addressFields = {
+  country: z.enum(['US', 'PK']).default('US'),
+  line1: z
+    .string()
+    .trim()
+    .min(1, 'A street address is required')
+    .max(FIELD_MAX, 'That value is too long'),
+  line2: optionalText(FIELD_MAX),
+  city: optionalText(FIELD_MAX),
+  state: optionalText(2),
+  zip: optionalText(5),
+  zipPlus4: optionalText(4).refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
+};
+
 export const addressPartsSchema = z
-  .object({
-    country: z.enum(['US', 'PK']).default('US'),
-    line1: z
-      .string()
-      .trim()
-      .min(1, 'A street address is required')
-      .max(FIELD_MAX, 'That value is too long'),
-    line2: optionalText(FIELD_MAX),
-    city: optionalText(FIELD_MAX),
-    state: optionalText(2),
-    zip: optionalText(5),
-    zipPlus4: optionalText(4).refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
-  })
+  .object(addressFields)
   .superRefine(addressRules)
   // The +4 add-on is US-only, whatever the client sent.
   .transform((a) => (a.country === 'PK' ? { ...a, zipPlus4: undefined } : a));
+
+/*
+ * Shipping. `sameAsBilling` is the normal case, and while it holds nothing else is required or
+ * even read — the invoice falls back to the billing party rather than to a stale copy. Only when
+ * it is switched off does the address have to stand on its own, so the same rules are applied
+ * conditionally rather than through the stricter schema above.
+ */
+const shippingAddressFields = {
+  ...addressFields,
+  line1: optionalText(FIELD_MAX),
+};
+
+export const shippingSchema = z
+  .object({
+    sameAsBilling: z.boolean().default(true),
+    name: optionalText(FIELD_MAX),
+    phone: optionalText(FIELD_MAX),
+    addressParts: z.object(shippingAddressFields).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.sameAsBilling) return;
+    if (!v.name) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['name'],
+        message: 'A shipping name is required',
+      });
+    }
+    const a = v.addressParts;
+    if (!a?.line1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['addressParts', 'line1'],
+        message: 'A street address is required',
+      });
+    }
+    if (a) {
+      // Reuse the billing rules, re-pathed under addressParts so the right box lights up.
+      addressRules(a, {
+        ...ctx,
+        addIssue: (issue) =>
+          ctx.addIssue({ ...issue, path: ['addressParts', ...(issue.path ?? [])] }),
+      } as z.RefinementCtx);
+    }
+  })
+  .transform((v) =>
+    v.sameAsBilling
+      ? { sameAsBilling: true as const, name: undefined, phone: undefined, addressParts: undefined }
+      : v,
+  );
+
+/** Product ids this customer buys — 24-char ObjectIds, deduped so a repeat pick is harmless. */
+const productIdsField = z
+  .array(z.string().regex(/^[a-f\d]{24}$/i, 'That is not a valid product'))
+  .max(500, 'That is too many products')
+  .optional()
+  .transform((v) => (v ? Array.from(new Set(v)) : v));
 
 export const customerCreateSchema = z.object({
   // Full name stays accepted for callers (and older clients) that only have one; when first/last
@@ -105,6 +164,8 @@ export const customerCreateSchema = z.object({
   phone: optionalText(FIELD_MAX),
   address: optionalText(ADDRESS_MAX),
   addressParts: addressPartsSchema,
+  shipping: shippingSchema.optional(),
+  products: productIdsField,
   notes: optionalText(NOTES_MAX),
   reseller: z.boolean().optional(),
   invoiceType: z.nativeEnum(InvoiceType).optional(),
@@ -141,12 +202,57 @@ export const customerFormSchema = z.object({
     .string()
     .trim()
     .refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
+  products: productIdsField,
   notes: z.string().trim().max(NOTES_MAX, 'That note is too long'),
   reseller: z.boolean(),
   // '' = no default type.
   invoiceType: z.union([z.literal(''), z.nativeEnum(InvoiceType)]),
+
+  // Shipping, flat like the rest of the form. Checked only when shipSameAsBilling is off.
+  shipSameAsBilling: z.boolean(),
+  shipName: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  shipPhone: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  shipCountry: z.enum(['US', 'PK']),
+  shipLine1: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  shipLine2: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  shipCity: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  shipState: z.string().trim(),
+  shipZip: z.string().trim(),
+  shipZipPlus4: z
+    .string()
+    .trim()
+    .refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
 });
-export const customerFormSchemaChecked = customerFormSchema.superRefine(addressRules);
+
+/** Billing rules always; shipping rules only once it is not a copy of billing. */
+export const customerFormSchemaChecked = customerFormSchema
+  .superRefine(addressRules)
+  .superRefine((f, ctx) => {
+    if (f.shipSameAsBilling) return;
+    if (!f.shipName.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['shipName'],
+        message: 'A shipping name is required',
+      });
+    }
+    if (!f.shipLine1.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['shipLine1'],
+        message: 'A street address is required',
+      });
+    }
+    // Same city/state/zip rules as billing, re-pathed onto the ship* fields.
+    addressRules({ country: f.shipCountry, city: f.shipCity, state: f.shipState, zip: f.shipZip }, {
+      ...ctx,
+      addIssue: (issue) => {
+        const key = String(issue.path?.[0] ?? '');
+        const mapped = `ship${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+        ctx.addIssue({ ...issue, path: [mapped] });
+      },
+    } as z.RefinementCtx);
+  });
 
 export const listCustomerSchema = z.object({
   page: z.coerce.number().int().positive().optional(),

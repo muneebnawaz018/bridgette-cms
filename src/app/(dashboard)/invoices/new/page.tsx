@@ -25,6 +25,7 @@ import {
   type TemplateForm,
   type CustomerOption,
   type ProductOption,
+  shipToFor,
 } from '@/components/invoices/InvoiceTemplateForm';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
@@ -106,6 +107,7 @@ export default function NewInvoicePage() {
           quantity: Number(it.quantity) || 0,
           unitPrice: Number(it.unitPrice) || 0,
           taxable: true,
+          discountPercent: Number(it.discountPercent) || 0,
           discount: 0,
         })),
         shippingHandlingTariff: Number(form.shippingHandling) || 0,
@@ -123,8 +125,44 @@ export default function NewInvoicePage() {
     form.items.every(
       (it) => it.description.trim() !== '' && Number(it.quantity) > 0 && Number(it.unitPrice) >= 0,
     );
-  const canDraft = nameFilled;
-  const canFinalizeNew = nameFilled && itemsValid && preview.grandTotal > 0;
+
+  /*
+   * The same parse submit() runs, hoisted so the buttons can be gated on it instead of letting
+   * someone press Save and be told no. The form is fully controlled here, so this is just a
+   * derived value — no refs or change counters needed.
+   */
+  const parsed = useMemo(
+    () =>
+      invoiceFormSchema.safeParse({
+        type: form.type,
+        billToName: form.billName.trim(),
+        billToEmail: form.billEmail.trim(),
+        items: form.items.map((it) => ({
+          description: it.description.trim(),
+          quantity: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
+          discountPercent: Number(it.discountPercent) || 0,
+        })),
+        taxRate: taxable ? Number(form.taxPercent) : undefined,
+        reseller: form.type === InvoiceType.Tax ? form.reseller : undefined,
+        notes: form.notes.trim() || undefined,
+      }),
+    [form, taxable],
+  );
+
+  const canDraft = nameFilled && parsed.success;
+  const canFinalizeNew = canDraft && itemsValid && preview.grandTotal > 0;
+  /*
+   * Why the button is dead, or — once it works — why it still says "draft". The last branch is
+   * not a blocker: the invoice saves fine, it just is not complete enough to go out as one.
+   */
+  const blockedReason = !nameFilled
+    ? 'Add a customer to save'
+    : !parsed.success
+      ? 'Fix the highlighted fields'
+      : !canFinalizeNew
+        ? 'Add a line with an amount to create the invoice'
+        : undefined;
 
   function onCustomerPick(opt: CustomerOption | null) {
     setCustomerId(opt ? opt._id : null);
@@ -134,6 +172,10 @@ export default function NewInvoicePage() {
       billEmail: opt ? (opt.email ?? '') : f.billEmail,
       billPhone: opt ? (opt.phone ?? '') : f.billPhone,
       billAddress: opt ? (opt.address ?? '') : f.billAddress,
+      // SHIP TO comes along too — for most customers that is the billing party repeated, and
+      // for the rest it is the delivery address they were set up with.
+      shipName: opt ? shipToFor(opt).name : f.shipName,
+      shipAddress: opt ? shipToFor(opt).address : f.shipAddress,
       // The customer carries the tax profile: reseller exemption, and (if set) the invoice type.
       reseller: opt ? Boolean(opt.reseller) : f.reseller,
       type: opt?.invoiceType ?? f.type,
@@ -141,22 +183,12 @@ export default function NewInvoicePage() {
   }
 
   async function submit(asDraft: boolean) {
-    const parsed = invoiceFormSchema.safeParse({
-      type: form.type,
-      billToName: form.billName.trim(),
-      billToEmail: form.billEmail.trim(),
-      items: form.items.map((it) => ({
-        description: it.description.trim(),
-        quantity: Number(it.quantity),
-        unitPrice: Number(it.unitPrice),
-      })),
-      taxRate: taxable ? Number(form.taxPercent) : undefined,
-      reseller: form.type === InvoiceType.Tax ? form.reseller : undefined,
-      notes: form.notes.trim() || undefined,
-    });
+    // `parsed` above is the single source of truth for validity — the buttons are gated on it,
+    // and re-parsing here would risk the two drifting apart.
     if (!parsed.success) {
+      // The buttons are gated on this same parse; reaching here means something changed under
+      // us, so the field errors are shown rather than a toast that names nothing.
       setErrors(toFieldErrors(parsed.error));
-      enqueueSnackbar('Please fix the highlighted fields', { variant: 'warning' });
       return;
     }
     setErrors({});
@@ -179,6 +211,7 @@ export default function NewInvoicePage() {
         description: it.description,
         quantity: Number(it.quantity),
         unitPrice: Number(it.unitPrice),
+        discountPercent: Number(it.discountPercent) || 0,
       })),
       shippingHandlingTariff: Number(form.shippingHandling) || undefined,
       invoiceDiscount: Number(form.discount) || undefined,
@@ -213,6 +246,11 @@ export default function NewInvoicePage() {
         <Typography variant="h4" sx={{ fontWeight: 800, flexGrow: 1, minWidth: 160 }}>
           New invoice
         </Typography>
+        {blockedReason && !saving && (
+          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+            {blockedReason}
+          </Typography>
+        )}
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={1}
@@ -227,21 +265,17 @@ export default function NewInvoicePage() {
           >
             Cancel
           </Button>
-          <Button
-            variant="outlined"
-            onClick={() => submit(true)}
-            disabled={saving || !canDraft}
-            startIcon={<SaveAsRounded />}
-          >
-            Save as draft
-          </Button>
+          {/* One button, not two. The pair only ever differed by how complete the form was, so
+              a half-filled invoice showed a dead "Create invoice" next to a live "Save as draft"
+              and made the reader work out which one this invoice qualified for. The button now
+              says what pressing it will do, and promotes itself the moment the form earns it. */}
           <Button
             variant="contained"
-            onClick={() => submit(false)}
-            disabled={saving || !canFinalizeNew}
-            startIcon={<ReceiptLongRounded />}
+            onClick={() => submit(!canFinalizeNew)}
+            disabled={saving || !canDraft}
+            startIcon={canFinalizeNew ? <ReceiptLongRounded /> : <SaveAsRounded />}
           >
-            Create invoice
+            {canFinalizeNew ? 'Create invoice' : 'Save as draft'}
           </Button>
         </Stack>
       </Box>
