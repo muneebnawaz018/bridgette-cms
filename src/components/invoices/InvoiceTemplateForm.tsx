@@ -4,6 +4,8 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
@@ -314,6 +316,7 @@ export function InvoiceTemplateForm({
   const [shipKey, setShipKey] = useState(0);
   // Bumped (not toggled) so a second impatient click restarts the flash instead of being swallowed.
   const [nudge, setNudge] = useState(0);
+  const [typeAnchor, setTypeAnchor] = useState<null | HTMLElement>(null);
 
   const setField = <K extends keyof TemplateForm>(key: K, value: TemplateForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -464,16 +467,21 @@ export function InvoiceTemplateForm({
         .tpl-co p { margin: 2px 0; font-weight: 700; font-size: 14px; }
         .tpl-co .gap { height: 10px; }
         .tpl-meta { text-align: right; flex-shrink: 0; min-width: 170px; }
+        /* The title doubles as the type picker: it is already the biggest statement of what this
+           document is, so changing it there beats adding a labelled control the print never uses.
+           The trigger is a real <button> for the click, Enter/Space, focus ring and aria-expanded.
+           Its reset comes BEFORE .big deliberately: font:inherit carries the same specificity as
+           the .tpl-meta .big rule, so declared after it the button's own font would win and the
+           heading would render at body size in body colour. */
+        .tpl-meta .type-pick { position: relative; display: inline-block; cursor: pointer;
+          appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit;
+          color: inherit; letter-spacing: inherit; }
         .tpl-meta .big { font-size: 26px; color: ${FAINT}; font-weight: 500; line-height: 1.05; }
         .tpl-meta .row { font-size: 11px; font-weight: 700; color: ${META}; padding: 3px 0;
           text-align: right; }
-        /* The title doubles as the type picker: it is already the biggest statement of what this
-           document is, so changing it there beats adding a labelled control the print never uses.
-           A real <select> sits invisibly on top, which keeps the keyboard and mobile pickers. */
-        .tpl-meta .type-pick { position: relative; display: inline-block; cursor: pointer; }
-        .tpl-meta .type-pick select { position: absolute; inset: 0; width: 100%; height: 100%;
-          opacity: 0; cursor: pointer; font-size: 16px; }
-        .tpl-meta .type-pick select:disabled { cursor: default; }
+        .tpl-meta .type-pick:disabled { cursor: default; opacity: .6; }
+        .tpl-meta .type-pick:focus-visible { outline: 2px solid ${RED}; outline-offset: 4px;
+          border-radius: 4px; }
         /* The caret hangs outside the title's box rather than sitting in the text flow: in flow it
            ate into the right edge and pushed the heading left of the DATE / DUE / INVOICE NO rows
            it is supposed to line up with. Absolute means it costs no width, so the alignment of
@@ -483,7 +491,10 @@ export function InvoiceTemplateForm({
           transform: translateY(-50%) rotate(0deg); transform-origin: 50% 50%;
           transition: transform .22s cubic-bezier(.4, 0, .2, 1), opacity .22s ease; }
         .tpl-meta .type-pick:hover .caret,
-        .tpl-meta .type-pick:focus-within .caret { opacity: 1;
+        .tpl-meta .type-pick:focus-visible .caret { opacity: 1; }
+        /* Pointing up only while the menu is actually open, so the caret reports state rather
+           than just reacting to the cursor being nearby. */
+        .tpl-meta .type-pick.open .caret { opacity: 1;
           transform: translateY(-50%) rotate(180deg); }
         .tpl-meta .due-row { position: relative; cursor: pointer; }
         .tpl-meta .due-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
@@ -677,7 +688,15 @@ export function InvoiceTemplateForm({
           <p>{COMPANY_CONTACT.email}</p>
         </div>
         <div className="tpl-meta">
-          <div className="big type-pick">
+          <button
+            type="button"
+            className={typeAnchor ? 'big type-pick open' : 'big type-pick'}
+            aria-haspopup="listbox"
+            aria-expanded={Boolean(typeAnchor)}
+            aria-label={`Invoice type: ${TYPE_LABEL[form.type]}`}
+            disabled={saving}
+            onClick={(e) => setTypeAnchor(e.currentTarget)}
+          >
             {TYPE_LABEL[form.type]}
             {/* A drawn chevron, not the ▾ glyph: the glyph is a solid triangle whose weight and
                 baseline come from the font, so it sat heavy against a 26px light heading and
@@ -694,19 +713,31 @@ export function InvoiceTemplateForm({
             >
               <polyline points="6 9 12 15 18 9" />
             </svg>
-            <select
-              aria-label="Invoice type"
-              value={form.type}
-              disabled={saving}
-              onChange={(e) => setField('type', e.target.value as InvoiceType)}
-            >
-              {Object.values(InvoiceType).map((t) => (
-                <option key={t} value={t}>
-                  {TYPE_LABEL[t]}
-                </option>
-              ))}
-            </select>
-          </div>
+          </button>
+          {/* An MUI Menu, not a bare <select> painted invisible: an opacity-0 select is at the
+              mercy of how each browser decides to render a control it cannot see, and this one
+              quietly refused to drop its list. A menu also styles like the rest of the app and
+              can mark which type is current. */}
+          <Menu
+            anchorEl={typeAnchor}
+            open={Boolean(typeAnchor)}
+            onClose={() => setTypeAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            {TYPE_OPTIONS.map((o) => (
+              <MenuItem
+                key={o.value}
+                selected={o.value === form.type}
+                onClick={() => {
+                  setField('type', o.value);
+                  setTypeAnchor(null);
+                }}
+              >
+                {o.label}
+              </MenuItem>
+            ))}
+          </Menu>
           <div className="row">DATE: {fmtDate(form.issueDate)}</div>
           <div className="row due-row" onClick={openDuePicker}>
             DUE: {fmtDate(form.dueDate)}

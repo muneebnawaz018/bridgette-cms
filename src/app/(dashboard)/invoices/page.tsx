@@ -19,9 +19,6 @@ import { DataTable } from '@/components/ui/DataTable';
 import { useBreakpointColumns, type ColumnTiers } from '@/lib/ui/useBreakpointColumns';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { PageHeader } from '@/components/ui/PageHeader';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import { TYPE_OPTIONS } from '@/components/invoices/InvoiceTemplateForm';
 import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
@@ -140,7 +137,6 @@ export default function InvoicesPage() {
   // dates shows everything.
   const [range, setRange] = useState({ from: monthStart(), to: monthEnd() });
   const router = useRouter();
-  const [newAnchor, setNewAnchor] = useState<null | HTMLElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -341,11 +337,14 @@ export default function InvoicesPage() {
             >
               Export
             </Button>
+            {/* Straight into an empty US Tax invoice — the type is chosen on the form now, from
+                the heading itself, so asking for it before the form opens was a decision made
+                twice and one screen too early. */}
             {canCreate && (
               <Button
                 variant="contained"
                 startIcon={<AddRounded />}
-                onClick={(e) => setNewAnchor(e.currentTarget)}
+                onClick={() => router.push('/invoices/new')}
               >
                 New invoice
               </Button>
@@ -353,22 +352,6 @@ export default function InvoicesPage() {
           </>
         }
       />
-
-      {/* Invoice type is picked here, from the New-invoice button, then carried into the form via
-          ?type= so the template opens ready to fill (type is fixed once chosen). */}
-      <Menu anchorEl={newAnchor} open={Boolean(newAnchor)} onClose={() => setNewAnchor(null)}>
-        {TYPE_OPTIONS.map((o) => (
-          <MenuItem
-            key={o.value}
-            onClick={() => {
-              setNewAnchor(null);
-              router.push(`/invoices/new?type=${o.value}`);
-            }}
-          >
-            {o.label}
-          </MenuItem>
-        ))}
-      </Menu>
 
       {/* Search + two fused filter dropdowns (type + view), same pattern as user management */}
       <Box sx={{ mb: 2 }}>
