@@ -260,3 +260,60 @@ export function reminderEmail(params: {
     ].join('\n'),
   };
 }
+
+/**
+ * The invoice itself, sent to the customer with the PDF attached.
+ *
+ * Written for someone outside the company: no links into the portal (they have no account and
+ * no business having one), no internal jargon, and the attachment carries the detail so the mail
+ * only has to say what it is, what is owed, and by when.
+ */
+export function invoiceEmail(params: {
+  invoiceNumber: string;
+  billTo?: string;
+  total: string;
+  amountDue: string;
+  dueDate?: string;
+  issueDate?: string;
+  /** Set when part of it is already paid, so the mail does not ask twice for the same money. */
+  paid?: string;
+  companyName: string;
+}): MailBody {
+  const { invoiceNumber, billTo, total, amountDue, dueDate, issueDate, paid, companyName } = params;
+
+  const rows: Array<{ label: string; value: string; strong?: boolean; accent?: boolean }> = [];
+  if (issueDate) rows.push({ label: 'Invoice date', value: issueDate });
+  rows.push({ label: 'Invoice total', value: total });
+  if (paid) rows.push({ label: 'Already paid', value: paid });
+  rows.push({ label: 'Amount due', value: amountDue, strong: true, accent: true });
+  if (dueDate) rows.push({ label: 'Payment due by', value: dueDate });
+
+  const greeting = billTo ? `Hello ${esc(billTo)},` : 'Hello,';
+
+  return {
+    subject: `Invoice ${invoiceNumber} from ${companyName}`,
+    html: shell({
+      title: `Invoice ${esc(invoiceNumber)}`,
+      preheader: `Invoice ${invoiceNumber} from ${companyName} — ${amountDue} due${
+        dueDate ? ` by ${dueDate}` : ''
+      }.`,
+      body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">${greeting}</p>
+        <p style="margin:0 0 4px;font-size:15px;line-height:1.6">Please find invoice <strong>${esc(invoiceNumber)}</strong> from ${esc(companyName)} attached as a PDF.</p>
+        ${detailsTable(rows)}
+        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">Payment details are on the invoice. If anything looks wrong, reply to this email and we will sort it out.</p>`,
+    }),
+    text: [
+      billTo ? `Hello ${billTo},` : 'Hello,',
+      '',
+      `Please find invoice ${invoiceNumber} from ${companyName} attached as a PDF.`,
+      '',
+      ...(issueDate ? [`Invoice date: ${issueDate}`] : []),
+      `Invoice total: ${total}`,
+      ...(paid ? [`Already paid: ${paid}`] : []),
+      `Amount due: ${amountDue}`,
+      ...(dueDate ? [`Payment due by: ${dueDate}`] : []),
+      '',
+      'Payment details are on the invoice. If anything looks wrong, reply to this email and we will sort it out.',
+    ].join('\n'),
+  };
+}

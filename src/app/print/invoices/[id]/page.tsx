@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useApi } from '@/lib/api/useApi';
 import { colors } from '@/lib/colors';
 import { InvoiceDocument, type InvoiceDocumentData } from '@/components/invoices/InvoiceDocument';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 
 /*
  * Standalone printable invoice — deliberately outside the (dashboard) layout so it carries no
@@ -56,8 +57,18 @@ export default function PrintInvoicePage() {
         </button>
       </div>
 
-      <div style={{ maxWidth: 820, margin: '0 auto' }}>
-        {isLoading && <Note>Loading invoice…</Note>}
+      {/* `print-region` is required, not decorative: the global print stylesheet hides `body *`
+          and re-shows only this class, so an unmarked document prints as a blank sheet. */}
+      {/* The app's own loader rather than a line of text: this tab opens on a click from inside
+          the app, so landing on bare "Loading…" reads as a different site for the second it is
+          up. `no-print` because the print dialog can fire while it is still on screen. */}
+      {isLoading && (
+        <div className="no-print">
+          <BrandLoader overlay label="Preparing invoice" />
+        </div>
+      )}
+
+      <div className="print-region" style={{ maxWidth: 820, margin: '0 auto' }}>
         {error && <Note>Could not load this invoice.</Note>}
         {data && <InvoiceDocument invoice={data} />}
       </div>

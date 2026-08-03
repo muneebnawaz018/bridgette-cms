@@ -140,6 +140,8 @@ const LIST_PROJECTION = {
   createdAt: 1,
   'billTo.name': 1,
   'billTo.email': 1,
+  // Drives the row menu's "Email to customer" vs "…again" label, and the confirm text.
+  sent: 1,
 } as const;
 
 /** Paginated, role-scoped invoice list. */

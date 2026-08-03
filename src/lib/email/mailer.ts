@@ -16,11 +16,22 @@ function getTransporter(): Transporter {
   return transporter;
 }
 
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 export interface SendMailInput {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  /**
+   * Files to attach. Deliberately narrower than nodemailer's own attachment type: content is a
+   * Buffer we already hold, never a path or a URL the mail server would have to go and fetch.
+   */
+  attachments?: MailAttachment[];
 }
 
 /**
@@ -31,7 +42,13 @@ export interface SendMailInput {
  * silently refused (or accepted and later bounced) looks identical to a successful send,
  * which makes "the email never arrived" impossible to diagnose.
  */
-export async function sendMail({ to, subject, html, text }: SendMailInput): Promise<void> {
+export async function sendMail({
+  to,
+  subject,
+  html,
+  text,
+  attachments,
+}: SendMailInput): Promise<void> {
   try {
     const info = await getTransporter().sendMail({
       from: env.smtp.from,
@@ -39,11 +56,15 @@ export async function sendMail({ to, subject, html, text }: SendMailInput): Prom
       subject,
       html,
       text,
+      attachments,
     });
 
     logger.info('email sent', {
       to,
       subject,
+      // Named, not counted: "which file went out" is the question after a customer says the
+      // attachment was wrong.
+      attachments: attachments?.map((a) => a.filename),
       messageId: info.messageId,
       accepted: info.accepted,
       rejected: info.rejected,

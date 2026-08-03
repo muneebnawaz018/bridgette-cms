@@ -1,6 +1,3 @@
-'use client';
-
-import { memo } from 'react';
 import Image from 'next/image';
 import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType } from '@/modules/invoicing/enums';
@@ -12,6 +9,13 @@ import { colors } from '@/lib/colors';
  * entirely in code (no image), but the header band reads as a fixed masthead. Styled with inline
  * styles + a scoped <style> so it renders identically on screen and in the browser's Print →
  * Save as PDF, independent of the app's MUI theme.
+ *
+ * Deliberately NOT a client component. The PDF renderer calls it directly on the server through
+ * renderToStaticMarkup, and a 'use client' module reaches server code as a reference proxy rather
+ * than a function — calling it throws "Attempted to call InvoiceDocument() from the server". It
+ * needs no client behaviour anyway: no state, no effects, no handlers. Client pages can still
+ * import it, which is why the memo() wrappers were dropped — memo has no meaning in a server
+ * component, and it is a static sheet with nothing to re-render.
  */
 
 const D = colors.invoiceDoc;
@@ -86,7 +90,19 @@ export const cashappAmount = (base: number) =>
 // Empty rows padded onto the item table so it keeps the template's blocked-out look.
 const MIN_ROWS = 8;
 
-export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
+export function InvoiceDocument({
+  invoice,
+  logoSrc,
+}: {
+  invoice: InvoiceDocumentData;
+  /**
+   * A self-contained logo source (data: URI) for the PDF renderer. next/image emits a
+   * `/_next/image?url=…` reference that only resolves inside a running Next server, so the
+   * headless browser would either fetch it over the network or print a gap. Given this, the
+   * markup falls back to a plain <img> and the sheet needs nothing but itself.
+   */
+  logoSrc?: string;
+}) {
   const rows = invoice.items ?? [];
   const pad = Math.max(0, MIN_ROWS - rows.length);
   // The column only earns its width when something is actually discounted — most invoices would
@@ -105,7 +121,7 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
            stacked content and all. Matches InvoiceTemplateForm, its editable twin. */
         .inv-doc { width: 820px; max-width: 100%; margin: 0 auto; background: ${PAPER}; color: ${BODY};
           font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.35; }
-        .inv-doc * { box-sizing: border-box; }
+        .inv-doc, .inv-doc * { box-sizing: border-box; }
         .inv-bar { height: 14px; background: ${RED}; }
         .inv-head { display: flex; align-items: center; gap: 20px; background: ${HEADER_BG};
           padding: 20px 26px; }
@@ -194,10 +210,22 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
           table.inv-items th, table.inv-items td { font-size: 10px; padding: 4px 5px; }
         }
         @media print {
-          @page { size: A4; margin: 12mm; }
+          /* margin: 0 is what removes the browser's own header and footer — the date, the page
+             title, the localhost URL and "1/1". They are drawn into the page margin, so a page
+             with no margin has nowhere to put them. The document then supplies the physical
+             margin itself as padding, which looks identical and prints nothing extra. */
+          @page { size: A4; margin: 0; }
           html, body { background: ${PAPER} !important; }
-          .inv-doc { width: 100%; }
+          .inv-doc { width: 100%; padding: 12mm 10mm; }
           .inv-terms a { color: ${LINK}; }
+          /* Chrome defaults to dropping background colour when printing, and its "Background
+             graphics" checkbox is off by default — which strips the masthead, the table header
+             and the balance strip, leaving a document that does not look like the invoice at
+             all. These are structure here, not decoration, so the sheet insists on them. */
+          .inv-doc, .inv-doc * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
 
@@ -205,14 +233,19 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
 
       <div className="inv-head">
         <div className="inv-logo">
-          <Image
-            src="/brand/logo.png"
-            alt="Bridgette"
-            width={1978}
-            height={1145}
-            priority
-            style={{ width: '100%', height: 'auto' }}
-          />
+          {logoSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoSrc} alt="Bridgette" style={{ width: '100%', height: 'auto' }} />
+          ) : (
+            <Image
+              src="/brand/logo.png"
+              alt="Bridgette"
+              width={1978}
+              height={1145}
+              priority
+              style={{ width: '100%', height: 'auto' }}
+            />
+          )}
         </div>
         <div className="inv-co">
           <h1>{COMPANY_CONTACT.name}</h1>
@@ -225,6 +258,9 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
         <div className="inv-meta">
           <div className="big">{typeLabel}</div>
           <div className="row">DATE: {fmtDate(invoice.issueDate)}</div>
+          {/* The form has always shown a due date; the customer's copy did not, which is the one
+              place it actually decides anything. */}
+          {invoice.dueDate && <div className="row">DUE: {fmtDate(invoice.dueDate)}</div>}
           <div className="row">INVOICE NO: {invoice.number}</div>
         </div>
       </div>
@@ -344,13 +380,7 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
   );
 }
 
-const Party = memo(function Party({
-  label,
-  party,
-}: {
-  label: string;
-  party?: { name?: string; address?: string };
-}) {
+function Party({ label, party }: { label: string; party?: { name?: string; address?: string } }) {
   return (
     <div className="inv-party">
       <div className="lbl">{label}</div>
@@ -358,9 +388,9 @@ const Party = memo(function Party({
       <div className="val">{party?.address || 'ADDRESS'}</div>
     </div>
   );
-});
+}
 
-const Total = memo(function Total({
+function Total({
   k,
   v,
   className,
@@ -378,4 +408,4 @@ const Total = memo(function Total({
       <span className={vClass ? `v ${vClass}` : 'v'}>{v}</span>
     </div>
   );
-});
+}

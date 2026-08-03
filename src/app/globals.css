@@ -109,12 +109,16 @@ body {
 }
 
 /*
- * Print isolation for "Download PDF" (the Terms page uses window.print).
+ * Print isolation for pages that print themselves (the Terms page and the invoice print view).
  *
  * Everything is hidden, then only the marked region and its descendants are shown and lifted
- * to the top-left of the page — so the printed PDF is just that region, without the app's
- * sidebar, top bar, or any button carrying the `.no-print` class. This is the standard
- * no-dependency route to a design-faithful PDF.
+ * to the top-left of the page — so the printed sheet is just that region, without the app's
+ * sidebar, top bar, or any button carrying the `.no-print` class.
+ *
+ * NOTE: any page meant to be printed MUST put `print-region` on the element to print. Without
+ * it, `body *` stays hidden and the page prints blank — silently, since nothing looks wrong on
+ * screen. Invoices emailed to customers do not come through here at all; they are rendered
+ * server-side by lib/pdf, which is immune to this stylesheet.
  */
 @media print {
   body * {
@@ -134,5 +138,16 @@ body {
   }
   .no-print {
     display: none !important;
+  }
+
+  /*
+   * Print the colours. Chrome drops background fills by default (its "Background graphics"
+   * option starts unchecked), which turns a branded document into an outline of itself. Any
+   * region we deliberately print is one where the fills carry meaning.
+   */
+  .print-region,
+  .print-region * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

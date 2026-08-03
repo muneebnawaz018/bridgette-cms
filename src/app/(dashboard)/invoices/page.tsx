@@ -43,7 +43,9 @@ interface InvoiceRow {
   balanceDue: number;
   isArchived: boolean;
   isDeleted: boolean;
-  billTo?: { name?: string };
+  billTo?: { name?: string; email?: string };
+  /** Last time this invoice was emailed to the customer, if ever. */
+  sent?: { at?: string; to?: string } | null;
 }
 
 type Action = { kind: 'archive' | 'delete'; row: InvoiceRow };
@@ -51,11 +53,12 @@ type Action = { kind: 'archive' | 'delete'; row: InvoiceRow };
 /** Which of the row actions this user may take on this particular invoice. */
 function rowActions(
   row: InvoiceRow,
-  perms: { canPay: boolean; canArchive: boolean; canDelete: boolean },
+  perms: { canPay: boolean; canArchive: boolean; canDelete: boolean; canSend: boolean },
   onPay: (row: InvoiceRow) => void,
   onAct: (kind: 'archive' | 'delete', row: InvoiceRow) => void,
   onPdf: (row: InvoiceRow) => void,
   onCsv: (row: InvoiceRow) => void,
+  onSend: (row: InvoiceRow) => void,
 ): RowAction[] {
   const actions: RowAction[] = [];
   const paid = row.state === 'paid' || row.state === 'draft';
@@ -68,6 +71,16 @@ function rowActions(
   }
   if (!row.isDeleted) {
     actions.push({ label: 'Download CSV', onClick: () => onCsv(row) });
+  }
+  /*
+   * Same rule as the PDF, since sending is the PDF plus an envelope: a draft has no agreed
+   * figures to put in front of a customer. The label says whether this would be the first time.
+   */
+  if (perms.canSend && !row.isDeleted && !row.isArchived && row.state !== 'draft') {
+    actions.push({
+      label: row.sent?.at ? 'Email to customer again' : 'Email to customer',
+      onClick: () => onSend(row),
+    });
   }
   if (perms.canArchive && !row.isArchived && !row.isDeleted) {
     actions.push({ label: 'Archive', danger: true, onClick: () => onAct('archive', row) });
@@ -125,6 +138,8 @@ export default function InvoicesPage() {
   const canPay = useCan(Permission.PaymentRecord);
   const canArchive = useCan(Permission.InvoiceArchive);
   const canDelete = useCan(Permission.InvoiceDelete);
+  // Sending is a customer-facing act, so it rides on edit rather than plain view.
+  const canSend = useCan(Permission.InvoiceEdit);
 
   const columnVisibility = useBreakpointColumns(INVOICE_COLUMN_TIERS);
 
@@ -138,6 +153,8 @@ export default function InvoicesPage() {
   const [range, setRange] = useState({ from: monthStart(), to: monthEnd() });
   const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
+  const [toSend, setToSend] = useState<InvoiceRow | null>(null);
+  const [sending, setSending] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize,
@@ -217,6 +234,21 @@ export default function InvoicesPage() {
       void mutate();
     } else {
       enqueueSnackbar(res.error ?? `Could not ${kind} invoice`, { variant: 'error' });
+    }
+  }
+
+  async function sendInvoice() {
+    if (!toSend) return;
+    setSending(true);
+    const res = await apiPost(`/api/invoices/${toSend._id}/send`, {});
+    setSending(false);
+    if (res.ok) {
+      enqueueSnackbar(`Invoice emailed to ${toSend.billTo?.email}`, { variant: 'success' });
+      setToSend(null);
+      // The row carries a "sent" stamp now, which changes its menu label.
+      void mutate();
+    } else {
+      enqueueSnackbar(res.error ?? 'Could not send the invoice', { variant: 'error' });
     }
   }
 
@@ -308,11 +340,14 @@ export default function InvoicesPage() {
         <RowActionsMenu
           actions={rowActions(
             p.row,
-            { canPay, canArchive, canDelete },
+            { canPay, canArchive, canDelete, canSend },
             setPayFor,
             openAction,
-            (row) => window.open(`/print/invoices/${row._id}`, '_blank'),
+            // A real generated PDF, not the browser's print dialog on a styled page — the same
+            // file the customer receives by email.
+            (row) => window.open(`/api/invoices/${row._id}/pdf`, '_blank'),
             downloadInvoiceCsv,
+            setToSend,
           )}
         />
       ),
@@ -436,6 +471,29 @@ export default function InvoicesPage() {
           autoFocus
         />
       </ConfirmDialog>
+
+      {/* Sending is irreversible in the only way that matters: the customer has it. So it asks
+          first, and names the address it will actually use rather than "the customer". */}
+      <ConfirmDialog
+        open={Boolean(toSend)}
+        title={`Email ${toSend?.number ?? 'this invoice'} to the customer?`}
+        description={
+          toSend?.billTo?.email ? (
+            <>
+              The invoice will be sent to <strong>{toSend.billTo.email}</strong> with the PDF
+              attached.
+              {toSend.sent?.at && ' They have already been sent this invoice once.'}
+            </>
+          ) : (
+            'This customer has no email address on the invoice. Add one to the customer record first.'
+          )
+        }
+        confirmLabel="Send"
+        confirmDisabled={!toSend?.billTo?.email}
+        loading={sending}
+        onConfirm={sendInvoice}
+        onClose={() => setToSend(null)}
+      />
     </Box>
   );
 }

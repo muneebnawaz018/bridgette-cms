@@ -32,6 +32,13 @@ import {
 } from '@/components/invoices/InvoiceTemplateForm';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
+/** What the create endpoint reports back about emailing the invoice to the customer. */
+interface EmailOutcome {
+  sent: boolean;
+  to?: string;
+  reason?: string;
+}
+
 /*
  * New invoice — laid out as the printed template (see InvoiceTemplateForm / InvoiceDocument).
  * The page owns state, options fetching and submit; the form component is the template skin.
@@ -253,7 +260,7 @@ export default function NewInvoicePage() {
       ? { name: form.shipName.trim(), address: form.shipAddress.trim() || undefined }
       : undefined;
 
-    const res = await apiPost<{ _id: string }>('/api/invoices', {
+    const res = await apiPost<{ _id: string; emailed?: EmailOutcome }>('/api/invoices', {
       type: form.type,
       billTo: {
         name: form.billName.trim(),
@@ -285,7 +292,23 @@ export default function NewInvoicePage() {
       enqueueSnackbar(res.error ?? 'Failed to create invoice', { variant: 'error' });
       return;
     }
-    enqueueSnackbar(asDraft ? 'Draft saved' : 'Invoice created', { variant: 'success' });
+    /*
+     * The API sends the invoice to the customer as part of creating it and waits for the result,
+     * so the toast reports what actually happened rather than what was intended. A send that
+     * failed is a warning, not an error: the invoice exists and is retryable from the list.
+     */
+    const emailed = res.data?.emailed;
+    if (asDraft) {
+      enqueueSnackbar('Draft saved', { variant: 'success' });
+    } else if (emailed?.sent) {
+      enqueueSnackbar(`Invoice created and emailed to ${emailed.to}`, { variant: 'success' });
+    } else if (emailed?.reason) {
+      enqueueSnackbar(`Invoice created, but not emailed: ${emailed.reason}`, {
+        variant: 'warning',
+      });
+    } else {
+      enqueueSnackbar('Invoice created', { variant: 'success' });
+    }
     if (res.data?._id) router.replace(`/invoices/${res.data._id}`);
     else router.replace('/invoices');
   }

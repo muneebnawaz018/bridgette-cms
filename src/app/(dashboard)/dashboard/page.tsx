@@ -427,6 +427,12 @@ export default function DashboardPage() {
               background: gradients.ink,
               position: 'relative',
               overflow: 'hidden',
+              /* Side by side, this card is the shorter of the two and stretches to match. Centring
+                 its content keeps the leftover height split evenly instead of pooling underneath
+                 the last button. Stacked on a phone it has no leftover height and this is a no-op. */
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
             }}
           >
             <Box

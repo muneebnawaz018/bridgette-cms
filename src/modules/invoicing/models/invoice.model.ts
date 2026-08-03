@@ -85,6 +85,25 @@ const invoiceSchema = new Schema(
 
     reminder: { type: reminderSchema },
 
+    /*
+     * When this invoice was last emailed to the customer, and to which address. Kept as a log of
+     * what left the building rather than a boolean: "already sent" is a different question from
+     * "sent to the address they have now", and a customer who changed their email needs the
+     * second one answered.
+     */
+    sent: {
+      type: new Schema(
+        {
+          at: { type: Date, required: true },
+          to: { type: String, required: true },
+          by: { type: Schema.Types.ObjectId, ref: 'User' },
+          count: { type: Number, default: 1 },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     cancelledReason: { type: String },
 

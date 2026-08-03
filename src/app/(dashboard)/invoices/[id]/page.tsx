@@ -19,7 +19,6 @@ import EditRounded from '@mui/icons-material/EditRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
-import PaymentsRounded from '@mui/icons-material/PaymentsRounded';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
@@ -377,17 +376,8 @@ export default function InvoiceDetailPage() {
               Edit
             </Button>
           )}
-          {!form && canPay && !locked && invoice.state !== 'paid' && invoice.state !== 'draft' && (
-            <Button
-              variant="contained"
-              startIcon={<PaymentsRounded />}
-              onClick={() => setPayOpen(true)}
-            >
-              Record payment
-            </Button>
-          )}
-          {/* Same actions in an overflow menu, per request — a compact route to Record payment
-              that also holds any future per-invoice actions. */}
+          {/* Record payment lives in the overflow menu only. It used to be both a button and a
+              menu item, which read as two different actions sitting next to each other. */}
           {!form && (
             <RowActionsMenu
               ariaLabel="Invoice actions"
