@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { PhoneLink } from '@/components/ui/PhoneLink';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
@@ -44,7 +45,7 @@ interface UserDetail {
   lastLoginAt?: string;
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Box sx={{ py: 0.75 }}>
       <Typography
@@ -225,7 +226,7 @@ export function UserDetailsModal({
 
           <Grid container spacing={1}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Field label="Phone" value={formatPhone(user.phone) || 'Not set'} />
+              <Field label="Phone" value={<PhoneLink value={user.phone} fallback="Not set" />} />
               <Field label="Email verified" value={user.emailVerified ? 'Yes' : 'No'} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>

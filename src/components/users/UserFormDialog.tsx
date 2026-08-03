@@ -308,9 +308,21 @@ export function UserFormDialog({
   const blurPhone = useCallback(() => blurField('phone'), [blurField]);
 
   /** A field's error message, or undefined while it should still be hidden. */
+  /*
+   * Errors normally wait for a blur or a submit, so a pristine form never opens in red. That
+   * breaks down when the form is dirty and still will not parse: Save is disabled, its caption
+   * says to fix the highlighted fields, and nothing is highlighted because the offending field
+   * was never touched — a stored address whose country and state disagree, say. In that state
+   * the errors are computed live so the caption is always pointing at something real.
+   */
+  const liveErrors = useMemo<FieldErrors>(
+    () => (guard.dirty && !guard.valid ? validate(valuesRef.current, isEditRef.current) : {}),
+    [guard.dirty, guard.valid, validate],
+  );
+
   const shown = useCallback(
-    (key: string) => (submitted || touched[key] ? errors[key] : undefined),
-    [submitted, touched, errors],
+    (key: string) => (submitted || touched[key] ? errors[key] : liveErrors[key]),
+    [submitted, touched, errors, liveErrors],
   );
 
   /** Put a failed response's messages onto the fields they belong to. */

@@ -76,7 +76,7 @@ interface RecentInvoice {
 }
 
 /** How many invoices the dashboard preview lists — named in the heading, so one constant. */
-const RECENT_LIMIT = 5;
+const RECENT_LIMIT = 3;
 
 const STATES = [
   { k: 'draft', label: 'Draft', color: colors.ink[400] },
@@ -377,8 +377,10 @@ export default function DashboardPage() {
                       sx={{
                         width: 38,
                         height: 38,
-                        bgcolor: colors.surface.subtle,
-                        color: colors.ink[500],
+                        // The type badge is the only brand mark in this list; grey-on-grey made
+                        // it read as a disabled chip rather than the label it is.
+                        backgroundImage: gradients.brand,
+                        color: colors.brand.white,
                         fontSize: '0.72rem',
                         fontWeight: 700,
                       }}

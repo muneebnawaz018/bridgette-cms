@@ -15,6 +15,7 @@ import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import PrintRounded from '@mui/icons-material/PrintRounded';
+import SendRounded from '@mui/icons-material/SendRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import SaveRounded from '@mui/icons-material/SaveRounded';
@@ -38,8 +39,9 @@ import { InvoiceDocument, type InvoiceDocumentData } from '@/components/invoices
 import Link from '@mui/material/Link';
 import { paymentFieldLabel } from '@/modules/payments/methodFields';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
+import { SendInvoiceSummary } from '@/components/invoices/SendInvoiceSummary';
 import { useApi } from '@/lib/api/useApi';
-import { apiPatch } from '@/lib/api/client';
+import { apiPatch, apiPost } from '@/lib/api/client';
 import { formatMoney } from '@/lib/format/money';
 import { paymentMethodLabel } from '@/lib/format/labels';
 
@@ -85,6 +87,10 @@ interface Invoice {
   notes?: string;
   isArchived: boolean;
   isDeleted: boolean;
+  /** Where an email would go: the customer's current address, resolved server-side. */
+  sendTo?: string;
+  /** Last time this invoice was emailed to the customer, if ever. */
+  sent?: { at?: string; to?: string; count?: number } | null;
   archiveReason?: string;
   deleteReason?: string;
   reminder?: {
@@ -141,10 +147,9 @@ export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
+  // Covers editing a draft and emailing an invoice. Editing a finalized invoice is not a
+  // permission anyone holds — see updateInvoice.
   const canEdit = useCan(Permission.InvoiceEdit);
-  // Editing a finalized invoice is admin-only; drafts can still be edited by anyone who may edit.
-  // InvoiceViewAllArchived is the admin marker used everywhere else (see visibility).
-  const canAdminEdit = useCan(Permission.InvoiceViewAllArchived);
   const canPay = useCan(Permission.PaymentRecord);
 
   const { data: invoice, isLoading, error, mutate } = useApi<Invoice>(`/api/invoices/${id}`);
@@ -194,6 +199,28 @@ export default function InvoiceDetailPage() {
 
   // The record-payment modal owns its own form and request.
   const [payOpen, setPayOpen] = useState(false);
+
+  /*
+   * Emailing the invoice. Creating one no longer does this on its own: there is no unsend, so
+   * an invoice with a wrong figure would be in the customer's inbox before anyone had read it.
+   * This is the deliberate step, taken from the page that shows what they will receive.
+   */
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  async function doSend() {
+    setSending(true);
+    const res = await apiPost<{ to?: string }>(`/api/invoices/${id}/send`, {});
+    setSending(false);
+    if (!res.ok) {
+      enqueueSnackbar(res.error ?? 'Could not send the invoice', { variant: 'error' });
+      return;
+    }
+    // The address the server actually used, not the one this page was showing.
+    enqueueSnackbar(`Invoice emailed to ${res.data?.to ?? 'the customer'}`, { variant: 'success' });
+    setConfirmSend(false);
+    void mutate(); // the "sent" stamp changes the button's label
+  }
 
   // The app-wide overlay is already up (useApi drives it via loadingBus); rendering a second
   // loader here would sit inside the page and leave the sidebar and top bar uncovered.
@@ -276,6 +303,9 @@ export default function InvoiceDetailPage() {
       (policy === 'always' || (policy === 'optional' && form.applyTax)) && !resellerExempt;
     setSaving(true);
     const res = await apiPatch(`/api/invoices/${invoice._id}`, {
+      // Only when the customer was re-picked in this edit. Left out otherwise so an edit that
+      // never touched the party keeps whatever link the invoice already had.
+      customerId: customerId ?? undefined,
       billTo: {
         name: form.billName,
         email: form.billEmail || undefined,
@@ -367,7 +397,19 @@ export default function InvoiceDetailPage() {
               Print / PDF
             </Button>
           )}
-          {!form && !locked && (isDraft ? canEdit : canAdminEdit) && (
+          {/* Same rule as Print: a draft is not a document to hand out yet. */}
+          {!form && !isDraft && !locked && canEdit && (
+            <Button
+              variant="outlined"
+              startIcon={<SendRounded />}
+              onClick={() => setConfirmSend(true)}
+            >
+              {invoice.sent?.at ? 'Email again' : 'Email to customer'}
+            </Button>
+          )}
+          {/* Drafts only. A finalized invoice is a document the customer already has; the API
+              refuses to change one, so offering the button would only produce an error. */}
+          {!form && !locked && isDraft && canEdit && (
             <Button
               variant="contained"
               startIcon={<EditRounded />}
@@ -566,6 +608,31 @@ export default function InvoiceDetailPage() {
         loading={saving}
         onConfirm={doSave}
         onClose={() => setConfirmFinalize(null)}
+      />
+
+      {/* Sending is irreversible in the only way that matters: the customer has it. So it asks
+          first, and names the address it will actually use rather than "the customer". */}
+      <ConfirmDialog
+        open={confirmSend}
+        title={`Email ${invoice.number}?`}
+        // Wider than the default so the address is not broken across lines — a half-wrapped
+        // email is the one thing on this dialog that has to be read carefully.
+        maxWidth="sm"
+        description={
+          <SendInvoiceSummary
+            customerName={invoice.billTo?.name}
+            sendTo={invoice.sendTo}
+            total={invoice.grandTotal}
+            currency={invoice.currency}
+            alreadySent={Boolean(invoice.sent?.at)}
+          />
+        }
+        confirmLabel="Send"
+        confirmIcon={<SendRounded />}
+        confirmDisabled={!invoice.sendTo}
+        loading={sending}
+        onConfirm={doSend}
+        onClose={() => setConfirmSend(false)}
       />
 
       <RecordPaymentModal

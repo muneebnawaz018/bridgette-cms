@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import Button from '@mui/material/Button';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import CheckRounded from '@mui/icons-material/CheckRounded';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, type ModalWidth } from '@/components/ui/Modal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 
 /**
@@ -26,12 +26,19 @@ export function ConfirmDialog({
   confirmColor = 'primary',
   confirmDisabled = false,
   loading = false,
+  maxWidth = 'md',
   onConfirm,
   onClose,
 }: {
   open: boolean;
   title: string;
   description?: ReactNode;
+  /**
+   * Widen it when the question carries detail worth reading in one glance (an address, a name,
+   * an amount). Narrow by default: most confirms are a single short sentence, and stretching
+   * those just puts more white space between the question and the buttons.
+   */
+  maxWidth?: ModalWidth;
   /** Extra content (e.g. a reason field) rendered below the description. */
   children?: ReactNode;
   confirmLabel?: string;
@@ -51,7 +58,7 @@ export function ConfirmDialog({
       title={title}
       description={description}
       busy={loading}
-      maxWidth="xs"
+      maxWidth={maxWidth}
       showClose={false}
       actions={
         <>

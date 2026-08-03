@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
+import Grid from '@mui/material/Grid2';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
@@ -249,7 +250,8 @@ export function RecordPaymentModal({
         onClose={close}
         title={`Record payment for ${invoice?.number ?? ''}`}
         icon={<PaymentsRounded />}
-        maxWidth="xs"
+        // Two columns need the room; at xs they would each be barely wider than their label.
+        maxWidth="sm"
         busy={saving}
         actions={
           <>
@@ -283,65 +285,82 @@ export function RecordPaymentModal({
           </>
         }
       >
-        <Stack key={formKey} spacing={2}>
-          <Typography variant="body2" color="text.secondary">
-            Balance due: {balanceLabel}
-          </Typography>
-          <TextInput
-            name="amount"
-            label="Amount"
-            type="number"
-            defaultValue={amountRef.current}
-            error={Boolean(errors.amount)}
-            helperText={errors.amount}
-            required
-            autoFocus
-            disabled={saving}
-            onChange={setAmount}
-          />
-          <SelectInput
-            name="method"
-            label="Method"
-            value={method}
-            options={METHOD_OPTIONS}
-            error={Boolean(errors.method)}
-            helperText={errors.method}
-            required
-            disabled={saving}
-            onChange={handleMethod}
-          />
+        {/*
+         * Two fields per row. Every input here is short — an amount, a reference, a bank name —
+         * so one per column left half the dialog empty and pushed the proof box off the bottom
+         * of the screen. Full width is kept for the things that earn it: the notes box and the
+         * proof drop zone.
+         */}
+        <Grid key={formKey} container spacing={2}>
+          <Grid size={12}>
+            <Typography variant="body2" color="text.secondary">
+              Balance due: {balanceLabel}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextInput
+              name="amount"
+              label="Amount"
+              type="number"
+              defaultValue={amountRef.current}
+              error={Boolean(errors.amount)}
+              helperText={errors.amount}
+              required
+              autoFocus
+              disabled={saving}
+              onChange={setAmount}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <SelectInput
+              name="method"
+              label="Method"
+              value={method}
+              options={METHOD_OPTIONS}
+              error={Boolean(errors.method)}
+              helperText={errors.method}
+              required
+              disabled={saving}
+              onChange={handleMethod}
+            />
+          </Grid>
 
           {/* Method-specific "related information". */}
           {fields.map((f) => (
-            <TextInput
-              key={f.key}
-              name={f.key}
-              label={f.label}
-              defaultValue={detailsRef.current[f.key] ?? ''}
-              error={Boolean(errors[f.key])}
-              helperText={errors[f.key]}
-              required={f.required}
-              inputMode={f.inputMode}
-              maxLength={f.maxLength}
-              disabled={saving}
-              onChange={setDetail}
-            />
+            <Grid key={f.key} size={{ xs: 12, sm: 6 }}>
+              <TextInput
+                name={f.key}
+                label={f.label}
+                defaultValue={detailsRef.current[f.key] ?? ''}
+                error={Boolean(errors[f.key])}
+                helperText={errors[f.key]}
+                required={f.required}
+                inputMode={f.inputMode}
+                maxLength={f.maxLength}
+                disabled={saving}
+                onChange={setDetail}
+              />
+            </Grid>
           ))}
 
-          <TextInput
-            name="notes"
-            label="Notes"
-            defaultValue={notesRef.current}
-            multiline
-            minRows={2}
-            disabled={saving}
-            onChange={setNotes}
-          />
+          <Grid size={12}>
+            <TextInput
+              name="notes"
+              label="Notes"
+              defaultValue={notesRef.current}
+              multiline
+              minRows={2}
+              disabled={saving}
+              onChange={setNotes}
+            />
+          </Grid>
 
-          <Divider />
+          <Grid size={12}>
+            <Divider />
+          </Grid>
 
           {/* Proof of payment. */}
-          <Box>
+          <Grid size={12}>
             <Typography
               variant="overline"
               sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 0.75 }}
@@ -384,8 +403,8 @@ export function RecordPaymentModal({
                 <Typography variant="caption" color={errors.proof ? 'error' : 'text.secondary'}>
                   {errors.proof ??
                     (needsProof
-                      ? 'Screenshot or receipt image — required.'
-                      : 'Screenshot or receipt image — optional for cash.')}
+                      ? 'Screenshot or receipt image. Required.'
+                      : 'Screenshot or receipt image. Optional for cash.')}
                 </Typography>
               </Box>
             ) : (
@@ -437,16 +456,17 @@ export function RecordPaymentModal({
                 </IconButton>
               </Stack>
             )}
-          </Box>
-        </Stack>
+          </Grid>
+        </Grid>
       </Modal>
 
       <ConfirmDialog
         open={Boolean(confirmPartial)}
         title="Record a partial payment?"
+        maxWidth="xs"
         description={
           confirmPartial
-            ? `This records ${invoice ? formatMoney(invoice.currency, confirmPartial.data.amount) : ''} of the ${balanceLabel} due. ${invoice ? formatMoney(invoice.currency, confirmPartial.remaining) : ''} will remain outstanding and the invoice stays "Partially paid". Continue?`
+            ? `${invoice ? formatMoney(invoice.currency, confirmPartial.data.amount) : ''} of ${balanceLabel}. ${invoice ? formatMoney(invoice.currency, confirmPartial.remaining) : ''} stays outstanding.`
             : ''
         }
         confirmLabel="Record payment"

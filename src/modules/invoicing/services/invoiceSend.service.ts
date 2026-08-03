@@ -6,6 +6,7 @@ import { invoiceEmail } from '@/lib/email/templates';
 import { renderInvoicePdf, invoicePdfFilename } from '@/lib/pdf/invoicePdf';
 import { toDocumentData, type StoredInvoiceLike } from '@/modules/invoicing/documentData';
 import { COMPANY_CONTACT } from '@/modules/legal/company';
+import { resolveSendTo } from '@/modules/invoicing/sendTo';
 import { formatMoney } from '@/lib/format/money';
 import { logger } from '@/lib/logger/logger';
 import { Invoice } from '../models/invoice.model';
@@ -54,7 +55,8 @@ export async function sendInvoiceToCustomer(
   }
   if (doc.isDeleted) throw new Error('This invoice has been deleted and cannot be sent.');
 
-  const to = (overrideTo ?? doc.billTo?.email ?? '').trim();
+  // The customer's current address, not the snapshot the invoice was raised with. See sendTo.ts.
+  const to = (overrideTo?.trim() || (await resolveSendTo(doc))).trim();
   if (!to) {
     throw new Error('This customer has no email address. Add one before sending.');
   }

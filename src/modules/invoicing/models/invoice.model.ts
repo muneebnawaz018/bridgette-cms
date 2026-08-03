@@ -55,6 +55,15 @@ const invoiceSchema = new Schema(
 
     currency: { type: String, enum: Object.values(Currency), required: true },
     billTo: { type: partySchema, required: true },
+    /*
+     * Who was billed, as a link rather than a copy. `billTo` stays the snapshot taken when the
+     * invoice was raised — the name and address on an issued document are a record of what was
+     * agreed and must not change underneath it. The contact address is a different thing: it is
+     * where post goes today, not part of the document, so sending resolves it through here and
+     * only falls back to the snapshot when the link is missing (invoices raised before this
+     * field existed) or the customer is gone.
+     */
+    customerId: { type: Schema.Types.ObjectId, ref: 'Customer', index: true },
     shipTo: { type: partySchema },
     items: { type: [itemSchema], default: [] },
 

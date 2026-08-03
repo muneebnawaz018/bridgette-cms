@@ -202,6 +202,21 @@ export function joinPhone(iso2: string, national: string): string {
   return `+${dial}${digits}`;
 }
 
+/**
+ * `href` for a phone link, so tapping a number opens the dialer.
+ *
+ * Always the raw E.164 digits, never the spaced display form: `tel:` is parsed by the OS, and
+ * a number that reads well to a person is not what a dialer wants. Returns an empty string for
+ * a missing number, which callers use to decide whether to render a link at all.
+ */
+export function telHref(e164: string | null | undefined): string {
+  const value = (e164 ?? '').trim();
+  if (!value) return '';
+  const { iso2, national } = splitPhone(value);
+  const joined = joinPhone(iso2, national);
+  return joined ? `tel:${joined}` : '';
+}
+
 /** Pretty form for display: `+92 302 7577308`. */
 export function formatPhone(e164: string | null | undefined): string {
   const value = (e164 ?? '').trim();

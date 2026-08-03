@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -140,9 +140,21 @@ export function FabricFormDialog({
     [validate],
   );
 
+  /*
+   * Errors normally wait for a blur or a submit, so a pristine form never opens in red. That
+   * breaks down when the form is dirty and still will not parse: Save is disabled, its caption
+   * says to fix the highlighted fields, and nothing is highlighted because the offending field
+   * was never touched — a stored address whose country and state disagree, say. In that state
+   * the errors are computed live so the caption is always pointing at something real.
+   */
+  const liveErrors = useMemo<FieldErrors>(
+    () => (guard.dirty && !guard.valid ? validate(valuesRef.current) : {}),
+    [guard.dirty, guard.valid, validate],
+  );
+
   const shown = useCallback(
-    (key: string) => (submitted || touched[key] ? errors[key] : undefined),
-    [submitted, touched, errors],
+    (key: string) => (submitted || touched[key] ? errors[key] : liveErrors[key]),
+    [submitted, touched, errors, liveErrors],
   );
 
   const close = useCallback(() => {

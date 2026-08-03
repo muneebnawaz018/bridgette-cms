@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { formatMoney } from '@/lib/format/money';
+import { formatPhone, telHref } from '@/lib/format/countries';
 import { colors } from '@/lib/colors';
 
 /*
@@ -131,6 +132,8 @@ export function InvoiceDocument({
         .inv-co h1 { margin: 0 0 10px; font-size: 25px; font-weight: 800; letter-spacing: .2px; }
         .inv-co p { margin: 2px 0; font-weight: 700; font-size: 14px; }
         .inv-co .gap { height: 10px; }
+        /* The masthead is a block of contact details, not a set of links. */
+        .inv-co a { color: inherit; text-decoration: none; }
         .inv-meta { text-align: right; flex-shrink: 0; min-width: 150px; }
         .inv-meta .big { font-size: 26px; color: ${FAINT}; font-weight: 500; line-height: 1.05; }
         .inv-meta .row { font-size: 11px; font-weight: 700; color: ${META}; padding: 3px 0;
@@ -252,7 +255,11 @@ export function InvoiceDocument({
           <p>{COMPANY_CONTACT.addressLine1}</p>
           <p>{COMPANY_CONTACT.addressLine2}</p>
           <div className="gap" />
-          <p>{COMPANY_CONTACT.phone}</p>
+          {/* Dialable on a screen, ordinary text on paper — the href simply has nothing to do
+              when printed, and the CSS below keeps it from looking like a link either way. */}
+          <p>
+            <a href={telHref(COMPANY_CONTACT.phone)}>{formatPhone(COMPANY_CONTACT.phone)}</a>
+          </p>
           <p>{COMPANY_CONTACT.email}</p>
         </div>
         <div className="inv-meta">

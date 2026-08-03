@@ -23,6 +23,7 @@ import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
+import { SendInvoiceSummary } from '@/components/invoices/SendInvoiceSummary';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone, invoiceStateLabel } from '@/components/ui/StatusChip';
 import { invoiceTypeLabel } from '@/lib/format/labels';
@@ -44,6 +45,12 @@ interface InvoiceRow {
   isArchived: boolean;
   isDeleted: boolean;
   billTo?: { name?: string; email?: string };
+  /**
+   * Where an email would actually go: the customer's current address, falling back to the
+   * billing snapshot. Resolved server-side so the confirm dialog names the same address the
+   * send will use — billTo.email is a snapshot and goes stale the moment a customer edits it.
+   */
+  sendTo?: string;
   /** Last time this invoice was emailed to the customer, if ever. */
   sent?: { at?: string; to?: string } | null;
 }
@@ -240,10 +247,13 @@ export default function InvoicesPage() {
   async function sendInvoice() {
     if (!toSend) return;
     setSending(true);
-    const res = await apiPost(`/api/invoices/${toSend._id}/send`, {});
+    const res = await apiPost<{ to?: string }>(`/api/invoices/${toSend._id}/send`, {});
     setSending(false);
     if (res.ok) {
-      enqueueSnackbar(`Invoice emailed to ${toSend.billTo?.email}`, { variant: 'success' });
+      // The address the server actually used, not the one the row was showing.
+      enqueueSnackbar(`Invoice emailed to ${res.data?.to ?? toSend.sendTo}`, {
+        variant: 'success',
+      });
       setToSend(null);
       // The row carries a "sent" stamp now, which changes its menu label.
       void mutate();
@@ -476,20 +486,21 @@ export default function InvoicesPage() {
           first, and names the address it will actually use rather than "the customer". */}
       <ConfirmDialog
         open={Boolean(toSend)}
-        title={`Email ${toSend?.number ?? 'this invoice'} to the customer?`}
+        title={`Email ${toSend?.number ?? 'this invoice'}?`}
+        // Wider than the default so the address is not broken across lines — a half-wrapped
+        // email is the one thing on this dialog that has to be read carefully.
+        maxWidth="sm"
         description={
-          toSend?.billTo?.email ? (
-            <>
-              The invoice will be sent to <strong>{toSend.billTo.email}</strong> with the PDF
-              attached.
-              {toSend.sent?.at && ' They have already been sent this invoice once.'}
-            </>
-          ) : (
-            'This customer has no email address on the invoice. Add one to the customer record first.'
-          )
+          <SendInvoiceSummary
+            customerName={toSend?.billTo?.name}
+            sendTo={toSend?.sendTo}
+            total={toSend?.grandTotal ?? 0}
+            currency={toSend?.currency ?? 'USD'}
+            alreadySent={Boolean(toSend?.sent?.at)}
+          />
         }
         confirmLabel="Send"
-        confirmDisabled={!toSend?.billTo?.email}
+        confirmDisabled={!toSend?.sendTo}
         loading={sending}
         onConfirm={sendInvoice}
         onClose={() => setToSend(null)}

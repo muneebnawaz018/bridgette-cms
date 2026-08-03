@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { PhoneLink } from '@/components/ui/PhoneLink';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
@@ -45,7 +46,7 @@ interface Profile {
 }
 
 // Spacing comes from the grid that lays these out, so every row keeps the same rhythm.
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Box>
       <Typography
@@ -162,7 +163,7 @@ export default function ProfilePage() {
                 <Field label="Member since" value={formatDate(me.createdAt)} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Field label="Phone" value={formatPhone(me.phone) || 'Not set'} />
+                <Field label="Phone" value={<PhoneLink value={me.phone} fallback="Not set" />} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Field label="Last login" value={formatDateTime(me.lastLoginAt, 'Never')} />

@@ -10,7 +10,13 @@ export const COMPANY_CONTACT = {
   name: COMPANY,
   addressLine1: '5775 Riverside DR',
   addressLine2: 'Chino, CA 91710-6710',
-  phone: '1 (909) 516-8570',
+  /*
+   * Stored as E.164, like every other number in the system. It used to be the literal string
+   * `1 (909) 516-8570`, which is neither of the two US conventions and could not be dialled from
+   * outside the country. Display goes through formatPhone, so the way it is written is decided in
+   * one place instead of being typed out here and diverging from every customer's number.
+   */
+  phone: '+19095168570',
   email: 'Info@bridgetteenterprises.com',
 } as const;
 

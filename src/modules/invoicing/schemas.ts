@@ -30,6 +30,12 @@ export const createInvoiceSchema = z.object({
   type: z.nativeEnum(InvoiceType),
   currency: z.nativeEnum(Currency).optional(),
   billTo: party,
+  // The customer this was raised for. Optional so an ad-hoc invoice typed in by hand still
+  // saves; when present it is what the send step reads the current email address from.
+  customerId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, 'Not a valid customer')
+    .optional(),
   shipTo: party.optional(),
   items: z.array(item).min(1, 'At least one line item is required'),
   shippingHandlingTariff: z

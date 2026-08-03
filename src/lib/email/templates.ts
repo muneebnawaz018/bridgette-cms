@@ -1,5 +1,7 @@
 import { colors } from '@/lib/colors';
 import { env } from '@/lib/config/env';
+import { COMPANY_CONTACT } from '@/modules/legal/company';
+import { formatPhone, telHref } from '@/lib/format/countries';
 
 /**
  * Transactional email bodies.
@@ -99,8 +101,9 @@ function shell({
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:${PAPER};border:1px solid ${BORDER};border-radius:12px;overflow:hidden">
         <tr><td style="background:${BRAND};height:5px;line-height:5px;font-size:0">&nbsp;</td></tr>
         <tr><td style="padding:26px 32px 0">
-          <p style="margin:0;font-size:13px;font-weight:bold;letter-spacing:2px;color:${BRAND};text-transform:uppercase">Bridgette</p>
-          <p style="margin:2px 0 0;font-size:11px;letter-spacing:1px;color:${FAINT};text-transform:uppercase">Management Portal</p>
+          <!-- One line, two weights. Stacked, the second line read as a subtitle to the message
+               rather than as part of the wordmark. -->
+          <p style="margin:0;font-size:13px;letter-spacing:2px;text-transform:uppercase"><span style="font-weight:bold;color:${BRAND}">Bridgette</span> <span style="color:${FAINT}">Management Portal</span></p>
         </td></tr>
         <tr><td style="padding:18px 32px 32px">
           <h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:${INK}">${esc(title)}</h1>
@@ -282,11 +285,13 @@ export function invoiceEmail(params: {
   const { invoiceNumber, billTo, total, amountDue, dueDate, issueDate, paid, companyName } = params;
 
   const rows: Array<{ label: string; value: string; strong?: boolean; accent?: boolean }> = [];
+  // Dates first, then money. The two dates belong next to each other: read apart, "Aug 3" and
+  // "Aug 10" are two facts; read together they are the week the customer has to pay.
   if (issueDate) rows.push({ label: 'Invoice date', value: issueDate });
+  if (dueDate) rows.push({ label: 'Due date', value: dueDate });
   rows.push({ label: 'Invoice total', value: total });
   if (paid) rows.push({ label: 'Already paid', value: paid });
   rows.push({ label: 'Amount due', value: amountDue, strong: true, accent: true });
-  if (dueDate) rows.push({ label: 'Payment due by', value: dueDate });
 
   const greeting = billTo ? `Hello ${esc(billTo)},` : 'Hello,';
 
@@ -294,13 +299,13 @@ export function invoiceEmail(params: {
     subject: `Invoice ${invoiceNumber} from ${companyName}`,
     html: shell({
       title: `Invoice ${esc(invoiceNumber)}`,
-      preheader: `Invoice ${invoiceNumber} from ${companyName} — ${amountDue} due${
+      preheader: `Invoice ${invoiceNumber} from ${companyName}. ${amountDue} due${
         dueDate ? ` by ${dueDate}` : ''
       }.`,
       body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">${greeting}</p>
         <p style="margin:0 0 4px;font-size:15px;line-height:1.6">Please find invoice <strong>${esc(invoiceNumber)}</strong> from ${esc(companyName)} attached as a PDF.</p>
         ${detailsTable(rows)}
-        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">Payment details are on the invoice. If anything looks wrong, reply to this email and we will sort it out.</p>`,
+        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">Payment terms and remittance details are set out on the attached invoice. For any queries, contact us at <a href="mailto:${esc(COMPANY_CONTACT.email)}" style="color:${MUTED}">${esc(COMPANY_CONTACT.email)}</a> or <a href="${esc(telHref(COMPANY_CONTACT.phone))}" style="color:${MUTED}">${esc(formatPhone(COMPANY_CONTACT.phone))}</a>.</p>`,
     }),
     text: [
       billTo ? `Hello ${billTo},` : 'Hello,',
@@ -308,12 +313,12 @@ export function invoiceEmail(params: {
       `Please find invoice ${invoiceNumber} from ${companyName} attached as a PDF.`,
       '',
       ...(issueDate ? [`Invoice date: ${issueDate}`] : []),
+      ...(dueDate ? [`Due date: ${dueDate}`] : []),
       `Invoice total: ${total}`,
       ...(paid ? [`Already paid: ${paid}`] : []),
       `Amount due: ${amountDue}`,
-      ...(dueDate ? [`Payment due by: ${dueDate}`] : []),
       '',
-      'Payment details are on the invoice. If anything looks wrong, reply to this email and we will sort it out.',
+      `Payment terms and remittance details are set out on the attached invoice. For any queries, contact us at ${COMPANY_CONTACT.email} or ${formatPhone(COMPANY_CONTACT.phone)}.`,
     ].join('\n'),
   };
 }

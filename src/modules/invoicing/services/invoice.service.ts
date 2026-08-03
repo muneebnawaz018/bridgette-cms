@@ -1,15 +1,16 @@
 import 'server-only';
-import type { PipelineStage } from 'mongoose';
+import { Types, type PipelineStage } from 'mongoose';
 import { connectDb } from '@/lib/db/connection';
 import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
-import { Permission, assertCan, can, type SessionUser } from '@/modules/auth';
+import { Permission, assertCan, type SessionUser } from '@/modules/auth';
 import { Invoice, type InvoiceDoc } from '../models/invoice.model';
 import { InvoiceState, DEFAULT_CURRENCY } from '../enums';
 import { computePaymentState } from '../state';
 import { calcInvoice } from '../calc';
 import { issueInvoiceNumber } from '../numbering';
 import { invoiceVisibilityFilter, canViewInvoice } from '../visibility';
+import { resolveSendTo } from '../sendTo';
 import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
@@ -69,6 +70,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     state,
     currency,
     billTo: input.billTo,
+    customerId: input.customerId,
     shipTo: input.shipTo,
     items,
     subtotal: calc.subtotal,
@@ -140,6 +142,7 @@ const LIST_PROJECTION = {
   createdAt: 1,
   'billTo.name': 1,
   'billTo.email': 1,
+  customerId: 1,
   // Drives the row menu's "Email to customer" vs "…again" label, and the confirm text.
   sent: 1,
 } as const;
@@ -155,6 +158,31 @@ export async function listInvoices(
   const stages: PipelineStage[] = [
     { $match: invoiceMatch(actor, query) },
     { $project: LIST_PROJECTION },
+    /*
+     * `sendTo` is where an email would actually go, resolved here rather than left to the row to
+     * guess. The stored billTo.email is a snapshot from the day the invoice was raised, so a
+     * customer who has since changed address would otherwise be offered their old one in the
+     * confirm dialog — and the send itself would disagree with what the dialog promised. This is
+     * the same precedence the send service applies: customer record first, snapshot only as a
+     * fallback for invoices with no link or a customer since deleted.
+     */
+    {
+      $lookup: {
+        from: 'customers',
+        localField: 'customerId',
+        foreignField: '_id',
+        as: 'customer',
+        pipeline: [{ $project: { email: 1 } }],
+      },
+    },
+    {
+      $addFields: {
+        sendTo: {
+          $ifNull: [{ $first: '$customer.email' }, '$billTo.email'],
+        },
+      },
+    },
+    { $project: { customer: 0 } },
   ];
   return aggregatePaginate<InvoiceDoc>(Invoice, stages, {
     page: query.page,
@@ -266,7 +294,9 @@ export async function getInvoice(actor: SessionUser, id: string) {
   const doc = await Invoice.findById(id).lean<InvoiceDoc>();
   if (!doc) throw new Error('Invoice not found');
   if (!canViewInvoice(actor, doc)) throw new Error('Forbidden: invoice not visible');
-  return doc;
+  // Resolved here so the detail page's Email action can name the address it will use, rather
+  // than showing the billing snapshot and then sending somewhere else.
+  return { ...doc, sendTo: await resolveSendTo(doc) };
 }
 
 /** Edit an invoice and recompute totals. Refuses archived/cancelled invoices. */
@@ -280,11 +310,20 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   if (!canViewInvoice(actor, doc)) throw new Error('Forbidden: invoice not visible');
   if (doc.isDeleted) throw new Error('Deleted invoices cannot be edited');
   if (doc.isArchived) throw new Error('Archived invoices cannot be edited');
-  // Once an invoice is finalized (out of Draft), only an administrator may edit it — a live,
-  // numbered document should not change under whoever raised it. Drafts stay freely editable,
-  // and finalizing a draft (Draft + asDraft:false) still passes here because it is Draft now.
-  if (doc.state !== InvoiceState.Draft && !can(actor.role, Permission.InvoiceViewAllArchived)) {
-    throw new Error('Forbidden: only an administrator can edit a finalized invoice');
+  /*
+   * A finalized invoice is immutable. Not "admin only" — nobody, including an administrator.
+   *
+   * It has a number, it has been sent, and the customer is holding a copy. Editing it makes
+   * their copy and ours disagree with no record that anything moved, which is the failure mode
+   * an audit trail exists to prevent. The correction is to archive it and raise a new one, so
+   * both documents survive and the change is visible.
+   *
+   * Drafts stay freely editable — an uncommitted draft is working space, not a document, and
+   * finalizing one (Draft + asDraft:false) still passes here because it is Draft at this point.
+   * Recording a payment is not an edit and goes through its own endpoint, untouched by this.
+   */
+  if (doc.state !== InvoiceState.Draft) {
+    throw new Error('A finalized invoice cannot be edited. Archive it and raise a new one.');
   }
 
   const type = input.type ?? doc.type;
@@ -349,6 +388,7 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   }
   if (input.reseller !== undefined) doc.reseller = input.reseller;
   if (input.billTo) doc.billTo = input.billTo;
+  if (input.customerId) doc.customerId = new Types.ObjectId(input.customerId);
   if (input.shipTo) doc.shipTo = input.shipTo;
   if (input.issueDate) doc.issueDate = new Date(input.issueDate);
   if (input.dueDate) doc.dueDate = new Date(input.dueDate);

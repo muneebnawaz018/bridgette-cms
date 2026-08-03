@@ -12,7 +12,7 @@ import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
 import { formatMoney } from '@/lib/format/money';
-import { formatPhone } from '@/lib/format/countries';
+import { formatPhone, telHref } from '@/lib/format/countries';
 import { cashappAmount, CASHAPP_PCT } from '@/components/invoices/InvoiceDocument';
 import { colors, redA } from '@/lib/colors';
 import type { FieldErrors } from '@/lib/form/errors';
@@ -463,6 +463,8 @@ export function InvoiceTemplateForm({
         .tpl-co { flex-grow: 1; min-width: 0; }
         .tpl-co h1 { margin: 0 0 10px; font-size: 25px; font-weight: 800; letter-spacing: .2px; }
         .tpl-co p { margin: 2px 0; font-weight: 700; font-size: 14px; }
+        /* The masthead is a block of contact details, not a set of links. */
+        .tpl-co a { color: inherit; text-decoration: none; }
         .tpl-co .gap { height: 10px; }
         .tpl-meta { text-align: right; flex-shrink: 0; min-width: 170px; }
         /* The title doubles as the type picker: it is already the biggest statement of what this
@@ -693,7 +695,9 @@ export function InvoiceTemplateForm({
           <p>{COMPANY_CONTACT.addressLine1}</p>
           <p>{COMPANY_CONTACT.addressLine2}</p>
           <div className="gap" />
-          <p>{COMPANY_CONTACT.phone}</p>
+          <p>
+            <a href={telHref(COMPANY_CONTACT.phone)}>{formatPhone(COMPANY_CONTACT.phone)}</a>
+          </p>
           <p>{COMPANY_CONTACT.email}</p>
         </div>
         <div className="tpl-meta">

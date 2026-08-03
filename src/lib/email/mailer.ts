@@ -59,6 +59,33 @@ export async function sendMail({
       attachments,
     });
 
+    /*
+     * Resolving is not the same as delivered, and the difference matters: a caller that reports
+     * "emailed to …" on the strength of a resolved promise will happily say so about a message
+     * the server refused. Nodemailer reports per-recipient outcomes instead of throwing, so the
+     * two failure shapes are checked here and turned into errors:
+     *
+     *   rejected — the server explicitly refused this recipient
+     *   accepted empty — nobody was taken, which is a refusal without the courtesy of saying so
+     *
+     * What this still cannot promise is delivery. The mail server has accepted responsibility;
+     * whether it lands in an inbox, a spam folder or a later bounce is beyond this process.
+     */
+    if (info.rejected?.length) {
+      logger.error('email recipient rejected by the mail server', {
+        to,
+        subject,
+        rejected: info.rejected,
+        response: info.response,
+      });
+      throw new Error(`The mail server refused ${info.rejected.join(', ')}: ${info.response ?? ''}`);
+    }
+
+    if (!info.accepted?.length) {
+      logger.error('email accepted by nobody', { to, subject, response: info.response });
+      throw new Error(`The mail server did not accept the message: ${info.response ?? 'no reply'}`);
+    }
+
     logger.info('email sent', {
       to,
       subject,
@@ -67,14 +94,8 @@ export async function sendMail({
       attachments: attachments?.map((a) => a.filename),
       messageId: info.messageId,
       accepted: info.accepted,
-      rejected: info.rejected,
       response: info.response,
     });
-
-    // Some servers accept the connection but refuse the recipient.
-    if (info.rejected?.length) {
-      logger.warn('email recipient rejected by the mail server', { to, rejected: info.rejected });
-    }
   } catch (err) {
     logger.error('email send failed', {
       to,
