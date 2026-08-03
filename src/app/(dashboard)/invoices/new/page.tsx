@@ -11,7 +11,6 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import SaveAsRounded from '@mui/icons-material/SaveAsRounded';
 import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
-import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useSnackbar } from 'notistack';
 import { Permission } from '@/modules/auth/rbac';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
@@ -19,8 +18,6 @@ import { calcInvoice } from '@/modules/invoicing/calc';
 import { invoiceFormSchema } from '@/modules/invoicing/schemas';
 import { useCan } from '@/components/auth/SessionProvider';
 import { NoAccess } from '@/components/ui/NoAccess';
-import { Modal } from '@/components/ui/Modal';
-import { InvoiceDocument, type InvoiceDocumentData } from '@/components/invoices/InvoiceDocument';
 import { apiPost } from '@/lib/api/client';
 import { useApi } from '@/lib/api/useApi';
 import {
@@ -31,6 +28,13 @@ import {
   shipToFor,
 } from '@/components/invoices/InvoiceTemplateForm';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
+
+/** What the create endpoint reports back about emailing the invoice to the customer. */
+interface EmailOutcome {
+  sent: boolean;
+  to?: string;
+  reason?: string;
+}
 
 /*
  * New invoice — laid out as the printed template (see InvoiceTemplateForm / InvoiceDocument).
@@ -73,7 +77,6 @@ export default function NewInvoicePage() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Default the invoice date to today after mount (avoids an SSR/client midnight mismatch).
   useEffect(() => {
@@ -171,54 +174,6 @@ export default function NewInvoicePage() {
           ? 'Add a line with an amount to create the invoice'
           : undefined;
 
-  /*
-   * The invoice as it will actually print, built from what is on the form right now. It reuses
-   * InvoiceDocument — the same component the saved invoice and the PDF render — so the preview
-   * cannot drift from the real thing the way a purpose-built mock-up would.
-   *
-   * The number is the only honest gap: it is assigned by the server on save, so the template's
-   * own placeholder stands in rather than a guess that might not match what gets issued.
-   */
-  const previewDoc: InvoiceDocumentData = useMemo(
-    () => ({
-      number: 'YY-MM-##',
-      type: form.type,
-      issueDate: form.issueDate || undefined,
-      dueDate: form.dueDate || undefined,
-      billTo: {
-        name: form.billName.trim(),
-        email: form.billEmail.trim(),
-        phone: form.billPhone.trim(),
-        address: form.billAddress.trim(),
-      },
-      shipTo: form.shipName.trim()
-        ? { name: form.shipName.trim(), address: form.shipAddress.trim() }
-        : undefined,
-      reseller: form.reseller,
-      // Blank trailing lines are working space on the form, not part of the document.
-      items: form.items
-        .filter((it) => it.description.trim() !== '')
-        .map((it, i) => ({
-          description: it.description.trim(),
-          quantity: Number(it.quantity) || 0,
-          unitPrice: Number(it.unitPrice) || 0,
-          discountPercent: Number(it.discountPercent) || 0,
-          lineTotal: preview.lineTotals[i] ?? 0,
-        })),
-      subtotal: preview.subtotal,
-      shippingHandlingTariff: Number(form.shippingHandling) || 0,
-      totalBeforeTax: preview.totalBeforeTax,
-      taxRate: preview.taxRate,
-      taxAmount: preview.taxAmount,
-      discount: Number(form.discount) || 0,
-      grandTotal: preview.grandTotal,
-      // Nothing can have been paid against an invoice that does not exist yet.
-      amountPaid: 0,
-      balanceDue: preview.grandTotal,
-    }),
-    [form, preview],
-  );
-
   function onCustomerPick(opt: CustomerOption | null) {
     setCustomerId(opt ? opt._id : null);
     setForm((f) => ({
@@ -253,7 +208,7 @@ export default function NewInvoicePage() {
       ? { name: form.shipName.trim(), address: form.shipAddress.trim() || undefined }
       : undefined;
 
-    const res = await apiPost<{ _id: string }>('/api/invoices', {
+    const res = await apiPost<{ _id: string; emailed?: EmailOutcome }>('/api/invoices', {
       type: form.type,
       // Sent alongside the billing snapshot, not instead of it: the snapshot is what prints on
       // the document, this is what lets a later send find the customer's current email.
@@ -289,13 +244,23 @@ export default function NewInvoicePage() {
       return;
     }
     /*
-     * Creating does not email anyone. The next screen is the invoice as the customer would see
-     * it, with Email to customer on it — the toast says so, so nobody assumes it has gone out.
+     * The API sends the invoice to the customer as part of creating it and waits for the result,
+     * so the toast reports what actually happened rather than what was intended. A send that
+     * failed is a warning, not an error: the invoice exists and is retryable from the list or
+     * from the invoice page.
      */
-    enqueueSnackbar(
-      asDraft ? 'Draft saved' : 'Invoice created. Review it, then email it to the customer.',
-      { variant: 'success' },
-    );
+    const emailed = res.data?.emailed;
+    if (asDraft) {
+      enqueueSnackbar('Draft saved', { variant: 'success' });
+    } else if (emailed?.sent) {
+      enqueueSnackbar(`Invoice created and emailed to ${emailed.to}`, { variant: 'success' });
+    } else if (emailed?.reason) {
+      enqueueSnackbar(`Invoice created, but not emailed: ${emailed.reason}`, {
+        variant: 'warning',
+      });
+    } else {
+      enqueueSnackbar('Invoice created', { variant: 'success' });
+    }
     if (res.data?._id) router.replace(`/invoices/${res.data._id}`);
     else router.replace('/invoices');
   }
@@ -330,16 +295,6 @@ export default function NewInvoicePage() {
           >
             Cancel
           </Button>
-          {/* Checking the printed document before issuing it is the last chance to catch a wrong
-              address or a missing line, so it sits next to the button that commits it. */}
-          <Button
-            variant="outlined"
-            onClick={() => setPreviewOpen(true)}
-            disabled={saving || !nameFilled}
-            startIcon={<VisibilityRounded />}
-          >
-            Preview
-          </Button>
           {/* One button, not two. The pair only ever differed by how complete the form was, so
               a half-filled invoice showed a dead "Create invoice" next to a live "Save as draft"
               and made the reader work out which one this invoice qualified for. The button now
@@ -364,45 +319,6 @@ export default function NewInvoicePage() {
         products={products}
         onCustomerPick={onCustomerPick}
       />
-
-      <Modal
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        title="Invoice preview"
-        description="Exactly how this invoice will print. Nothing is saved yet."
-        icon={<VisibilityRounded />}
-        maxWidth="lg"
-        fullScreenOnMobile
-        actions={
-          <>
-            <Button
-              variant="outlined"
-              color="inherit"
-              onClick={() => setPreviewOpen(false)}
-              startIcon={<CloseRounded />}
-            >
-              Back to editing
-            </Button>
-            <Button
-              variant="contained"
-              onClick={() => {
-                setPreviewOpen(false);
-                void submit(!canFinalizeNew);
-              }}
-              disabled={!canDraft}
-              startIcon={canFinalizeNew ? <ReceiptLongRounded /> : <SaveAsRounded />}
-            >
-              {canFinalizeNew ? 'Create invoice' : 'Save as draft'}
-            </Button>
-          </>
-        }
-      >
-        {/* The document is a fixed-width sheet; let it scroll inside the dialog rather than
-            squeezing the layout the customer will not see squeezed. */}
-        <Box sx={{ overflowX: 'auto' }}>
-          <InvoiceDocument invoice={previewDoc} />
-        </Box>
-      </Modal>
     </Box>
   );
 }
