@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_LIMIT } from '@/lib/query/limits';
 
 /**
  * A product is a catalogue item admins maintain: a name, a unique SKU and a default rate. The
@@ -114,7 +115,7 @@ export const fabricFormSchema = z.object({
 
 export const listFabricSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(MAX_LIMIT).optional(),
   search: z.string().optional(),
 });
 
@@ -124,7 +125,7 @@ export const deleteFabricSchema = z.object({
 
 export const listProductSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(MAX_LIMIT).optional(),
   search: z.string().optional(),
 });
 

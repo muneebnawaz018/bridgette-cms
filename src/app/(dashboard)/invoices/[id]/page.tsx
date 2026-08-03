@@ -249,6 +249,7 @@ export default function InvoiceDetailPage() {
     dueDate: invoice.dueDate,
     billTo: invoice.billTo,
     shipTo: invoice.shipTo,
+    reseller: Boolean(invoice.reseller),
     items: invoice.items.map((it) => ({
       description: it.description,
       quantity: it.quantity,

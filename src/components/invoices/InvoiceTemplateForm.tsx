@@ -6,6 +6,8 @@ import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Popover from '@mui/material/Popover';
+import { DateCalendarField } from '@/components/form/DateCalendarField';
 import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
@@ -405,15 +407,11 @@ export function InvoiceTemplateForm({
     setShipKey((k) => k + 1);
   };
 
-  const dueRef = useRef<HTMLInputElement>(null);
-  const openDuePicker = () => {
-    if (saving) return;
-    const el = dueRef.current;
-    if (!el) return;
-    // showPicker is the modern way to pop the native calendar from a custom trigger.
-    if (typeof el.showPicker === 'function') el.showPicker();
-    else el.focus();
-  };
+  /*
+   * The DUE date opens the app's own calendar rather than the browser's. showPicker() gave every
+   * OS a different-looking popup that could not be themed and did not match anything else here.
+   */
+  const [dueAnchor, setDueAnchor] = useState<null | HTMLElement>(null);
 
   const rows = form.items;
   // The flash clears itself; it is a hint, not a state anyone has to dismiss.
@@ -497,8 +495,6 @@ export function InvoiceTemplateForm({
         .tpl-meta .type-pick.open .caret { opacity: 1;
           transform: translateY(-50%) rotate(180deg); }
         .tpl-meta .due-row { position: relative; cursor: pointer; }
-        .tpl-meta .due-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
-          opacity: 0; padding: 0; pointer-events: none; }
         .tpl-body { padding: 22px 26px 0; }
         .tpl-parties { display: flex; gap: 40px; margin-bottom: 16px; }
         .tpl-party { flex: 1; }
@@ -603,6 +599,13 @@ export function InvoiceTemplateForm({
         .tpl-totals .tr .k { flex: 1 1 auto; align-self: center; font-weight: 700;
           text-align: right; font-size: 13px; white-space: nowrap; min-width: 0; }
         .tpl-totals .tr .k .red { color: ${RED}; }
+        /* The tax rate, editable inside its own brackets. Sized to its content so "(8.75%)" reads
+           as one printed phrase rather than a field parked in the middle of a label. */
+        .tpl-totals .tr .k .rate-in { width: 42px; border: 0; border-bottom: 1px dashed ${FIELD};
+          background: none; font: inherit; font-weight: 700; color: inherit; text-align: center;
+          padding: 0 1px; outline: none; }
+        .tpl-totals .tr .k .rate-in:focus { border-bottom-color: ${RED}; }
+        .tpl-totals .tr .k .rate-in:disabled { border-bottom-color: transparent; color: ${MUTED}; }
         /* The value box hugs its text: 20px tall (13px text centred → ~3px to each rule) and
            centred in the 34px row, so a rule sits tight against its own value and level with its
            own label — 7px clear of the row edge, never near the row above. */
@@ -626,6 +629,9 @@ export function InvoiceTemplateForm({
         .tpl .tpl-totals .tr .v-in.pct-in input { flex: 1 1 auto; width: auto; min-width: 0; }
         /* NET TOTAL and NET TOTAL + Tax: the whole row boxed, on the same 34px rhythm. */
         .tpl-totals .boxed { border: 1.5px solid ${BORDER}; }
+        /* Untaxed, the two boxed rows sit flush and their touching edges read as one 3px rule
+           against 1.5px everywhere else. Pull the second up so the shared edge is drawn once. */
+        .tpl-totals .boxed + .boxed { margin-top: -1.5px; }
         .tpl-totals .boxed .k { padding-left: 10px; }
         .tpl-totals .boxed .k, .tpl-totals .boxed .v { font-weight: 800; }
         .tpl-totals .pay-rule { border-bottom: 2px solid ${BORDER}; margin: 2px 0 8px; }
@@ -638,6 +644,10 @@ export function InvoiceTemplateForm({
           display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; }
         .tpl-reseller { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px;
           justify-content: flex-end; font-size: 11px; }
+        /* Sits under the terms as a statement of fact about the customer, not a total. Muted by
+           default; only the exempt case is coloured, since that is the one that changes the bill. */
+        .tpl-taxstatus { margin-top: 10px; font-size: 11px; font-weight: 700; color: ${MUTED}; }
+        .tpl-taxstatus.exempt { color: ${RED}; }
         .tpl-notes { padding: 4px 26px 20px; }
         .tpl-notes .lbl { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: ${MUTED};
           margin-bottom: 4px; }
@@ -656,7 +666,6 @@ export function InvoiceTemplateForm({
           .tpl-meta { text-align: left; min-width: 0; }
           .tpl-meta .big { font-size: 22px; }
           .tpl-meta .row { text-align: left; }
-          .tpl-meta .due-native { left: 0; right: auto; }
           .tpl-body { padding: 16px 16px 0; }
           .tpl-parties { flex-direction: column; gap: 16px; margin-bottom: 12px; }
           .tpl-lower { flex-direction: column; gap: 18px; }
@@ -739,18 +748,31 @@ export function InvoiceTemplateForm({
             ))}
           </Menu>
           <div className="row">DATE: {fmtDate(form.issueDate)}</div>
-          <div className="row due-row" onClick={openDuePicker}>
+          <div
+            className="row due-row"
+            onClick={(e) => !saving && setDueAnchor(e.currentTarget)}
+            title="Change the due date"
+          >
             DUE: {fmtDate(form.dueDate)}
-            <input
-              ref={dueRef}
-              className="due-native"
-              type="date"
-              value={form.dueDate}
-              min={form.issueDate || undefined}
-              disabled={saving}
-              onChange={(e) => setField('dueDate', e.target.value)}
-            />
           </div>
+          <Popover
+            open={Boolean(dueAnchor)}
+            anchorEl={dueAnchor}
+            onClose={() => setDueAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <DateCalendarField
+              value={form.dueDate}
+              // An invoice cannot fall due before it was raised, so the calendar refuses it
+              // rather than leaving the form to complain afterwards.
+              minDate={form.issueDate || undefined}
+              onChange={(v) => {
+                setField('dueDate', v);
+                setDueAnchor(null);
+              }}
+            />
+          </Popover>
           {/* Assigned on save; shown as the template placeholder until then. */}
           <div className="row">INVOICE NO: YY-MM-##</div>
         </div>
@@ -939,8 +961,8 @@ export function InvoiceTemplateForm({
                 <td className="rm">
                   <button
                     type="button"
-                    aria-label="Remove line"
-                    disabled={saving || rows.length === 1}
+                    aria-label="Remove product"
+                    disabled={saving}
                     onClick={() =>
                       setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
                     }
@@ -955,7 +977,7 @@ export function InvoiceTemplateForm({
                 key={`pad-${i}`}
                 className="pad"
                 onClick={saving ? undefined : claimPadRow}
-                title={lastFilled ? 'Click to add a line' : 'Fill the line above first'}
+                title={lastFilled ? 'Click to add a product' : 'Fill the product above first'}
               >
                 <td>&nbsp;</td>
                 <td />
@@ -972,12 +994,12 @@ export function InvoiceTemplateForm({
 
         <div className="tpl-addline">
           <button type="button" disabled={saving || !lastFilled} onClick={addLine}>
-            + Add line
+            + Add product
           </button>
           {!lastFilled && (
             <span className={nudge > 0 ? 'tpl-hint loud' : 'tpl-hint'}>
               {' '}
-              — fill the last line first
+              — fill the last product first
             </span>
           )}
         </div>
@@ -993,12 +1015,25 @@ export function InvoiceTemplateForm({
                 </a>
               </div>
             ))}
+            {/* Tax status of the party being billed, once there is a party to state it about.
+                Names the rate, and says whether it was actually charged: a cash invoice is never
+                taxed whoever the customer is, so "not a reseller" alone would explain a $0.00
+                tax row incorrectly. */}
+            {form.billName.trim() !== '' && (
+              <div className={form.reseller ? 'tpl-taxstatus exempt' : 'tpl-taxstatus'}>
+                {form.reseller
+                  ? 'Reseller: tax-exempt, no sales tax.'
+                  : taxable
+                    ? `Not a reseller: sales tax ${form.taxPercent}% applied.`
+                    : 'Not a reseller, but this invoice type is not taxed.'}
+              </div>
+            )}
           </div>
 
           <div className="tpl-totals">
             {/* Reseller tax-exemption comes from the chosen customer, not a per-invoice toggle. */}
             {form.type === InvoiceType.Tax && form.reseller && (
-              <div className="tpl-reseller">Reseller — tax-exempt (no sales tax)</div>
+              <div className="tpl-reseller">Reseller, tax-exempt (no sales tax)</div>
             )}
             <Total k="SUBTOTAL" v={usd(preview.subtotal)} vClass="line-bottom" />
             <div className="tr">
@@ -1024,26 +1059,33 @@ export function InvoiceTemplateForm({
               </span>
             </div>
             <Total k="NET TOTAL" v={usd(preview.totalBeforeTax)} className="boxed" />
-            {/* Tax is split across two rows on the template: the rate, then the amount it makes. */}
-            <div className="tr">
-              <span className="k">
-                SALES <span className="red">TAX</span>
-              </span>
-              <span className="v-in line-bottom pct-in">
-                <input
-                  type="number"
-                  value={form.taxPercent}
-                  disabled={saving || !taxable}
-                  onChange={(e) => setField('taxPercent', Number(e.target.value))}
-                />
-                <i>%</i>
-              </span>
-            </div>
-            <div className="tr">
-              <span className="k">TAX AMOUNT</span>
-              <span className="v line-bottom">{usd(preview.taxAmount)}</span>
-            </div>
-            <Total k="NET TOTAL + Tax" v={usd(preview.grandTotal)} className="boxed" />
+            {/* One row, not two: the rate belongs to the label and the money column stays money
+                all the way down. The rate is still editable, in the brackets where it is read.
+                Hidden outright when this invoice type is never taxed — printing a rate that
+                cannot be charged only invites the customer to ask about it. */}
+            {taxable && (
+              <div className="tr">
+                <span className="k">
+                  SALES <span className="red">TAX</span> (
+                  <input
+                    className="rate-in"
+                    type="number"
+                    value={form.taxPercent}
+                    disabled={saving}
+                    onChange={(e) => setField('taxPercent', Number(e.target.value))}
+                  />
+                  %)
+                </span>
+                <span className="v line-bottom">{usd(preview.taxAmount)}</span>
+              </div>
+            )}
+            {/* "+ Tax" only when there is tax. Untaxed, the row would otherwise repeat the boxed
+                NET TOTAL above it, word for word and figure for figure. */}
+            <Total
+              k={taxable ? 'NET TOTAL + Tax' : 'TOTAL'}
+              v={usd(preview.grandTotal)}
+              className="boxed"
+            />
             {/* Nothing is paid at creation, so PAYMENT stays blank as on the template. */}
             <Total k="PAYMENT" v="" />
             <div className="pay-rule" />

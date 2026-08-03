@@ -52,6 +52,8 @@ export interface InvoiceDocumentData {
   grandTotal: number;
   amountPaid: number;
   balanceDue: number;
+  /** Whether the billed party is a tax-exempt reseller. Stated under the terms. */
+  reseller?: boolean;
 }
 
 /** Header label per invoice type (top-right masthead). */
@@ -90,6 +92,9 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
   // The column only earns its width when something is actually discounted — most invoices would
   // otherwise print a column of dashes.
   const hasLineDiscount = rows.some((it) => (it.discountPercent ?? 0) > 0);
+  /* Whether this invoice actually carries sales tax. A cash invoice never does, and a reseller is
+     exempt on the ones that otherwise would, so the rate alone does not answer it. */
+  const taxed = invoice.taxRate > 0 && invoice.taxAmount > 0;
   const typeLabel = TYPE_LABEL[invoice.type] ?? 'INVOICE';
 
   return (
@@ -133,6 +138,8 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
         .inv-terms { flex: 1; font-size: 12px; }
         .inv-terms .h { font-weight: 400; }
         .inv-terms a { color: ${LINK}; text-decoration: underline; word-break: break-all; }
+        .inv-taxstatus { margin-top: 10px; font-size: 11px; font-weight: 700; color: ${MUTED}; }
+        .inv-taxstatus.exempt { color: ${RED}; }
         .inv-totals { width: 350px; flex-shrink: 0; font-size: 13px; }
         /*
          * The totals block is a two-column table of fixed-height rows. Every value cell fills its
@@ -157,6 +164,9 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
         .inv-totals .tr .v.line-bottom { border-bottom: 1px solid ${HAIR}; }
         /* NET TOTAL and NET TOTAL + Tax: the whole row boxed, on the same 34px rhythm. */
         .inv-totals .boxed { border: 1.5px solid ${BORDER}; }
+        /* Untaxed, the two boxed rows sit flush and their touching edges read as one 3px rule
+           against 1.5px everywhere else. Pull the second up so the shared edge is drawn once. */
+        .inv-totals .boxed + .boxed { margin-top: -1.5px; }
         .inv-totals .boxed .k { padding-left: 10px; }
         .inv-totals .boxed .k, .inv-totals .boxed .v { font-weight: 800; }
         .inv-totals .pay-rule { border-bottom: 2px solid ${BORDER}; margin: 2px 0 8px; }
@@ -270,6 +280,15 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
                 </a>
               </div>
             ))}
+            {/* Printed twin of the same line on the form: names the rate and whether it was
+                charged, so a zero tax row is never left to be guessed at. */}
+            <div className={invoice.reseller ? 'inv-taxstatus exempt' : 'inv-taxstatus'}>
+              {invoice.reseller
+                ? 'Reseller: tax-exempt, no sales tax.'
+                : taxed
+                  ? `Not a reseller: sales tax ${pct(invoice.taxRate)} applied.`
+                  : 'Not a reseller, but this invoice type is not taxed.'}
+            </div>
           </div>
 
           <div className="inv-totals">
@@ -286,14 +305,22 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
             />
             <Total k="Discount" v={usd(invoice.discount)} vClass="line-bottom" />
             <Total k="NET TOTAL" v={usd(invoice.totalBeforeTax)} className="boxed" />
-            <div className="tr">
-              <span className="k">
-                SALES <span className="red">TAX</span>
-              </span>
-              <span className="v line-bottom">{pct(invoice.taxRate)}</span>
-            </div>
-            <Total k="TAX AMOUNT" v={usd(invoice.taxAmount)} vClass="line-bottom" />
-            <Total k="NET TOTAL + Tax" v={usd(invoice.grandTotal)} className="boxed" />
+            {/* The rate rides in the label and the column stays money throughout, matching the
+                form. Dropped entirely on an untaxed invoice, along with the "+ Tax" on the total
+                below it, which would otherwise repeat the NET TOTAL box exactly. */}
+            {taxed && (
+              <div className="tr">
+                <span className="k">
+                  SALES <span className="red">TAX</span> ({pct(invoice.taxRate)})
+                </span>
+                <span className="v line-bottom">{usd(invoice.taxAmount)}</span>
+              </div>
+            )}
+            <Total
+              k={taxed ? 'NET TOTAL + Tax' : 'TOTAL'}
+              v={usd(invoice.grandTotal)}
+              className="boxed"
+            />
             {/* PAYMENT stays blank until something is actually paid, as on the template. */}
             <Total k="PAYMENT" v={invoice.amountPaid > 0 ? usd(invoice.amountPaid) : ''} />
             <div className="pay-rule" />

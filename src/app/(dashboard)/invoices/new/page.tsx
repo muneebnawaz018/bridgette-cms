@@ -158,11 +158,14 @@ export default function NewInvoicePage() {
    */
   const blockedReason = !nameFilled
     ? 'Add a customer to save'
-    : !parsed.success
-      ? 'Fix the highlighted fields'
-      : !canFinalizeNew
-        ? 'Add a line with an amount to create the invoice'
-        : undefined;
+    : // Every line can be removed now, so this is a state the form can genuinely be left in.
+      form.items.length === 0
+      ? 'Add a line to save'
+      : !parsed.success
+        ? 'Fix the highlighted fields'
+        : !canFinalizeNew
+          ? 'Add a line with an amount to create the invoice'
+          : undefined;
 
   function onCustomerPick(opt: CustomerOption | null) {
     setCustomerId(opt ? opt._id : null);

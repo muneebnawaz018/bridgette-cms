@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_LIMIT } from '@/lib/query/limits';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { isStateCode } from './address';
 
@@ -256,7 +257,7 @@ export const customerFormSchemaChecked = customerFormSchema
 
 export const listCustomerSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(MAX_LIMIT).optional(),
   search: z.string().optional(),
 });
 

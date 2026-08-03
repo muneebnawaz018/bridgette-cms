@@ -1,4 +1,5 @@
 import type { Model, FilterQuery, PipelineStage } from 'mongoose';
+import { DEFAULT_LIMIT, MAX_LIMIT } from '@/lib/query/limits';
 
 export interface PageParams {
   page?: number;
@@ -12,9 +13,6 @@ export interface Paginated<T> {
   limit: number;
   totalPages: number;
 }
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
 
 /**
  * Paginate any model query. Every list endpoint MUST go through this — no unbounded

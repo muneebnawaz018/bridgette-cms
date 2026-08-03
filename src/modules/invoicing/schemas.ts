@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_LIMIT } from '@/lib/query/limits';
 import { InvoiceType, InvoiceState, Currency, PaymentMethod } from './enums';
 
 const party = z.object({
@@ -119,7 +120,7 @@ const dateOnly = z
 export const listInvoiceSchema = z
   .object({
     page: z.coerce.number().int().positive().optional(),
-    limit: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(MAX_LIMIT).optional(),
     type: z.nativeEnum(InvoiceType).optional(),
     state: z.nativeEnum(InvoiceState).optional(),
     search: z.string().optional(),

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_LIMIT } from '@/lib/query/limits';
 import { isValidPhoneNumber } from 'libphonenumber-js';
 import { Role } from './rbac';
 import { UserStatus } from './enums';
@@ -81,7 +82,7 @@ export const resetPasswordSchema = z.object({
 
 export const listUsersSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(MAX_LIMIT).optional(),
   search: z.string().optional(),
   role: z.nativeEnum(Role).optional(),
 });

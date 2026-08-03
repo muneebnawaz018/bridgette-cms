@@ -75,6 +75,9 @@ interface RecentInvoice {
   billTo?: { name?: string };
 }
 
+/** How many invoices the dashboard preview lists — named in the heading, so one constant. */
+const RECENT_LIMIT = 5;
+
 const STATES = [
   { k: 'draft', label: 'Draft', color: colors.ink[400] },
   { k: 'pending', label: 'Pending', color: colors.status.warning },
@@ -247,8 +250,10 @@ export default function DashboardPage() {
   const canCreateInvoice = useCan(Permission.InvoiceCreate);
   const canCreateUser = useCan(Permission.UserCreate);
   const { data: stats } = useApi<Stats>('/api/dashboard/stats');
-  // Just a preview — the two most recent. "View all" is the way to the full list.
-  const { data: recentData } = useApi<{ items: RecentInvoice[] }>('/api/invoices?limit=2');
+  // A preview of the most recent few; "View all" is the way to the full list.
+  const { data: recentData } = useApi<{ items: RecentInvoice[] }>(
+    `/api/invoices?limit=${RECENT_LIMIT}`,
+  );
   const recent = recentData?.items ?? [];
   const s = stats?.byState ?? {};
   const name = email
@@ -342,7 +347,7 @@ export default function DashboardPage() {
           <Paper sx={{ p: { xs: 2.5, md: 3 }, height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
               <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                Recent invoices
+                Recent {RECENT_LIMIT} invoices
               </Typography>
               <Button
                 component={AppLink}
