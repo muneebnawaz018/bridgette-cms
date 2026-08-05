@@ -95,7 +95,7 @@ function buildPayload(f: FormValues) {
     unit: f.unit.trim() || undefined,
     // Sent as '' rather than omitted so clearing the picker actually unlinks the fabric.
     fabric: f.fabric,
-    description: f.description.trim() || undefined,
+    description: f.description.trim(),
   };
 }
 
@@ -450,6 +450,7 @@ export function ProductFormDialog({
               <TextInput
                 name="description"
                 label="Description"
+                required
                 placeholder="What this product is, as it should read on records"
                 defaultValue={initial.description}
                 helperText={shown('description')}

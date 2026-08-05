@@ -83,6 +83,8 @@ interface Invoice {
   reseller?: boolean;
   issueDate?: string;
   dueDate?: string;
+  /** Internal target date for the order. Never printed on the document. */
+  orderDeadline?: string;
   terms?: string;
   notes?: string;
   isArchived: boolean;
@@ -140,6 +142,7 @@ function toForm(inv: Invoice): TemplateForm {
     notes: inv.notes ?? '',
     issueDate: inv.issueDate ? inv.issueDate.slice(0, 10) : '',
     dueDate: inv.dueDate ? inv.dueDate.slice(0, 10) : '',
+    orderDeadline: inv.orderDeadline ? inv.orderDeadline.slice(0, 10) : '',
   };
 }
 
@@ -273,6 +276,7 @@ export default function InvoiceDetailPage() {
     type: invoice.type,
     issueDate: invoice.issueDate,
     dueDate: invoice.dueDate,
+    orderDeadline: invoice.orderDeadline,
     billTo: invoice.billTo,
     shipTo: invoice.shipTo,
     reseller: Boolean(invoice.reseller),
@@ -315,6 +319,7 @@ export default function InvoiceDetailPage() {
       shipTo: form.shipName.trim()
         ? { name: form.shipName.trim(), address: form.shipAddress.trim() || undefined }
         : undefined,
+      orderDeadline: form.orderDeadline ? new Date(form.orderDeadline).toISOString() : undefined,
       items: form.items.map((it) => ({
         description: it.description,
         quantity: Number(it.quantity),
@@ -517,6 +522,34 @@ export default function InvoiceDetailPage() {
               <InvoiceDocument invoice={docData} />
             </Paper>
           </Grid>
+
+          {/* Kept outside the document above, which is the customer's copy. Shown at all because
+              a finalized invoice cannot be reopened for editing, so without it the deadline and
+              notes would be write-once and never readable again. */}
+          {(invoice.orderDeadline || invoice.notes) && (
+            <Grid size={12}>
+              <Paper sx={{ p: { xs: 2.5, md: 3 } }}>
+                <Typography variant="h6" gutterBottom>
+                  Notes
+                </Typography>
+                {invoice.orderDeadline && (
+                  <Typography variant="body2" sx={{ mb: invoice.notes ? 1 : 0 }}>
+                    <strong>Order deadline:</strong>{' '}
+                    {new Date(invoice.orderDeadline).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </Typography>
+                )}
+                {invoice.notes && (
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {invoice.notes}
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
+          )}
 
           {/* Payments — full width below the paired cards. */}
           <Grid size={12}>

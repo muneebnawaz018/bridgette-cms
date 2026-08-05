@@ -26,7 +26,7 @@ export function ConfirmDialog({
   confirmColor = 'primary',
   confirmDisabled = false,
   loading = false,
-  maxWidth = 'md',
+  maxWidth = 'xs',
   onConfirm,
   onClose,
 }: {

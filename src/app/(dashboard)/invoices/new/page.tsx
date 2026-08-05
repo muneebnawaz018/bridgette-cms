@@ -29,13 +29,6 @@ import {
 } from '@/components/invoices/InvoiceTemplateForm';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
-/** What the create endpoint reports back about emailing the invoice to the customer. */
-interface EmailOutcome {
-  sent: boolean;
-  to?: string;
-  reason?: string;
-}
-
 /*
  * New invoice — laid out as the printed template (see InvoiceTemplateForm / InvoiceDocument).
  * The page owns state, options fetching and submit; the form component is the template skin.
@@ -66,6 +59,7 @@ const EMPTY: TemplateForm = {
   issueDate: '',
   dueDate: '',
   notes: '',
+  orderDeadline: '',
 };
 
 export default function NewInvoicePage() {
@@ -208,7 +202,7 @@ export default function NewInvoicePage() {
       ? { name: form.shipName.trim(), address: form.shipAddress.trim() || undefined }
       : undefined;
 
-    const res = await apiPost<{ _id: string; emailed?: EmailOutcome }>('/api/invoices', {
+    const res = await apiPost<{ _id: string }>('/api/invoices', {
       type: form.type,
       // Sent alongside the billing snapshot, not instead of it: the snapshot is what prints on
       // the document, this is what lets a later send find the customer's current email.
@@ -234,6 +228,8 @@ export default function NewInvoicePage() {
       notes: form.notes || undefined,
       issueDate: form.issueDate ? new Date(form.issueDate).toISOString() : undefined,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+      // Internal only: recorded on the invoice, never printed on the document.
+      orderDeadline: form.orderDeadline ? new Date(form.orderDeadline).toISOString() : undefined,
       asDraft,
     });
 
@@ -244,23 +240,13 @@ export default function NewInvoicePage() {
       return;
     }
     /*
-     * The API sends the invoice to the customer as part of creating it and waits for the result,
-     * so the toast reports what actually happened rather than what was intended. A send that
-     * failed is a warning, not an error: the invoice exists and is retryable from the list or
-     * from the invoice page.
+     * Creating emails nobody. The next screen is the invoice with Email to customer on it, and
+     * the toast says so, so no one assumes it has already gone out.
      */
-    const emailed = res.data?.emailed;
-    if (asDraft) {
-      enqueueSnackbar('Draft saved', { variant: 'success' });
-    } else if (emailed?.sent) {
-      enqueueSnackbar(`Invoice created and emailed to ${emailed.to}`, { variant: 'success' });
-    } else if (emailed?.reason) {
-      enqueueSnackbar(`Invoice created, but not emailed: ${emailed.reason}`, {
-        variant: 'warning',
-      });
-    } else {
-      enqueueSnackbar('Invoice created', { variant: 'success' });
-    }
+    enqueueSnackbar(
+      asDraft ? 'Draft saved' : 'Invoice created. Review it, then email it to the customer.',
+      { variant: 'success' },
+    );
     if (res.data?._id) router.replace(`/invoices/${res.data._id}`);
     else router.replace('/invoices');
   }

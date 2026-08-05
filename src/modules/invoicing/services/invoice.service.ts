@@ -93,6 +93,7 @@ export async function createInvoice(actor: SessionUser, input: CreateInvoiceInpu
     dueDate,
     terms: input.terms,
     notes: input.notes,
+    orderDeadline: input.orderDeadline ? new Date(input.orderDeadline) : undefined,
     reminder,
     createdBy: actor.userId,
   });
@@ -398,6 +399,10 @@ export async function updateInvoice(actor: SessionUser, id: string, input: Updat
   }
   if (input.terms !== undefined) doc.terms = input.terms;
   if (input.notes !== undefined) doc.notes = input.notes;
+  // Empty string clears it; a date sets it. Undefined leaves it alone, as with every other key.
+  if (input.orderDeadline !== undefined) {
+    doc.orderDeadline = input.orderDeadline ? new Date(input.orderDeadline) : undefined;
+  }
 
   // By this point the state block above has run, so doc.state already reflects what this save
   // will persist — Draft only if it is staying a draft.

@@ -32,6 +32,9 @@ const LIST_PROJECTION = {
   defaultRate: 1,
   discount: 1,
   unit: 1,
+  // The edit dialog is opened from a list row, so anything it edits has to be projected here.
+  // Left out, the field opens blank and a save writes that blank back over the stored value.
+  description: 1,
   fabric: 1,
   fabricName: '$fabricDoc.name',
   fabricGsm: '$fabricDoc.gsm',
@@ -100,7 +103,7 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
 
   const [products, rateRows, customer] = await Promise.all([
     Product.find({ isDeleted: { $ne: true } })
-      .select({ name: 1, sku: 1, unit: 1, defaultRate: 1, discount: 1 })
+      .select({ name: 1, sku: 1, unit: 1, defaultRate: 1, discount: 1, description: 1 })
       .sort({ name: 1 })
       .limit(OPTIONS_LIMIT)
       .lean<LeanProduct[]>(),
@@ -122,6 +125,9 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
     return {
       _id: id,
       name: p.name,
+      // What the line on the invoice should read. The name identifies the product to staff;
+      // this is the wording the customer sees, which is why it is a separate field.
+      description: p.description ?? '',
       sku: p.sku ?? '',
       unit: p.unit ?? '',
       defaultRate: p.defaultRate,

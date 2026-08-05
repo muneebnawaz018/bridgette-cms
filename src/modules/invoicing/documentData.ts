@@ -14,6 +14,7 @@ export interface StoredInvoiceLike {
   type: string;
   issueDate?: string | Date;
   dueDate?: string | Date;
+  orderDeadline?: string | Date;
   billTo?: { name?: string; email?: string; phone?: string; address?: string };
   shipTo?: { name?: string; email?: string; phone?: string; address?: string };
   reseller?: boolean;
@@ -41,6 +42,7 @@ export function toDocumentData(invoice: StoredInvoiceLike): InvoiceDocumentData 
     type: invoice.type as InvoiceType,
     issueDate: invoice.issueDate,
     dueDate: invoice.dueDate,
+    orderDeadline: invoice.orderDeadline,
     billTo: invoice.billTo,
     shipTo: invoice.shipTo,
     reseller: Boolean(invoice.reseller),

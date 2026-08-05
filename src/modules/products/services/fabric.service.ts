@@ -26,7 +26,9 @@ function activeMatch(search?: string): Record<string, unknown> {
   return match;
 }
 
-const LIST_PROJECTION = { name: 1, gsm: 1, type: 1, createdAt: 1 } as const;
+// `notes` is projected because the edit dialog is opened from a list row: a field the form can
+// edit but the list never returns opens blank, and saving writes that blank back.
+const LIST_PROJECTION = { name: 1, gsm: 1, type: 1, notes: 1, createdAt: 1 } as const;
 
 function isDuplicateKey(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);

@@ -38,6 +38,26 @@ const discountField = z.preprocess(
     .max(100, 'Discount cannot exceed 100%'),
 );
 
+/**
+ * Optional text that can also be emptied.
+ *
+ * Unlike `optionalText`, a blank stays a blank string instead of becoming `undefined`. The update
+ * services skip keys that are `undefined` (that is how a PATCH touches one field), so a field
+ * that collapses to `undefined` when cleared can be set and changed but never erased.
+ */
+const clearableText = (max: number) => z.string().trim().max(max, 'That value is too long');
+
+/**
+ * Required. The description is what prints on an invoice line, so a product without one forces
+ * whoever raises the invoice to write the wording from scratch every time. It stays editable on
+ * the line itself, since a one-off sale sometimes needs different wording.
+ */
+const descriptionField = z
+  .string()
+  .trim()
+  .min(1, 'A description is required')
+  .max(DESC_MAX, 'That value is too long');
+
 const optionalText = (max: number) =>
   z
     .string()
@@ -60,7 +80,7 @@ export const productCreateSchema = z.object({
   discount: discountField,
   unit: optionalText(UNIT_MAX),
   fabric: fabricIdField,
-  description: optionalText(DESC_MAX),
+  description: descriptionField,
 });
 
 // Partial so a PATCH can touch one field — but when fabric IS sent it must be a real id, so a
@@ -75,7 +95,7 @@ export const productFormSchema = z.object({
   discount: discountField,
   unit: z.string().trim().max(UNIT_MAX, 'That value is too long'),
   fabric: fabricIdField,
-  description: z.string().trim().max(DESC_MAX, 'That value is too long'),
+  description: descriptionField,
 });
 
 // --- Fabrics ---
@@ -100,7 +120,7 @@ export const fabricCreateSchema = z.object({
   name: fabricNameField,
   gsm: z.preprocess((v) => (v === '' || v == null || Number.isNaN(v) ? undefined : v), gsmField),
   type: optionalText(FABRIC_TYPE_MAX),
-  notes: optionalText(NOTES_MAX),
+  notes: clearableText(NOTES_MAX),
 });
 
 export const fabricUpdateSchema = fabricCreateSchema.partial();

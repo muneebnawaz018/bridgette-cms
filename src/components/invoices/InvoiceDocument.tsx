@@ -38,6 +38,12 @@ export interface InvoiceDocumentData {
   type: InvoiceType;
   issueDate?: string | Date;
   dueDate?: string | Date;
+  /**
+   * Internal target date for the order. Rendered on screen so staff can see it on the invoice
+   * they are looking at, and removed by the print stylesheet so it reaches neither paper nor the
+   * PDF the customer is sent.
+   */
+  orderDeadline?: string | Date;
   billTo?: { name?: string; email?: string; phone?: string; address?: string };
   shipTo?: { name?: string; email?: string; phone?: string; address?: string };
   items: {
@@ -81,8 +87,10 @@ function fmtDate(d?: string | Date): string {
 const usd = (n: number) => formatMoney('USD', Number(n ?? 0));
 const pct = (r: number) => `${Number((Number(r ?? 0) * 100).toFixed(4))}%`;
 
-// The "For Cashapp/Paypal" line adds a 0.03% processing surcharge to the balance by default.
-export const CASHAPP_SURCHARGE = 0.0003;
+// The "For Cashapp/Paypal" line adds a 0.33% processing surcharge to the balance by default.
+// Held as a fraction, so 0.33% is 0.0033 — the label below derives its own text from this, and
+// the two cannot drift.
+export const CASHAPP_SURCHARGE = 0.0033;
 // Rate shown in the label, e.g. "0.03%".
 export const CASHAPP_PCT = `${Number((CASHAPP_SURCHARGE * 100).toFixed(4))}%`;
 export const cashappAmount = (base: number) =>
@@ -221,6 +229,10 @@ export function InvoiceDocument({
           html, body { background: ${PAPER} !important; }
           .inv-doc { width: 100%; padding: 12mm 10mm; }
           .inv-terms a { color: ${LINK}; }
+          /* The one row on this sheet that is ours, not the customer's. Removed rather than
+             hidden so it leaves no gap in the meta block. Applies to the PDF too: that is
+             rendered through the print stylesheet. */
+          .screen-only { display: none !important; }
           /* Chrome defaults to dropping background colour when printing, and its "Background
              graphics" checkbox is off by default — which strips the masthead, the table header
              and the balance strip, leaving a document that does not look like the invoice at
@@ -268,6 +280,11 @@ export function InvoiceDocument({
           {/* The form has always shown a due date; the customer's copy did not, which is the one
               place it actually decides anything. */}
           {invoice.dueDate && <div className="row">DUE: {fmtDate(invoice.dueDate)}</div>}
+          {/* Screen only. Always rendered, "not set" included, so the row does not appear and
+              disappear between invoices and leave staff wondering which ones carry a deadline. */}
+          <div className="row screen-only">
+            DEADLINE: {invoice.orderDeadline ? fmtDate(invoice.orderDeadline) : 'NOT SET'}
+          </div>
           <div className="row">INVOICE NO: {invoice.number}</div>
         </div>
       </div>

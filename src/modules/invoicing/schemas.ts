@@ -55,6 +55,8 @@ export const createInvoiceSchema = z.object({
   dueDate: z.string().datetime().optional(),
   terms: z.string().optional(),
   notes: z.string().optional(),
+  // Internal target date for the order. Never printed; see the model.
+  orderDeadline: z.string().datetime().optional(),
   asDraft: z.boolean().optional(), // save as Draft instead of finalizing to Pending
   // type-specific
   cashReceived: z.number().nonnegative().max(MAX_AMOUNT, 'Amount is too large').optional(),

@@ -91,6 +91,13 @@ const invoiceSchema = new Schema(
     dueDate: { type: Date },
     terms: { type: String },
     notes: { type: String },
+    /*
+     * When the order has to be ready by. Internal, like `notes`: it is a commitment the workshop
+     * works to, not a term the customer is billed under, so it never reaches the printed document
+     * or the PDF. Kept on the invoice rather than in the notes text so it can be sorted and
+     * chased later.
+     */
+    orderDeadline: { type: Date },
 
     reminder: { type: reminderSchema },
 

@@ -13,6 +13,7 @@ import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
 import { formatMoney } from '@/lib/format/money';
 import { formatPhone, telHref } from '@/lib/format/countries';
+import { NumberCell } from '@/components/form/NumberCell';
 import { cashappAmount, CASHAPP_PCT } from '@/components/invoices/InvoiceDocument';
 import { colors, redA } from '@/lib/colors';
 import type { FieldErrors } from '@/lib/form/errors';
@@ -68,6 +69,8 @@ export interface TemplateForm {
   issueDate: string;
   dueDate: string;
   notes: string;
+  /** Internal target date for the order (YYYY-MM-DD). Never printed on the document. */
+  orderDeadline: string;
 }
 
 export interface CustomerOption {
@@ -90,6 +93,8 @@ export interface CustomerOption {
 export interface ProductOption {
   _id: string;
   name: string;
+  /** Wording for the invoice line. Falls back to the name on products saved before it existed. */
+  description?: string;
   sku: string;
   unit: string;
   defaultRate: number;
@@ -344,12 +349,15 @@ export function InvoiceTemplateForm({
     });
 
   /*
-   * The empty rows below the last line are part of the printed template, not spare inputs. Clicking
-   * one claims it as the next line — but only when the line above is actually filled, otherwise the
-   * invoice collects blank rows. A click that cannot be honoured used to do nothing at all, which
-   * reads as a broken table, so it flashes the offending line and says what to do instead.
+   * Asking for another line, from the button or from a click on one of the empty template rows
+   * below the last one.
+   *
+   * A new row is only granted once the line above is filled, otherwise the invoice collects blank
+   * rows. Refusing by disabling the control was worse than refusing out loud: a dead button
+   * states no reason and cannot be asked for one. So it stays live, and a request that cannot be
+   * honoured flashes the line standing in the way.
    */
-  const claimPadRow = () => {
+  const requestNewLine = () => {
     if (lastFilled) {
       addLine();
       return;
@@ -382,7 +390,7 @@ export function InvoiceTemplateForm({
       const filled = linked.map((p) => ({
         productId: p._id,
         productName: p.name,
-        description: p.name,
+        description: p.description || p.name,
         quantity: 1,
         unitPrice: p.rate,
         discountPercent: p.discount ?? 0,
@@ -412,6 +420,7 @@ export function InvoiceTemplateForm({
    * OS a different-looking popup that could not be themed and did not match anything else here.
    */
   const [dueAnchor, setDueAnchor] = useState<null | HTMLElement>(null);
+  const [deadlineAnchor, setDeadlineAnchor] = useState<null | HTMLElement>(null);
 
   const rows = form.items;
   // The flash clears itself; it is a hint, not a state anyone has to dismiss.
@@ -586,6 +595,9 @@ export function InvoiceTemplateForm({
         .tpl-addline button:disabled { color: ${HAIR}; cursor: default; }
         .tpl-hint { color: ${MUTED}; font-size: 12px; transition: color .2s ease; }
         .tpl-hint.loud { color: ${RED}; font-weight: 700; }
+        /* The dash is punctuation between the button and the hint, not part of either. It keeps
+           the muted colour even while the hint flashes, so the emphasis lands on the words. */
+        .tpl-dash { color: ${MUTED}; font-size: 12px; }
         .tpl-lower { display: flex; gap: 30px; margin-top: 10px; }
         .tpl-terms { flex: 1; font-size: 12px; }
         .tpl-terms a { color: ${LINK}; text-decoration: underline; word-break: break-all; }
@@ -657,6 +669,16 @@ export function InvoiceTemplateForm({
         .tpl .tpl-notes textarea { border: 1px solid ${HAIR}; border-radius: 6px; min-height: 54px;
           padding: 8px; resize: vertical; overflow-x: hidden; background: ${PAPER}; }
         .tpl .tpl-notes textarea:focus { border-color: ${RED}; background: ${PAPER}; }
+        .tpl-meta .deadline-row { position: relative; cursor: pointer; }
+        .tpl-meta .deadline-row:hover { color: ${RED}; }
+        /* Same gutter and the same vertical centring as .type-pick .caret above. */
+        .tpl-meta .deadline-clear { position: absolute; left: 100%; top: 50%; margin-left: 2px;
+          width: 22px; height: 22px; padding: 3px; display: block; color: ${RED}; opacity: .5;
+          transform: translateY(-50%); background: none; border: none; cursor: pointer;
+          transition: opacity .22s ease; }
+        .tpl-meta .deadline-clear svg { width: 100%; height: 100%; display: block; }
+        .tpl-meta .deadline-clear:hover { opacity: 1; }
+        .tpl-meta .deadline-clear:disabled { cursor: default; opacity: .3; }
         .tpl-foot-bar { height: 16px; background: ${RED}; }
         .tpl-err { color: ${RED}; font-size: 11px; margin-top: 4px; }
         /* Narrow screens: the fixed masthead/columns stack instead of cramping. */
@@ -777,6 +799,63 @@ export function InvoiceTemplateForm({
               }}
             />
           </Popover>
+          {/*
+           * Internal. This form doubles as the printed sheet, but the row exists only here —
+           * InvoiceDocument, which is what the customer sees and what the PDF renders, has no
+           * deadline at all. It is marked so nobody reading the form mistakes it for a term the
+           * customer was given.
+           */}
+          <div
+            className="row deadline-row"
+            onClick={(e) => !saving && setDeadlineAnchor(e.currentTarget)}
+            title="Order deadline (never printed on the invoice)"
+          >
+            DEADLINE: {form.orderDeadline ? fmtDate(form.orderDeadline) : 'NOT SET'}
+            {/* Sits in the same gutter as the type picker's chevron, so the two controls share a
+                column instead of each nudging the meta lines a different way. Absolute, so it
+                costs no width and the four rows stay aligned. */}
+            {form.orderDeadline && (
+              <button
+                type="button"
+                className="deadline-clear"
+                aria-label="Clear the order deadline"
+                title="Clear the order deadline"
+                disabled={saving}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setField('orderDeadline', '');
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <Popover
+            open={Boolean(deadlineAnchor)}
+            anchorEl={deadlineAnchor}
+            onClose={() => setDeadlineAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <DateCalendarField
+              value={form.orderDeadline}
+              minDate={form.issueDate || undefined}
+              onChange={(v) => {
+                setField('orderDeadline', v);
+                setDeadlineAnchor(null);
+              }}
+            />
+          </Popover>
           {/* Assigned on save; shown as the template placeholder until then. */}
           <div className="row">INVOICE NO: YY-MM-##</div>
         </div>
@@ -872,7 +951,7 @@ export function InvoiceTemplateForm({
                         setLine(i, {
                           productId: picked._id,
                           productName: picked.name,
-                          description: picked.name,
+                          description: picked.description || picked.name,
                           unitPrice: picked.rate,
                           discountPercent: picked.discount ?? 0,
                         })
@@ -927,38 +1006,36 @@ export function InvoiceTemplateForm({
                   />
                 </td>
                 <td>
-                  <input
+                  <NumberCell
                     className="num-in"
-                    type="number"
+                    aria-label="Quantity"
                     value={line.quantity}
+                    min={0}
                     disabled={saving}
-                    onChange={(e) => setLine(i, { quantity: Number(e.target.value) })}
+                    onChange={(quantity) => setLine(i, { quantity })}
                   />
                 </td>
                 <td>
-                  <input
+                  <NumberCell
                     className="num-in"
-                    type="number"
+                    aria-label="Unit price"
                     value={line.unitPrice}
+                    min={0}
                     disabled={saving}
-                    onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })}
+                    onChange={(unitPrice) => setLine(i, { unitPrice })}
                   />
                 </td>
                 <td>
-                  <input
+                  {/* Clamped by the control as well as server-side, so the live total on screen
+                      can never disagree with what the invoice will be saved as. */}
+                  <NumberCell
                     className="num-in"
-                    type="number"
+                    aria-label="Discount percent"
                     min={0}
                     max={100}
                     value={line.discountPercent ?? 0}
                     disabled={saving}
-                    onChange={(e) =>
-                      // Clamped here as well as server-side, so the live total on screen can
-                      // never disagree with what the invoice will be saved as.
-                      setLine(i, {
-                        discountPercent: Math.min(Math.max(Number(e.target.value) || 0, 0), 100),
-                      })
-                    }
+                    onChange={(discountPercent) => setLine(i, { discountPercent })}
                   />
                 </td>
                 <td className="tot">{usd(preview.lineTotals[i] ?? 0)}</td>
@@ -980,7 +1057,7 @@ export function InvoiceTemplateForm({
               <tr
                 key={`pad-${i}`}
                 className="pad"
-                onClick={saving ? undefined : claimPadRow}
+                onClick={saving ? undefined : requestNewLine}
                 title={lastFilled ? 'Click to add a product' : 'Fill the product above first'}
               >
                 <td>&nbsp;</td>
@@ -997,14 +1074,16 @@ export function InvoiceTemplateForm({
         {errors.items && <div className="tpl-err">{errors.items}</div>}
 
         <div className="tpl-addline">
-          <button type="button" disabled={saving || !lastFilled} onClick={addLine}>
-            + Add product
+          <button type="button" disabled={saving} onClick={requestNewLine}>
+            + Add new record
           </button>
           {!lastFilled && (
-            <span className={nudge > 0 ? 'tpl-hint loud' : 'tpl-hint'}>
-              {' '}
-              — fill the last product first
-            </span>
+            <>
+              <span className="tpl-dash"> — </span>
+              <span className={nudge > 0 ? 'tpl-hint loud' : 'tpl-hint'}>
+                Fill the last product first
+              </span>
+            </>
           )}
         </div>
 
@@ -1043,22 +1122,24 @@ export function InvoiceTemplateForm({
             <div className="tr">
               <span className="k">SHIPPING/HANDLING/TARIFF</span>
               <span className="v-in line-bottom">
-                <input
-                  type="number"
+                <NumberCell
+                  aria-label="Shipping, handling and tariff"
                   value={form.shippingHandling}
+                  min={0}
                   disabled={saving}
-                  onChange={(e) => setField('shippingHandling', Number(e.target.value))}
+                  onChange={(v) => setField('shippingHandling', v)}
                 />
               </span>
             </div>
             <div className="tr">
               <span className="k">Discount</span>
               <span className="v-in line-bottom">
-                <input
-                  type="number"
+                <NumberCell
+                  aria-label="Invoice discount"
                   value={form.discount}
+                  min={0}
                   disabled={saving}
-                  onChange={(e) => setField('discount', Number(e.target.value))}
+                  onChange={(v) => setField('discount', v)}
                 />
               </span>
             </div>
@@ -1071,12 +1152,14 @@ export function InvoiceTemplateForm({
               <div className="tr">
                 <span className="k">
                   SALES <span className="red">TAX</span> (
-                  <input
+                  <NumberCell
                     className="rate-in"
-                    type="number"
+                    aria-label="Sales tax rate percent"
                     value={form.taxPercent}
+                    min={0}
+                    max={100}
                     disabled={saving}
-                    onChange={(e) => setField('taxPercent', Number(e.target.value))}
+                    onChange={(v) => setField('taxPercent', v)}
                   />
                   %)
                 </span>
@@ -1111,7 +1194,7 @@ export function InvoiceTemplateForm({
       <div className="tpl-notes">
         <div className="lbl">NOTES</div>
         <textarea
-          placeholder="Internal notes (not printed on the invoice)"
+          placeholder="Notes (not printed on the invoice)"
           defaultValue={form.notes}
           disabled={saving}
           onBlur={commit('notes')}

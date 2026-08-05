@@ -57,7 +57,9 @@ function buildPayload(f: FormValues) {
     name: f.name.trim(),
     gsm: f.gsm.trim() ? Number(f.gsm) : undefined,
     type: f.type.trim() || undefined,
-    notes: f.notes.trim() || undefined,
+    // Sent even when blank: an omitted key means "leave it alone" to the update service, so
+    // clearing the field would otherwise never take.
+    notes: f.notes.trim(),
   };
 }
 
@@ -317,7 +319,7 @@ export function FabricFormDialog({
           </Grid>
         </FormSection>
 
-        <FormSection title="Internal notes">
+        <FormSection title="Notes">
           <TextInput
             name="notes"
             label="Notes"

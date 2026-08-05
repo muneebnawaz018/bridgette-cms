@@ -49,10 +49,21 @@ export async function sendMail({
   text,
   attachments,
 }: SendMailInput): Promise<void> {
+  /*
+   * The office is blind-copied on everything, so there is an internal record of every message
+   * that left the building. Applied here rather than at each call site: a copy that depends on
+   * whoever wrote the caller is a copy that will be missing from whichever one gets added next.
+   */
+  const admin = env.superAdminEmail.trim().toLowerCase();
+  // Not copied to itself when the admin is already the recipient — a duplicate in the envelope
+  // reads as a bug in the mailbox that receives it.
+  const bcc = admin && admin !== to.trim().toLowerCase() ? admin : undefined;
+
   try {
     const info = await getTransporter().sendMail({
       from: env.smtp.from,
       to,
+      bcc,
       subject,
       html,
       text,
@@ -71,19 +82,45 @@ export async function sendMail({
      * What this still cannot promise is delivery. The mail server has accepted responsibility;
      * whether it lands in an inbox, a spam folder or a later bounce is beyond this process.
      */
-    if (info.rejected?.length) {
+    /*
+     * Judged on the intended recipient, not on the whole envelope. Now that a blind copy rides
+     * along, a bounced internal address would otherwise fail a send the customer received
+     * perfectly well. `accepted` and `rejected` hold bare addresses, so `to` is compared
+     * case-insensitively against them rather than by identity.
+     */
+    const listed = (addresses: unknown): string[] =>
+      (Array.isArray(addresses) ? addresses : [])
+        .map((a) => (typeof a === 'string' ? a : ((a as { address?: string })?.address ?? '')))
+        .map((a) => a.toLowerCase());
+
+    const wanted = to.trim().toLowerCase();
+    const rejected = listed(info.rejected);
+    const accepted = listed(info.accepted);
+
+    if (rejected.includes(wanted)) {
       logger.error('email recipient rejected by the mail server', {
         to,
         subject,
         rejected: info.rejected,
         response: info.response,
       });
-      throw new Error(`The mail server refused ${info.rejected.join(', ')}: ${info.response ?? ''}`);
+      throw new Error(`The mail server refused ${to}: ${info.response ?? ''}`);
     }
 
-    if (!info.accepted?.length) {
-      logger.error('email accepted by nobody', { to, subject, response: info.response });
-      throw new Error(`The mail server did not accept the message: ${info.response ?? 'no reply'}`);
+    if (!accepted.includes(wanted)) {
+      logger.error('email recipient not accepted', {
+        to,
+        subject,
+        accepted: info.accepted,
+        response: info.response,
+      });
+      throw new Error(`The mail server did not accept ${to}: ${info.response ?? 'no reply'}`);
+    }
+
+    if (rejected.length) {
+      // The recipient got it; something else on the envelope did not. Worth knowing about, but
+      // not a failed send.
+      logger.warn('email partially rejected', { to, subject, rejected: info.rejected });
     }
 
     logger.info('email sent', {
