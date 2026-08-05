@@ -5,6 +5,8 @@ import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import InputAdornment from '@mui/material/InputAdornment';
 import { useApi } from '@/lib/api/useApi';
 import { formatMoney } from '@/lib/format/money';
 import { colors, gradients, whiteA } from '@/lib/colors';
@@ -41,11 +43,16 @@ interface ProductOption {
 export function CustomerProductsField({
   value,
   onChange,
+  discounts,
+  onDiscountChange,
   disabled,
 }: {
   /** Product ids. */
   value: string[];
   onChange: (ids: string[]) => void;
+  /** Per-product discount overrides, keyed by product id. Absent = use the product default. */
+  discounts: Record<string, string>;
+  onDiscountChange: (productId: string, percent: string) => void;
   disabled?: boolean;
 }) {
   // globalLoading off: this is one field inside an open dialog, not a page transition.
@@ -58,7 +65,7 @@ export function CustomerProductsField({
   // the selection rather than rendering as a blank chip.
   const selected = useMemo(() => options.filter((o) => value.includes(o._id)), [options, value]);
 
-  return (
+  const picker = (
     <Autocomplete
       multiple
       disableCloseOnSelect
@@ -103,5 +110,70 @@ export function CustomerProductsField({
         />
       )}
     />
+  );
+
+  return (
+    <Box>
+      {picker}
+
+      {/*
+       * Discounts are per product, so they can only be set once a product has been picked —
+       * hence a list under the selector rather than a field beside it. Left blank, the product's
+       * own standing discount applies; a number here replaces it for this customer only.
+       */}
+      {selected.length > 0 && (
+        <Box sx={{ mt: 2 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', fontWeight: 700, mb: 1 }}
+          >
+            DISCOUNTS FOR THIS CUSTOMER
+          </Typography>
+          {selected.map((o) => (
+            <Box
+              key={o._id}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                py: 0.75,
+                flexWrap: { xs: 'wrap', sm: 'nowrap' },
+              }}
+            >
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Box sx={{ fontSize: '0.875rem', fontWeight: 600 }}>{o.name}</Box>
+                <Box sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                  {o.discount ? `Product default ${o.discount}% off` : 'No product discount'}
+                </Box>
+              </Box>
+              {/* No label: the column heading above already says what these are, and a floating
+                  "Discount" inside a 3-character box left no room for the number. The placeholder
+                  carries the product's own figure, so an empty box visibly means "use that". */}
+              <TextField
+                size="small"
+                type="number"
+                aria-label={`Discount for ${o.name}`}
+                value={discounts[o._id] ?? ''}
+                placeholder={String(o.discount ?? 0)}
+                disabled={disabled}
+                onChange={(e) => onDiscountChange(o._id, e.target.value)}
+                sx={{ width: 92, flexShrink: 0 }}
+                slotProps={{
+                  htmlInput: { inputMode: 'decimal', min: 0, max: 100 },
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end" sx={{ ml: 0.25 }}>
+                        %
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
   );
 }

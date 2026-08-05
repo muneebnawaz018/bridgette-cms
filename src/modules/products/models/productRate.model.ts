@@ -18,7 +18,19 @@ const productRateSchema = new Schema(
   {
     product: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
     customer: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
-    rate: { type: Number, required: true, min: 0 },
+    /*
+     * Both halves of "what this customer pays for this product", and both optional: a row may
+     * carry a negotiated rate, a negotiated discount, or one of each. A row with neither is
+     * meaningless and is deleted rather than stored.
+     */
+    rate: { type: Number, min: 0 },
+    /*
+     * Percentage off this product for this customer. Takes precedence over the product's own
+     * standing discount when a line is added to an invoice; absent means the product default
+     * applies. Zero is a real value here and means "no discount for this customer", which is
+     * not the same as having no opinion.
+     */
+    discountPercent: { type: Number, min: 0, max: 100 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

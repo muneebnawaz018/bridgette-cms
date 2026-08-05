@@ -86,6 +86,27 @@ const customerSchema = new Schema(
     // A reseller is tax-exempt: invoices raised for this customer charge no sales tax. Picking
     // the customer on an invoice auto-applies this instead of a per-invoice toggle.
     reseller: { type: Boolean, default: false },
+    /*
+     * The certificate backing that exemption — an image, PDF or Word file kept inline as a data
+     * URL, exactly as payment proofs are. Inline rather than object storage because this app has
+     * none configured, and one bounded document per customer sits comfortably inside a Mongo
+     * record.
+     *
+     * Not deleted when `reseller` is turned off: an exemption that applied last year still has
+     * to be evidenced for the invoices raised under it.
+     */
+    resellerCertificate: {
+      type: new Schema(
+        {
+          data: { type: String, required: true },
+          name: { type: String },
+          contentType: { type: String },
+          size: { type: Number },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
     // The kind of invoice this customer is usually billed with, so picking them can set the
     // invoice type. Optional — leaving it blank means "no default".
     invoiceType: { type: String, enum: Object.values(InvoiceType) },

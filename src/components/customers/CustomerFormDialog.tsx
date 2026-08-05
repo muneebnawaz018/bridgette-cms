@@ -28,6 +28,14 @@ import { InvoiceType } from '@/modules/invoicing/enums';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 
+/** What a reseller certificate may be: a scan, a PDF, or a Word document. */
+const CERT_ACCEPT_TYPES =
+  /^(image\/|application\/pdf$|application\/msword$|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document$)/;
+const CERT_ACCEPT =
+  'image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+/** 4MB raw. Base64 inflates by a third, so the encoded body stays inside the route's limit. */
+const CERT_MAX_BYTES = 4 * 1024 * 1024;
+
 /*
  * One dialog for creating and editing a customer (admin only). Mirrors UserFormDialog's shape:
  * typed values live in a ref so a keystroke re-renders only the input being typed in, not the
@@ -48,6 +56,10 @@ export interface EditableCustomer {
   invoiceType?: string;
   /** Product ids this customer buys. */
   products?: string[];
+  /** Per-product discounts negotiated with this customer. */
+  productDiscounts?: { product: string; discountPercent: number }[];
+  /** Metadata only — the list never carries the file's bytes. */
+  resellerCertificate?: { name?: string; contentType?: string; size?: number } | null;
   shipping?: {
     sameAsBilling?: boolean;
     name?: string;
@@ -303,6 +315,18 @@ export function CustomerFormDialog({
   const [phone, setPhone] = useState({ iso2: 'us', national: '' });
   // Product ids the customer buys — controlled, since a pick has to re-render the chips.
   const [products, setProducts] = useState<string[]>([]);
+  // Per-product discount overrides, held as strings so a half-typed value is not coerced. Blank
+  // means "no override" and the product's own discount applies.
+  const [discounts, setDiscounts] = useState<Record<string, string>>({});
+  /*
+   * The reseller certificate. `undefined` means untouched (the stored file stays as it is),
+   * `null` means the user removed it, and an object is a newly picked file. That three-way is
+   * what lets a PATCH tell "leave it alone" apart from "delete it".
+   */
+  const [certificate, setCertificate] = useState<
+    { data: string; name: string; contentType: string; size: number } | null | undefined
+  >(undefined);
+  const [certError, setCertError] = useState<string>('');
   // Shipping bits that drive layout, so they need a render: the toggle and the two selects.
   const [shipSame, setShipSame] = useState(true);
   const [shipCountry, setShipCountry] = useState<'US' | 'PK'>('US');
@@ -327,6 +351,13 @@ export function CustomerFormDialog({
     setCountry(next.country);
     setPhone(splitPhone(next.phone));
     setProducts(next.products);
+    setDiscounts(
+      Object.fromEntries(
+        (customer?.productDiscounts ?? []).map((d) => [d.product, String(d.discountPercent)]),
+      ),
+    );
+    setCertificate(undefined);
+    setCertError('');
     setShipSame(next.shipSameAsBilling);
     setShipCountry(next.shipCountry);
     setShipState(next.shipState);
@@ -372,6 +403,43 @@ export function CustomerFormDialog({
     },
     [guard],
   );
+  const changeDiscount = useCallback(
+    (productId: string, percent: string) => {
+      setDiscounts((d) => ({ ...d, [productId]: percent }));
+      guard.refresh();
+    },
+    [guard],
+  );
+
+  /*
+   * The certificate is read into a data URL here rather than uploaded separately: it rides along
+   * with the save, so a picked file and a cancelled dialog leave nothing orphaned on the server.
+   */
+  const pickCertificate = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // let the same file be re-picked after an error
+    if (!file) return;
+    if (!CERT_ACCEPT_TYPES.test(file.type)) {
+      setCertError('Attach an image, a PDF or a Word document');
+      return;
+    }
+    if (file.size > CERT_MAX_BYTES) {
+      setCertError(`That file is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 4MB`);
+      return;
+    }
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Could not read that file'));
+        reader.readAsDataURL(file);
+      });
+      setCertificate({ data, name: file.name, contentType: file.type, size: file.size });
+      setCertError('');
+    } catch {
+      setCertError('Could not read that file');
+    }
+  }, []);
   const toggleShipSame = useCallback(
     (same: boolean) => {
       valuesRef.current.shipSameAsBilling = same;
@@ -500,7 +568,19 @@ export function CustomerFormDialog({
     if (Object.keys(found).length > 0) return;
 
     setSaving(true);
-    const payload = buildPayload(values);
+    const payload = {
+      ...buildPayload(values),
+      /*
+       * Only products still selected carry a discount, and only where a number was actually
+       * typed — a blank box means "use the product's own discount", which is the absence of an
+       * entry rather than a zero.
+       */
+      productDiscounts: values.products
+        .filter((id) => (discounts[id] ?? '').trim() !== '')
+        .map((id) => ({ product: id, discountPercent: Number(discounts[id]) })),
+      // Absent leaves the stored file alone; null removes it; an object replaces it.
+      ...(certificate === undefined ? {} : { resellerCertificate: certificate }),
+    };
     // Both typed the same so `res` is one shape; only the create path reads `_id` back.
     const res = isEdit
       ? await apiPatch(`/api/customers/${customer!._id}`, payload)
@@ -696,6 +776,72 @@ export function CustomerFormDialog({
                   onChange={pickReseller}
                 />
               </Grid>
+              {/* Only for resellers — the certificate is the evidence for the exemption, so it
+                  has nowhere to belong on a customer who is not claiming one. */}
+              {reseller && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Box
+                    sx={{
+                      border: '1.5px dashed',
+                      borderColor: certError ? 'error.main' : 'divider',
+                      borderRadius: 1,
+                      px: 1.5,
+                      py: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      minHeight: 56,
+                    }}
+                  >
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block' }}
+                      >
+                        Reseller certificate
+                      </Typography>
+                      <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
+                        {certificate === null
+                          ? 'Will be removed on save'
+                          : (certificate?.name ??
+                            customer?.resellerCertificate?.name ??
+                            'None attached')}
+                      </Typography>
+                    </Box>
+                    {!locked && (
+                      <Button component="label" size="small" disabled={saving}>
+                        {certificate || customer?.resellerCertificate ? 'Replace' : 'Attach'}
+                        <input
+                          hidden
+                          type="file"
+                          accept={CERT_ACCEPT}
+                          onChange={pickCertificate}
+                          disabled={saving}
+                        />
+                      </Button>
+                    )}
+                    {!locked && (certificate || customer?.resellerCertificate) && (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        disabled={saving}
+                        onClick={() => {
+                          setCertificate(null);
+                          setCertError('');
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </Box>
+                  {certError && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                      {certError}
+                    </Typography>
+                  )}
+                </Grid>
+              )}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <SelectInput
                   name="invoiceType"
@@ -979,7 +1125,13 @@ export function CustomerFormDialog({
           {/* Saved with the rest of the form — the ids live on the customer record, so there is
             nothing to write separately and nothing to stage while creating. */}
           <FormSection title="Products">
-            <CustomerProductsField value={products} onChange={pickProducts} disabled={locked} />
+            <CustomerProductsField
+              value={products}
+              onChange={pickProducts}
+              discounts={discounts}
+              onDiscountChange={changeDiscount}
+              disabled={locked}
+            />
           </FormSection>
 
           <TextInput

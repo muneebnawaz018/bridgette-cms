@@ -155,6 +155,35 @@ const productIdsField = z
   .optional()
   .transform((v) => (v ? Array.from(new Set(v)) : v));
 
+/**
+ * Per-product discounts negotiated with this customer. Each entry overrides that product's own
+ * standing discount when a line is added to an invoice. Sent whole: the list replaces whatever
+ * was stored, so removing an entry is how a customer reverts to the catalogue discount.
+ */
+const productDiscountsField = z
+  .array(
+    z.object({
+      product: z.string().regex(/^[a-f\d]{24}$/i, 'That is not a valid product'),
+      discountPercent: z
+        .number({ invalid_type_error: 'Enter a number' })
+        .min(0, 'Discount cannot be negative')
+        .max(100, 'Discount cannot exceed 100%'),
+    }),
+  )
+  .max(500, 'That is too many products')
+  .optional();
+
+/** A certificate file kept inline as a data URL. See the customer model for why. */
+const resellerCertificateField = z
+  .object({
+    data: z.string().min(1),
+    name: z.string().max(255).optional(),
+    contentType: z.string().max(120).optional(),
+    size: z.number().nonnegative().optional(),
+  })
+  .nullable()
+  .optional();
+
 export const customerCreateSchema = z.object({
   // Full name stays accepted for callers (and older clients) that only have one; when first/last
   // are sent the service derives it from them.
@@ -167,8 +196,10 @@ export const customerCreateSchema = z.object({
   addressParts: addressPartsSchema,
   shipping: shippingSchema.optional(),
   products: productIdsField,
+  productDiscounts: productDiscountsField,
   notes: optionalText(NOTES_MAX),
   reseller: z.boolean().optional(),
+  resellerCertificate: resellerCertificateField,
   invoiceType: z.nativeEnum(InvoiceType).optional(),
 });
 // A create needs *some* name: either the full one or a first name to derive it from.

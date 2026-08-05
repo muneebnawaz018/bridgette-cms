@@ -108,7 +108,9 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
       .limit(OPTIONS_LIMIT)
       .lean<LeanProduct[]>(),
     customerOid
-      ? ProductRate.find({ customer: customerOid }).select({ product: 1, rate: 1 }).lean()
+      ? ProductRate.find({ customer: customerOid })
+          .select({ product: 1, rate: 1, discountPercent: 1 })
+          .lean()
       : Promise.resolve([]),
     customerOid
       ? Customer.findById(customerOid).select({ products: 1 }).lean<{ products?: unknown[] }>()
@@ -116,7 +118,13 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
   ]);
 
   const overrides = new Map<string, number>();
-  for (const r of rateRows) overrides.set(String(r.product), r.rate);
+  // Kept apart from the rate map: a customer can have one without the other, and a discount of
+  // 0 is a real instruction ("no discount for them") that a falsy check would throw away.
+  const discountOverrides = new Map<string, number>();
+  for (const r of rateRows) {
+    if (r.rate != null) overrides.set(String(r.product), r.rate);
+    if (r.discountPercent != null) discountOverrides.set(String(r.product), r.discountPercent);
+  }
   const linkedIds = new Set((customer?.products ?? []).map((id) => String(id)));
 
   const items = products.map((p) => {
@@ -131,7 +139,11 @@ export async function listProductOptions(actor: SessionUser, customerId?: string
       sku: p.sku ?? '',
       unit: p.unit ?? '',
       defaultRate: p.defaultRate,
-      discount: p.discount ?? 0,
+      // The customer's own discount wins where they have one; otherwise the product's standing
+      // discount applies. Same precedence as `rate` directly below.
+      discount: discountOverrides.get(id) ?? p.discount ?? 0,
+      /** True when the discount came from this customer's own terms, not the catalogue. */
+      discountNegotiated: discountOverrides.has(id),
       rate: override ?? p.defaultRate,
       negotiated: override != null,
       linked: linkedIds.has(id),
@@ -251,7 +263,10 @@ export async function listCustomerRates(
   ]);
 
   const byProduct = new Map<string, number>();
-  for (const r of overrides) byProduct.set(String(r.product), r.rate);
+  // rate is optional now — a row may exist to carry a discount and nothing else.
+  for (const r of overrides) {
+    if (r.rate != null) byProduct.set(String(r.product), r.rate);
+  }
 
   return products.map((p) => ({
     productId: String(p._id),
@@ -289,6 +304,84 @@ export async function setProductRate(
  * No permission check of its own: the caller has already proven CustomerDelete, which is a
  * stronger right than the ProductEdit this would otherwise ask for.
  */
+/**
+ * Replace this customer's per-product discounts with `entries`.
+ *
+ * Whole-list, not incremental: the customer form sends everything it holds, so a product dropped
+ * from the list is a product whose discount should stop applying. Rows that also carry a
+ * negotiated rate keep it — the discount is unset on them rather than the row being deleted,
+ * since the two are independent terms that happen to share a record.
+ */
+export async function setCustomerProductDiscounts(
+  actor: SessionUser,
+  customerId: string,
+  entries: { product: string; discountPercent: number }[],
+) {
+  assertCan(actor.role, Permission.CustomerEdit);
+  await connectDb();
+  if (!Types.ObjectId.isValid(customerId)) return;
+
+  const customer = new Types.ObjectId(customerId);
+  const wanted = new Map(
+    entries
+      .filter((e) => Types.ObjectId.isValid(e.product))
+      .map((e) => [e.product, e.discountPercent]),
+  );
+
+  const existing = await ProductRate.find({ customer, discountPercent: { $ne: null } })
+    .select({ product: 1, rate: 1 })
+    .lean();
+
+  // Typed from the model so the mixed update/delete shapes below are checked, not inferred
+  // into a union mongoose cannot accept.
+  const ops: Parameters<typeof ProductRate.bulkWrite>[0] = [];
+
+  for (const row of existing) {
+    if (wanted.has(String(row.product))) continue;
+    // No longer discounted. Drop the whole row unless a negotiated rate is riding on it.
+    ops.push(
+      row.rate != null
+        ? {
+            updateOne: {
+              filter: { _id: row._id },
+              update: { $unset: { discountPercent: '' } },
+            },
+          }
+        : { deleteOne: { filter: { _id: row._id } } },
+    );
+  }
+
+  for (const [product, discountPercent] of wanted) {
+    ops.push({
+      updateOne: {
+        filter: { customer, product: new Types.ObjectId(product) },
+        update: {
+          $set: { discountPercent },
+          $setOnInsert: { customer, product: new Types.ObjectId(product), createdBy: actor.userId },
+        },
+        upsert: true,
+      },
+    });
+  }
+
+  if (ops.length) await ProductRate.bulkWrite(ops);
+}
+
+/** This customer's per-product discounts, for populating the edit form. */
+export async function getCustomerProductDiscounts(customerId: string) {
+  await connectDb();
+  if (!Types.ObjectId.isValid(customerId)) return [];
+  const rows = await ProductRate.find({
+    customer: new Types.ObjectId(customerId),
+    discountPercent: { $ne: null },
+  })
+    .select({ product: 1, discountPercent: 1 })
+    .lean();
+  return rows
+    .filter((r) => r.discountPercent != null)
+    .map((r) => ({ product: String(r.product), discountPercent: r.discountPercent as number }));
+}
+
 export async function clearCustomerRates(customerId: string) {
   await connectDb();
   if (!Types.ObjectId.isValid(customerId)) return { deleted: 0 };

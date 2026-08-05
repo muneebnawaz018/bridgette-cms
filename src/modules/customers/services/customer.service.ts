@@ -4,7 +4,11 @@ import { connectDb } from '@/lib/db/connection';
 import { escapeRegex } from '@/lib/query/escapeRegex';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
-import { clearCustomerRates } from '@/modules/products/services/product.service';
+import {
+  clearCustomerRates,
+  setCustomerProductDiscounts,
+  getCustomerProductDiscounts,
+} from '@/modules/products/services/product.service';
 import { Customer, type CustomerDoc } from '../models/customer.model';
 import { formatAddress, isBlankAddress } from '../address';
 import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
@@ -35,6 +39,17 @@ const LIST_PROJECTION = {
   invoiceType: 1,
   products: 1,
   shipping: 1,
+  // The edit dialog opens from a list row, so every field it edits has to come back here.
+  // Missing, the input opens blank and a save writes that blank over the stored value.
+  notes: 1,
+  /*
+   * Metadata only. The certificate's data URL is megabytes; projecting it would put one on every
+   * row of every page for a field the list never shows. The dialog needs to know a file exists
+   * and what it is called, and fetches the bytes only when someone asks to open it.
+   */
+  'resellerCertificate.name': 1,
+  'resellerCertificate.contentType': 1,
+  'resellerCertificate.size': 1,
   createdAt: 1,
 } as const;
 
@@ -115,7 +130,10 @@ export async function getCustomer(actor: SessionUser, id: string) {
   await connectDb();
   const doc = await Customer.findOne({ _id: id, isDeleted: { $ne: true } }).lean<CustomerDoc>();
   if (!doc) throw new Error('Customer not found');
-  return doc;
+  // Discounts live in their own collection (see ProductRate), so they are joined on here rather
+  // than leaving every caller to make a second request and stitch the two together.
+  const productDiscounts = await getCustomerProductDiscounts(id);
+  return { ...doc, productDiscounts };
 }
 
 /** "First Last" when the parts are given, else whatever full name the caller sent. */
@@ -179,9 +197,14 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
       products: input.products ?? [],
       notes: input.notes,
       reseller: input.reseller ?? false,
+      resellerCertificate: input.resellerCertificate ?? undefined,
       invoiceType: input.invoiceType,
       createdBy: actor.userId,
     });
+    // After the insert, since the rows key on the customer id this call assigns.
+    if (input.productDiscounts?.length) {
+      await setCustomerProductDiscounts(actor, String(doc._id), input.productDiscounts);
+    }
     return doc.toObject();
   } catch (err) {
     if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
@@ -225,6 +248,15 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   }
   if (input.notes !== undefined) doc.notes = input.notes;
   if (input.reseller !== undefined) doc.reseller = input.reseller;
+  /*
+   * null clears the certificate, an object replaces it, absent leaves it alone. Turning
+   * `reseller` off does not remove it: the invoices raised while the exemption applied still
+   * need their evidence.
+   */
+  if (input.resellerCertificate !== undefined) {
+    doc.resellerCertificate = (input.resellerCertificate ??
+      undefined) as unknown as CustomerDoc['resellerCertificate'];
+  }
   if (input.invoiceType !== undefined) doc.invoiceType = input.invoiceType;
 
   try {
@@ -232,6 +264,11 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   } catch (err) {
     if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
     throw err;
+  }
+  // Whole-list replace, so an entry dropped in the form stops applying. An absent key means the
+  // caller was not editing discounts at all.
+  if (input.productDiscounts !== undefined) {
+    await setCustomerProductDiscounts(actor, String(doc._id), input.productDiscounts);
   }
   return doc.toObject();
 }
