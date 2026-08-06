@@ -69,11 +69,11 @@ interface Stats extends StatsSlice {
 /** Periods the range filter offers. Keys match the API's `range` param. The API also accepts
  *  `month`, but it isn't offered here — the fixed month block below already shows it. */
 const RANGES = [
-  { key: '3m', label: '3 months' },
-  { key: '6m', label: '6 months' },
-  { key: '9m', label: '9 months' },
-  { key: '12m', label: '12 months' },
-  { key: 'all', label: 'Overall' },
+  { key: '3m', label: '3 months', short: '3M' },
+  { key: '6m', label: '6 months', short: '6M' },
+  { key: '9m', label: '9 months', short: '9M' },
+  { key: '12m', label: '12 months', short: '12M' },
+  { key: 'all', label: 'Overall', short: 'All' },
 ] as const;
 type RangeKey = (typeof RANGES)[number]['key'];
 
@@ -340,11 +340,23 @@ export default function DashboardPage() {
           exclusive
           value={range}
           onChange={(_, v: RangeKey | null) => v && setRange(v)}
-          sx={{ flexWrap: 'wrap' }}
+          // Five full labels are ~390px — wider than a 375px phone. Below sm the buttons show
+          // their short form and share the row equally; the heading beside them spells the
+          // period out in full either way.
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
         >
           {RANGES.map((r) => (
-            <ToggleButton key={r.key} value={r.key} sx={{ fontWeight: 700, px: 1.5 }}>
-              {r.label}
+            <ToggleButton
+              key={r.key}
+              value={r.key}
+              sx={{ fontWeight: 700, px: { xs: 0.5, sm: 1.5 }, flexGrow: { xs: 1, sm: 0 } }}
+            >
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                {r.label}
+              </Box>
+              <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                {r.short}
+              </Box>
             </ToggleButton>
           ))}
         </ToggleButtonGroup>

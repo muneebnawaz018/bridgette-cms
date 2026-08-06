@@ -389,7 +389,10 @@ export default function InvoiceDetailPage() {
             </Typography>
           </Stack>
         </Box>
-        <Stack direction="row" spacing={1}>
+        {/* Edit mode puts up to four buttons here (Cancel / Save as draft / Finalize), which is
+            wider than a phone. Wrapping keeps them on screen instead of scrolling the page
+            sideways; they stay right-aligned so the header still reads title-left. */}
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="flex-end">
           {/* Opens the printable template in a new tab (its own layout, no app chrome) — the
               print dialog is the Save-as-PDF path. Hidden while editing and for drafts, which
               are not yet real documents to hand out. */}

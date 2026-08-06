@@ -434,6 +434,7 @@ export function UserFormDialog({
       }
       icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="sm"
+      fullScreenOnMobile
       busy={saving}
       actions={
         readOnly ? (

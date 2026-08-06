@@ -681,6 +681,7 @@ export function CustomerFormDialog({
       }
       icon={isEdit ? <EditRounded /> : <AddRounded />}
       maxWidth="md"
+      fullScreenOnMobile
       busy={saving}
       actions={
         readOnly ? (

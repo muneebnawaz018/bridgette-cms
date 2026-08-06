@@ -310,6 +310,7 @@ export function ProductFormDialog({
       // helper text wraps to two lines, which drags the dialog into scrolling. 900 + the 64px
       // margins still clears a 1024 screen.
       maxWidth="md"
+      fullScreenOnMobile
       busy={saving}
       actions={
         readOnly ? (
