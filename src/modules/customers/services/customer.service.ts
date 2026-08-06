@@ -136,6 +136,43 @@ export async function getCustomer(actor: SessionUser, id: string) {
   return { ...doc, productDiscounts };
 }
 
+interface CertificateFields {
+  data?: string;
+  name?: string;
+  contentType?: string;
+}
+
+/**
+ * Just the reseller certificate, decoded and ready to send.
+ *
+ * Its own query with its own projection: the file is megabytes, so pulling the whole customer
+ * document to reach one field would drag the address, the notes and everything else across the
+ * wire for a download that needs none of it. `getCustomer` deliberately never returns the bytes
+ * for the same reason.
+ */
+export async function getCustomerCertificate(actor: SessionUser, id: string) {
+  assertCan(actor.role, Permission.CustomerView);
+  await connectDb();
+  const doc = await Customer.findOne({ _id: id, isDeleted: { $ne: true } })
+    .select({ resellerCertificate: 1 })
+    .lean<{ resellerCertificate?: CertificateFields }>();
+
+  const cert = doc?.resellerCertificate;
+  if (!cert?.data) return null;
+
+  // Stored as a data URL (`data:<mime>;base64,<payload>`). The declared contentType wins where
+  // there is one; the URL's own prefix is the fallback for anything written before it was kept.
+  const comma = cert.data.indexOf(',');
+  const payload = comma >= 0 ? cert.data.slice(comma + 1) : cert.data;
+  const inlineType = /^data:([^;,]+)/.exec(cert.data)?.[1];
+
+  return {
+    body: Buffer.from(payload, 'base64'),
+    name: cert.name || 'reseller-certificate',
+    contentType: cert.contentType || inlineType || 'application/octet-stream',
+  };
+}
+
 /** "First Last" when the parts are given, else whatever full name the caller sent. */
 function fullName(input: {
   name?: string;

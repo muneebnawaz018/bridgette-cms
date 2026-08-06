@@ -77,16 +77,24 @@ export function EditProfileDialog({
   const guard = useFormGuard({ valuesRef, isValid });
 
   // Reopening should show the current record, not whatever was typed last time.
+  /*
+   * Pulled out as its own binding so the dependency list below can name it. `guard` is a fresh
+   * object every render, so depending on that would re-run the reset on every keystroke; the
+   * lint rule cannot prove `guard.reset` is stable, but it can track a plain identifier. The
+   * callback itself is memoized in useFormGuard.
+   */
+  const resetGuard = guard.reset;
+
   useLayoutEffect(() => {
     if (!open) return;
     nameRef.current = initial.name;
     setPhone(splitPhone(initial.phone));
     setAvatarUrl(initial.avatarUrl);
     valuesRef.current = { name: initial.name, phone: initial.phone, avatarUrl: initial.avatarUrl };
-    guard.reset(valuesRef.current);
+    resetGuard(valuesRef.current);
     setErrors({});
     setFormKey((k) => k + 1);
-  }, [open, initial.name, initial.phone, initial.avatarUrl]);
+  }, [open, initial.name, initial.phone, initial.avatarUrl, resetGuard]);
 
   const setName = useCallback(
     (_field: string, value: string) => {

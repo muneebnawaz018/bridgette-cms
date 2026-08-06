@@ -17,7 +17,6 @@ import { apiPatch } from '@/lib/api/client';
 import { useApi } from '@/lib/api/useApi';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
-import { formatPhone } from '@/lib/format/countries';
 import { colors, redA } from '@/lib/colors';
 import { ROLE_LABEL } from '@/lib/format/labels';
 

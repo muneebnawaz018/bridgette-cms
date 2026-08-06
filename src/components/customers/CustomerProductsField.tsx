@@ -5,7 +5,6 @@ import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
 import InputAdornment from '@mui/material/InputAdornment';
 import { useApi } from '@/lib/api/useApi';
 import { formatMoney } from '@/lib/format/money';
@@ -121,35 +120,40 @@ export function CustomerProductsField({
        * hence a list under the selector rather than a field beside it. Left blank, the product's
        * own standing discount applies; a number here replaces it for this customer only.
        */}
+      {/*
+       * One row per selected product, discount inline. The chips above answer "which products";
+       * these rows answer "at what discount", and keeping them as rows rather than a second
+       * labelled control means the product name and its number sit on the same line.
+       */}
       {selected.length > 0 && (
-        <Box sx={{ mt: 2 }}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ display: 'block', fontWeight: 700, mb: 1 }}
-          >
-            DISCOUNTS FOR THIS CUSTOMER
-          </Typography>
+        <Box sx={{ mt: 1.5, borderTop: `1px solid ${colors.surface.border}` }}>
           {selected.map((o) => (
             <Box
               key={o._id}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1.5,
+                gap: 1,
                 py: 0.75,
-                flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                borderBottom: `1px solid ${colors.surface.border}`,
               }}
             >
-              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                <Box sx={{ fontSize: '0.875rem', fontWeight: 600 }}>{o.name}</Box>
-                <Box sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                  {o.discount ? `Product default ${o.discount}% off` : 'No product discount'}
+              <Box sx={{ flexGrow: 1, minWidth: 0, fontSize: '0.875rem' }} title={o.name}>
+                <Box
+                  component="span"
+                  sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
+                  {o.name}
                 </Box>
+                {o.discount ? (
+                  <Box
+                    component="span"
+                    sx={{ ml: 1, fontSize: '0.75rem', color: 'text.secondary' }}
+                  >
+                    default {o.discount}%
+                  </Box>
+                ) : null}
               </Box>
-              {/* No label: the column heading above already says what these are, and a floating
-                  "Discount" inside a 3-character box left no room for the number. The placeholder
-                  carries the product's own figure, so an empty box visibly means "use that". */}
               <TextField
                 size="small"
                 type="number"
@@ -158,7 +162,7 @@ export function CustomerProductsField({
                 placeholder={String(o.discount ?? 0)}
                 disabled={disabled}
                 onChange={(e) => onDiscountChange(o._id, e.target.value)}
-                sx={{ width: 92, flexShrink: 0 }}
+                sx={{ width: 88, flexShrink: 0 }}
                 slotProps={{
                   htmlInput: { inputMode: 'decimal', min: 0, max: 100 },
                   input: {

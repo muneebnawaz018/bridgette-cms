@@ -18,7 +18,9 @@ import AddRounded from '@mui/icons-material/AddRounded';
 import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
 import GroupRounded from '@mui/icons-material/GroupRounded';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
-import type { ReactNode } from 'react';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { useState, type ReactNode } from 'react';
 import { Permission } from '@/modules/auth/rbac';
 import { useSession, useCan } from '@/components/auth/SessionProvider';
 import { useApi } from '@/lib/api/useApi';
@@ -50,13 +52,30 @@ interface TypeTotals {
   invoiced: number;
   outstanding: number;
 }
-interface Stats {
+interface StatsSlice {
   total: number;
   byState: Record<string, number>;
-  /** ISO start of the month the pipeline covers (server-decided). */
-  pipelineMonth: string;
   byType: Record<string, TypeTotals>;
 }
+interface Stats extends StatsSlice {
+  range: RangeKey;
+  /** ISO start of the selected period — null for lifetime. */
+  rangeStart: string | null;
+  /** ISO start of the current month (server-decided). */
+  pipelineMonth: string;
+  month: StatsSlice;
+}
+
+/** Periods the range filter offers. Keys match the API's `range` param. The API also accepts
+ *  `month`, but it isn't offered here — the fixed month block below already shows it. */
+const RANGES = [
+  { key: '3m', label: '3 months' },
+  { key: '6m', label: '6 months' },
+  { key: '9m', label: '9 months' },
+  { key: '12m', label: '12 months' },
+  { key: 'all', label: 'Overall' },
+] as const;
+type RangeKey = (typeof RANGES)[number]['key'];
 
 // The 3 invoice types. All bill in USD (US and PK alike).
 const TYPES = [
@@ -141,7 +160,9 @@ function TypeStatCard({
         textDecoration: 'none',
         color: 'inherit',
         cursor: 'pointer',
-        p: 3,
+        // Two rows of these now stack above the pipeline, so the card is tuned tight — any
+        // taller and the pipeline and recent invoices fall below the fold on a laptop.
+        p: 2,
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
@@ -157,11 +178,12 @@ function TypeStatCard({
         },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25 }}>
         <Box
           sx={{
-            width: 44,
-            height: 44,
+            width: 38,
+            height: 38,
+            '& svg': { fontSize: 20 },
             borderRadius: 1,
             display: 'grid',
             placeItems: 'center',
@@ -198,7 +220,7 @@ function TypeStatCard({
         sx={{
           fontFamily: displayFont,
           fontWeight: 700,
-          fontSize: '2.15rem',
+          fontSize: '1.85rem',
           lineHeight: 1.05,
           color: colors.ink[900],
         }}
@@ -209,7 +231,7 @@ function TypeStatCard({
         of {formatMoney(currency, t.invoiced)} invoiced
       </Typography>
 
-      <Box sx={{ mt: 2 }}>
+      <Box sx={{ mt: 1.25 }}>
         <LinearProgress
           variant="determinate"
           value={ratio}
@@ -249,13 +271,23 @@ export default function DashboardPage() {
   const { email, role } = useSession();
   const canCreateInvoice = useCan(Permission.InvoiceCreate);
   const canCreateUser = useCan(Permission.UserCreate);
-  const { data: stats } = useApi<Stats>('/api/dashboard/stats');
+  // Default is lifetime — the month-only block below always shows the current month, so the
+  // top block is the one that answers "and how are we doing overall?".
+  const [range, setRange] = useState<RangeKey>('all');
+  const { data: stats } = useApi<Stats>(`/api/dashboard/stats?range=${range}`, {
+    keepPreviousData: true,
+  });
   // A preview of the most recent few; "View all" is the way to the full list.
   const { data: recentData } = useApi<{ items: RecentInvoice[] }>(
     `/api/invoices?limit=${RECENT_LIMIT}`,
   );
   const recent = recentData?.items ?? [];
   const s = stats?.byState ?? {};
+  // Labelled from the server's own window so the heading can't drift from the data.
+  const rangeLabel =
+    range === 'all'
+      ? 'All time'
+      : `${RANGES.find((r) => r.key === range)?.label} · since ${formatMonth(stats?.rangeStart, '—')}`;
   const name = email
     .split('@')[0]
     .replace(/[._-]+/g, ' ')
@@ -272,7 +304,7 @@ export default function DashboardPage() {
           color="text.secondary"
           sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
         >
-          This month&apos;s invoices across all types.
+          Your invoices across all types.
           <Chip
             component="span"
             size="small"
@@ -288,11 +320,36 @@ export default function DashboardPage() {
         </Typography>
       </Box>
 
-      {/* One premium card per invoice type — current calendar month only. */}
-      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-        This month · {formatMonth(stats?.pipelineMonth, 'this month')}
-      </Typography>
-      <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
+      {/* Range filter — drives the first row of cards and the pipeline. The month row below
+          is fixed to the current month and ignores it. */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1.5,
+          flexWrap: 'wrap',
+          mb: 1,
+        }}
+      >
+        <Typography variant="overline" color="text.secondary">
+          {rangeLabel}
+        </Typography>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={range}
+          onChange={(_, v: RangeKey | null) => v && setRange(v)}
+          sx={{ flexWrap: 'wrap' }}
+        >
+          {RANGES.map((r) => (
+            <ToggleButton key={r.key} value={r.key} sx={{ fontWeight: 700, px: 1.5 }}>
+              {r.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Box>
+      <Grid container spacing={2} sx={{ mb: 2 }}>
         {TYPES.map((t) => (
           <Grid size={{ xs: 12, md: 4 }} key={t.key}>
             <TypeStatCard
@@ -306,10 +363,30 @@ export default function DashboardPage() {
         ))}
       </Grid>
 
+      {/* The same three figures, always current-month, so the selected range never hides how
+          the month itself is going. Condensed into one strip: a second row of full cards
+          pushed the pipeline and recent invoices below the fold. */}
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+        This month · {formatMonth(stats?.pipelineMonth, 'this month')}
+      </Typography>
+      <Grid container spacing={2} sx={{ mb: 2.5 }}>
+        {TYPES.map((t) => (
+          <Grid size={{ xs: 12, md: 4 }} key={`m-${t.key}`}>
+            <TypeStatCard
+              label={invoiceTypeLabel(t.key)}
+              currency={t.currency}
+              icon={t.icon}
+              totals={stats?.month.byType[t.key]}
+              href={`/invoices?type=${t.key}`}
+            />
+          </Grid>
+        ))}
+      </Grid>
+
       {/* Pipeline — 5 states as colored mini-stats in one card */}
       <Paper sx={{ p: { xs: 2.5, md: 3 }, mb: 2.5 }}>
         <Typography variant="overline" color="text.secondary">
-          Invoice pipeline · {formatMonth(stats?.pipelineMonth, 'this month')}
+          Invoice pipeline · {rangeLabel}
         </Typography>
         <Grid container spacing={2} sx={{ mt: 0.25 }}>
           {STATES.map((st) => (

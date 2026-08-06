@@ -24,7 +24,6 @@ import { useRetainedWhileClosing } from '@/lib/api/useRetained';
 import { apiPatch } from '@/lib/api/client';
 import { fileToAvatarDataUrl } from '@/lib/image/avatar';
 import { formatDate, formatDateTime } from '@/lib/format/date';
-import { formatPhone } from '@/lib/format/countries';
 import { ROLE_LABEL } from '@/lib/format/labels';
 import { redA } from '@/lib/colors';
 

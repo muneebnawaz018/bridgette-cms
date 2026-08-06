@@ -1,4 +1,4 @@
-import type { Model, FilterQuery, PipelineStage } from 'mongoose';
+import type { Model, PipelineStage } from 'mongoose';
 import { DEFAULT_LIMIT, MAX_LIMIT } from '@/lib/query/limits';
 
 export interface PageParams {
@@ -12,28 +12,6 @@ export interface Paginated<T> {
   page: number;
   limit: number;
   totalPages: number;
-}
-
-/**
- * Paginate any model query. Every list endpoint MUST go through this — no unbounded
- * fetches. Pass an already role-scoped `filter` (see visibility helpers).
- */
-export async function paginate<T>(
-  model: Model<T>,
-  filter: FilterQuery<T>,
-  params: PageParams = {},
-  sort: Record<string, 1 | -1> = { createdAt: -1 },
-): Promise<Paginated<T>> {
-  const page = Math.max(1, Math.floor(params.page ?? 1));
-  const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(params.limit ?? DEFAULT_LIMIT)));
-  const skip = (page - 1) * limit;
-
-  const [items, total] = await Promise.all([
-    model.find(filter).sort(sort).skip(skip).limit(limit).lean<T[]>().exec(),
-    model.countDocuments(filter),
-  ]);
-
-  return { items, total, page, limit, totalPages: Math.ceil(total / limit) || 1 };
 }
 
 function clampPage(params: PageParams): { page: number; limit: number; skip: number } {

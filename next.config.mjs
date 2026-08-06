@@ -47,6 +47,15 @@ const nextConfig = {
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
       // Cross-origin isolation for our own resources.
       { key: 'X-DNS-Prefetch-Control', value: 'off' },
+      // The root layout already sets a noindex meta tag, but that only reaches responses
+      // Next renders as HTML documents. Route Handlers (/api-docs) and any file response
+      // never see it. The header covers every response regardless of type.
+      //
+      // Note there is deliberately no robots.txt with `Disallow: /`. Disallow stops a
+      // crawler fetching the URL at all, so it never reads the noindex — a URL linked from
+      // somewhere else can then still be indexed, listing-only. Letting the crawler in and
+      // telling it noindex is what actually keeps pages out.
+      { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
     ];
 
     // HSTS only in production: sending it from localhost pins http://localhost to https in

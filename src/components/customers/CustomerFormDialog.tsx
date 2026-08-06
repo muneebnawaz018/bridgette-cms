@@ -14,6 +14,7 @@ import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
+import DownloadRounded from '@mui/icons-material/DownloadRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneField } from '@/components/ui/PhoneField';
@@ -27,6 +28,7 @@ import { statesFor, type AddressParts } from '@/modules/customers/address';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
+import { colors } from '@/lib/colors';
 
 /** What a reseller certificate may be: a scan, a PDF, or a Word document. */
 const CERT_ACCEPT_TYPES =
@@ -252,7 +254,19 @@ function buildPayload(f: FormValues) {
  * is less scrolling, not fewer things to find.
  */
 const TAB_FIELDS: readonly (readonly string[])[] = [
-  ['firstName', 'lastName', 'email', 'phone', 'line1', 'line2', 'city', 'state', 'zip', 'zipPlus4'],
+  [
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'line1',
+    'line2',
+    'city',
+    'state',
+    'zip',
+    'zipPlus4',
+    'notes',
+  ],
   [
     'shipName',
     'shipPhone',
@@ -263,7 +277,6 @@ const TAB_FIELDS: readonly (readonly string[])[] = [
     'shipZip',
     'shipZipPlus4',
     'products',
-    'notes',
   ],
 ];
 const TAB_LABELS = ['Customer', 'Shipping & products'] as const;
@@ -273,7 +286,22 @@ const TAB_LABELS = ['Customer', 'Shipping & products'] as const;
  * one and the modal never resizes when tabs are switched. A guessed minHeight cannot do this —
  * the taller panel's height changes with the country (the +4 box) and with error text.
  */
-const PANEL_CELL = { gridArea: '1 / 1' } as const;
+const PANEL_CELL = {
+  gridArea: '1 / 1',
+  /*
+   * One scroll region per panel, from sm up. The products list grows with every product picked,
+   * and because both panels share this cell the taller one sets the dialog's height — left to
+   * grow, the Save and Cancel buttons walk off the bottom of the screen. Capping the panel
+   * rather than the list inside it keeps a single scrollbar: nesting one inside the other left
+   * the user guessing which of the two would move.
+   *
+   * Unbounded below sm, where the modal already scrolls as a whole.
+   */
+  maxHeight: { sm: 'min(68vh, 580px)' },
+  overflowY: { sm: 'auto' },
+  // Room for the scrollbar so it never sits on top of a field's focus ring.
+  pr: { sm: 1 },
+} as const;
 
 export function CustomerFormDialog({
   open,
@@ -340,6 +368,23 @@ export function CustomerFormDialog({
   );
   const guard = useFormGuard<FormValues>({ valuesRef, isValid });
 
+  /*
+   * Pulled out as its own binding so the dependency list below can name it. `guard` is a fresh
+   * object every render, so depending on that would re-run the reset on every keystroke; the
+   * lint rule cannot prove `guard.reset` is stable, but it can track a plain identifier. The
+   * callback itself is memoized in useFormGuard.
+   */
+  const resetGuard = guard.reset;
+
+  /*
+   * Read through a ref inside the reset effect below. `initialMode` is a prop, and depending on
+   * it directly would re-run the reset — discarding whatever the user had typed — if the parent
+   * happened to re-render with a different value while the dialog was open. The mode only ever
+   * needs to be read at the moment the dialog opens.
+   */
+  const initialModeRef = useRef(initialMode);
+  initialModeRef.current = initialMode;
+
   useLayoutEffect(() => {
     if (!open) return;
     const next = customer ? valuesFromCustomer(customer) : { ...EMPTY };
@@ -362,14 +407,14 @@ export function CustomerFormDialog({
     setShipCountry(next.shipCountry);
     setShipState(next.shipState);
     // Creating has nothing to view, so it always opens editable.
-    setMode(customer ? initialMode : 'edit');
+    setMode(customer ? initialModeRef.current : 'edit');
     setTab(0);
-    guard.reset(next);
+    resetGuard(next);
     setErrors({});
     setTouched({});
     setSubmitted(false);
     setFormKey((k) => k + 1);
-  }, [open, customer]);
+  }, [open, customer, resetGuard]);
 
   const pickType = useCallback(
     (_name: string, v: string) => {
@@ -549,6 +594,17 @@ export function CustomerFormDialog({
 
   /* Same-as-billing means the shipping block is not stored, so its inputs are inert — greyed
      rather than gone, to keep the panel's height steady across the toggle. */
+  /*
+   * The certificate's display name, and whether the box should offer to attach one. `null` on
+   * `certificate` means "remove on save", so a stored file must not count as present once the
+   * user has cleared it.
+   */
+  const certName =
+    certificate === null
+      ? null
+      : (certificate?.name ?? customer?.resellerCertificate?.name ?? null);
+  const canAttachCert = !locked && certName === null;
+
   const shipDisabled = locked || shipSame;
 
   const close = useCallback(() => {
@@ -780,19 +836,51 @@ export function CustomerFormDialog({
                   has nowhere to belong on a customer who is not claiming one. */}
               {reseller && (
                 <Grid size={{ xs: 12, sm: 6 }}>
+                  {/*
+                   * Borrows the outlined input's own tokens — same radius, border colour, 56px
+                   * height and paper fill — so it sits in the grid as a peer of the Reseller
+                   * select beside it.
+                   *
+                   * With no file attached the whole box IS the file input's label, so the click
+                   * target is the control rather than three words at its right edge. Once a file
+                   * is on it the box goes inert again: the only action then is Remove, and a box
+                   * that silently reopened the picker would undo a deliberate choice.
+                   */}
                   <Box
+                    component={canAttachCert ? 'label' : 'div'}
                     sx={{
-                      border: '1.5px dashed',
-                      borderColor: certError ? 'error.main' : 'divider',
+                      border: '1px solid',
+                      borderColor: certError ? 'error.main' : colors.surface.borderStrong,
                       borderRadius: 1,
-                      px: 1.5,
-                      py: 1,
+                      bgcolor: 'background.paper',
+                      pl: 1.75,
+                      pr: 1,
+                      py: 0.75,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 1,
                       minHeight: 56,
+                      ...(canAttachCert
+                        ? {
+                            cursor: 'pointer',
+                            transition: 'border-color .16s ease, background-color .16s ease',
+                            '&:hover': {
+                              borderColor: 'primary.main',
+                              bgcolor: 'action.hover',
+                            },
+                          }
+                        : null),
                     }}
                   >
+                    {canAttachCert && (
+                      <input
+                        hidden
+                        type="file"
+                        accept={CERT_ACCEPT}
+                        onChange={pickCertificate}
+                        disabled={saving}
+                      />
+                    )}
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                       <Typography
                         variant="caption"
@@ -801,39 +889,57 @@ export function CustomerFormDialog({
                       >
                         Reseller certificate
                       </Typography>
+                      {/* The filename when there is a file, and nothing but the label when there
+                          is not. A removal used to announce itself here, which read as an error
+                          on a field the user had just deliberately cleared. */}
                       <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-                        {certificate === null
-                          ? 'Will be removed on save'
-                          : (certificate?.name ??
-                            customer?.resellerCertificate?.name ??
-                            'None attached')}
+                        {certName ?? 'None attached'}
                       </Typography>
                     </Box>
-                    {!locked && (
-                      <Button component="label" size="small" disabled={saving}>
-                        {certificate || customer?.resellerCertificate ? 'Replace' : 'Attach'}
-                        <input
-                          hidden
-                          type="file"
-                          accept={CERT_ACCEPT}
-                          onChange={pickCertificate}
-                          disabled={saving}
-                        />
-                      </Button>
-                    )}
-                    {!locked && (certificate || customer?.resellerCertificate) && (
-                      <Button
-                        size="small"
-                        color="inherit"
-                        disabled={saving}
-                        onClick={() => {
-                          setCertificate(null);
-                          setCertError('');
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    )}
+                    {/*
+                     * One action, chosen by what the box is for right now.
+                     *
+                     * Reading a record: Download, and only for a file already saved — a freshly
+                     * picked one exists solely in this dialog and has no URL to fetch yet.
+                     * Editing: Attach when empty, Remove when full. Attach is a cue rather than
+                     * a control, since the label wrapping the whole box already takes the click
+                     * and a nested one would fire the picker twice.
+                     */}
+                    {readOnly
+                      ? customer?.resellerCertificate && (
+                          <Button
+                            size="small"
+                            component="a"
+                            href={`/api/customers/${customer._id}/certificate`}
+                            download
+                            startIcon={<DownloadRounded />}
+                            sx={{ flexShrink: 0 }}
+                          >
+                            Download
+                          </Button>
+                        )
+                      : !locked &&
+                        (canAttachCert ? (
+                          <Typography
+                            variant="button"
+                            color="primary"
+                            sx={{ pr: 1, pointerEvents: 'none', flexShrink: 0 }}
+                          >
+                            Attach
+                          </Typography>
+                        ) : (
+                          <Button
+                            size="small"
+                            color="inherit"
+                            disabled={saving}
+                            onClick={() => {
+                              setCertificate(null);
+                              setCertError('');
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        ))}
                   </Box>
                   {certError && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
@@ -963,6 +1069,22 @@ export function CustomerFormDialog({
               )}
             </Grid>
           </FormSection>
+
+          {/* Notes live with the customer, not with shipping: they describe the account, and on
+              the other tab they sat under a products picker they had nothing to do with. */}
+          <TextInput
+            name="notes"
+            label="Notes"
+            defaultValue={initial.notes}
+            helperText={shown('notes')}
+            error={Boolean(shown('notes'))}
+            disabled={locked}
+            multiline
+            minRows={2}
+            placeholder="Only visible to admins"
+            onChange={setText}
+            onBlur={blurField}
+          />
         </Stack>
 
         <Stack
@@ -990,8 +1112,23 @@ export function CustomerFormDialog({
             )}
             {/* The fields stay on screen and grey out rather than disappearing: the layout keeps
               its height when the switch is flipped, and a returning editor can still read the
-              delivery address that was set up before. */}
-            <Grid container spacing={2}>
+              delivery address that was set up before.
+
+              MUI's own disabled styling is subtle enough that the block still reads as clickable,
+              so the whole group is dimmed and made inert: `pointer-events: none` stops the hover
+              and caret feedback that made it look live, and `aria-hidden` keeps a screen reader
+              from walking fields nobody can reach. The individual inputs stay `disabled` too —
+              this is the visual layer, not the guard. */}
+            <Grid
+              container
+              spacing={2}
+              aria-hidden={shipSame}
+              sx={
+                shipSame
+                  ? { opacity: 0.45, pointerEvents: 'none', transition: 'opacity .18s ease' }
+                  : { transition: 'opacity .18s ease' }
+              }
+            >
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextInput
                   name="shipName"
@@ -1133,20 +1270,6 @@ export function CustomerFormDialog({
               disabled={locked}
             />
           </FormSection>
-
-          <TextInput
-            name="notes"
-            label="Notes"
-            defaultValue={initial.notes}
-            helperText={shown('notes')}
-            error={Boolean(shown('notes'))}
-            disabled={locked}
-            multiline
-            minRows={2}
-            placeholder="Only visible to admins"
-            onChange={setText}
-            onBlur={blurField}
-          />
         </Stack>
       </Box>
     </Modal>

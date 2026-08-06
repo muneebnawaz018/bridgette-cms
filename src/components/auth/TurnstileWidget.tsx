@@ -24,10 +24,6 @@ declare global {
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 const SCRIPT_ID = 'cf-turnstile-script';
 
-export function turnstileConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
-}
-
 /** Load the script once per page, and resolve when it's ready. */
 function loadScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();

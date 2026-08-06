@@ -112,8 +112,6 @@ export const invoiceFormSchema = z.object({
   notes: z.string().max(2000, 'That note is too long').optional(),
 });
 
-export type InvoiceFormInput = z.infer<typeof invoiceFormSchema>;
-
 /** Which slice of invoices to list. Default `active` hides archived + deleted; `all` shows
  *  everything the caller may see. */
 export const invoiceViewSchema = z.enum(['active', 'archived', 'deleted', 'all']);

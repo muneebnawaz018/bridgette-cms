@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     images: [{ url: '/brand/logo.png', width: 1978, height: 1145, alt: 'Bridgette Enterprises' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: APP_TITLE,
     description: APP_DESCRIPTION,
     images: ['/brand/logo.png'],

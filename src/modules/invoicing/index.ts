@@ -22,6 +22,9 @@ export {
   deleteInvoice,
   getInvoiceStats,
   EXPORT_LIMIT,
+  STATS_RANGES,
+  type StatsRange,
+  type StatsSlice,
   type InvoiceStats,
   type TypeTotals,
 } from './services/invoice.service';

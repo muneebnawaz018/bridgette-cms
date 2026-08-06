@@ -4,6 +4,7 @@ export {
   listCustomers,
   listCustomerOptions,
   getCustomer,
+  getCustomerCertificate,
   createCustomer,
   updateCustomer,
   deleteCustomer,

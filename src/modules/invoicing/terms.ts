@@ -10,9 +10,6 @@
 import { COMPANY } from '@/modules/legal/company';
 import type { LegalDoc } from '@/modules/legal/types';
 
-/** Kept as a named export because the app footer and other copy still reference the entity. */
-export const TERMS_COMPANY = COMPANY;
-
 export const BILLING_TERMS: LegalDoc = {
   title: 'Billing Terms & Policies',
   subtitle: `Billing terms for invoices issued by ${COMPANY}.`,

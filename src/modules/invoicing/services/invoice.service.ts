@@ -222,52 +222,67 @@ export interface TypeTotals {
   invoiced: number;
   outstanding: number;
 }
-export interface InvoiceStats {
+/** Periods the dashboard can summarise. `all` is lifetime; the rest are trailing windows
+ *  that start at the first day of a calendar month and run to now. */
+export const STATS_RANGES = ['month', '3m', '6m', '9m', '12m', 'all'] as const;
+export type StatsRange = (typeof STATS_RANGES)[number];
+
+/** How many calendar months (including the current one) each window covers. */
+const RANGE_MONTHS: Record<Exclude<StatsRange, 'all'>, number> = {
+  month: 1,
+  '3m': 3,
+  '6m': 6,
+  '9m': 9,
+  '12m': 12,
+};
+
+export interface StatsSlice {
   total: number;
-  /** Pipeline counts for the current calendar month only — see `pipelineMonth`. */
   byState: Record<string, number>;
-  /** ISO start of the month `byState` covers, so the UI can label the period truthfully
+  byType: Record<string, TypeTotals>; // { tax: {...}, cash: {...}, pk: {...} }
+}
+
+export interface InvoiceStats extends StatsSlice {
+  /** The period the top-level totals cover. */
+  range: StatsRange;
+  /** ISO start of that period — null for `all`, which has no start. */
+  rangeStart: string | null;
+  /** ISO start of the current month, so the UI can label the month block truthfully
    *  instead of assuming the client clock agrees with the server. */
   pipelineMonth: string;
-  byType: Record<string, TypeTotals>; // { tax: {...}, cash: {...}, pk: {...} }
+  /** The same figures for the current calendar month, always — the dashboard shows both. */
+  month: StatsSlice;
 }
 
 const round2 = (n: number) => Math.round((n ?? 0) * 100) / 100;
 
-/** Aggregated dashboard stats over the invoices this user may see (split by invoice type). */
-export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats> {
-  assertCan(actor.role, Permission.InvoiceView);
-  await connectDb();
-
-  // Both the pipeline and the per-type totals report the current calendar month only, so the
-  // dashboard is a snapshot of this month rather than an ever-growing lifetime tally.
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const thisMonth = { createdAt: { $gte: monthStart, $lt: nextMonthStart } };
-
-  const [row] = await Invoice.aggregate([
-    // Stats cover the active set only (archived + deleted excluded).
-    { $match: invoiceVisibilityFilter(actor, 'active') },
-    {
-      $facet: {
-        type: [
-          { $match: thisMonth },
-          {
-            $group: {
-              _id: '$type',
-              count: { $sum: 1 },
-              invoiced: { $sum: '$grandTotal' },
-              outstanding: { $sum: '$balanceDue' },
-            },
-          },
-        ],
-        state: [{ $match: thisMonth }, { $group: { _id: '$state', count: { $sum: 1 } } }],
-        total: [{ $match: thisMonth }, { $count: 'n' }],
+/** Facet stages producing one StatsSlice, optionally narrowed to a date window. */
+function sliceFacets(window: Record<string, unknown> | null) {
+  const pre = window ? [{ $match: window }] : [];
+  return {
+    type: [
+      ...pre,
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          invoiced: { $sum: '$grandTotal' },
+          outstanding: { $sum: '$balanceDue' },
+        },
       },
-    },
-  ]);
+    ],
+    state: [...pre, { $group: { _id: '$state', count: { $sum: 1 } } }],
+    total: [...pre, { $count: 'n' }],
+  };
+}
 
+interface FacetRow {
+  type?: { _id: string; count: number; invoiced: number; outstanding: number }[];
+  state?: { _id: string; count: number }[];
+  total?: { n: number }[];
+}
+
+function toSlice(row: FacetRow | undefined): StatsSlice {
   const byState: Record<string, number> = {};
   for (const s of row?.state ?? []) byState[s._id] = s.count;
 
@@ -280,11 +295,55 @@ export async function getInvoiceStats(actor: SessionUser): Promise<InvoiceStats>
     };
   }
 
+  return { total: row?.total?.[0]?.n ?? 0, byState, byType };
+}
+
+/** Aggregated dashboard stats over the invoices this user may see (split by invoice type).
+ *  Returns the selected period plus the current month, since the dashboard shows both. */
+export async function getInvoiceStats(
+  actor: SessionUser,
+  range: StatsRange = 'all',
+): Promise<InvoiceStats> {
+  assertCan(actor.role, Permission.InvoiceView);
+  await connectDb();
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisMonth = { createdAt: { $gte: monthStart } };
+
+  const rangeStart =
+    range === 'all'
+      ? null
+      : new Date(now.getFullYear(), now.getMonth() - RANGE_MONTHS[range] + 1, 1);
+  const rangeWindow = rangeStart ? { createdAt: { $gte: rangeStart } } : null;
+
+  const [row] = await Invoice.aggregate([
+    // Stats cover the active set only (archived + deleted excluded).
+    { $match: invoiceVisibilityFilter(actor, 'active') },
+    {
+      $facet: {
+        ...sliceFacets(rangeWindow),
+        // Prefixed so the two slices share one aggregation pass over the same match.
+        ...Object.fromEntries(
+          Object.entries(sliceFacets(thisMonth)).map(([k, v]) => [`m_${k}`, v]),
+        ),
+      },
+    },
+  ]);
+
+  const r = (row ?? {}) as Record<string, unknown>;
+  const month = toSlice({
+    type: r.m_type as FacetRow['type'],
+    state: r.m_state as FacetRow['state'],
+    total: r.m_total as FacetRow['total'],
+  });
+
   return {
-    total: row?.total?.[0]?.n ?? 0,
-    byState,
+    ...toSlice(row as FacetRow),
+    range,
+    rangeStart: rangeStart ? rangeStart.toISOString() : null,
     pipelineMonth: monthStart.toISOString(),
-    byType,
+    month,
   };
 }
 

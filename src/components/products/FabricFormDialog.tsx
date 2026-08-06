@@ -104,19 +104,36 @@ export function FabricFormDialog({
   );
   const guard = useFormGuard<FormValues>({ valuesRef, isValid });
 
+  /*
+   * Pulled out as its own binding so the dependency list below can name it. `guard` is a fresh
+   * object every render, so depending on that would re-run the reset on every keystroke; the
+   * lint rule cannot prove `guard.reset` is stable, but it can track a plain identifier. The
+   * callback itself is memoized in useFormGuard.
+   */
+  const resetGuard = guard.reset;
+
+  /*
+   * Read through a ref inside the reset effect below. `initialMode` is a prop, and depending on
+   * it directly would re-run the reset — discarding whatever the user had typed — if the parent
+   * happened to re-render with a different value while the dialog was open. The mode only ever
+   * needs to be read at the moment the dialog opens.
+   */
+  const initialModeRef = useRef(initialMode);
+  initialModeRef.current = initialMode;
+
   useLayoutEffect(() => {
     if (!open) return;
     const next = fabric ? valuesFromFabric(fabric) : { ...EMPTY };
     valuesRef.current = next;
     setInitial(next);
     // Creating has nothing to view, so it always opens editable.
-    setMode(fabric ? initialMode : 'edit');
-    guard.reset(next);
+    setMode(fabric ? initialModeRef.current : 'edit');
+    resetGuard(next);
     setErrors({});
     setTouched({});
     setSubmitted(false);
     setFormKey((k) => k + 1);
-  }, [open, fabric]);
+  }, [open, fabric, resetGuard]);
 
   const validate = useCallback((f: FormValues): FieldErrors => {
     const result = fabricFormSchema.safeParse({
