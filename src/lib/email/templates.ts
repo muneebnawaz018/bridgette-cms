@@ -1,6 +1,6 @@
 import { colors } from '@/lib/colors';
 import { env } from '@/lib/config/env';
-import { COMPANY_CONTACT } from '@/modules/legal/company';
+import { type CompanyContact } from '@/modules/legal/company';
 import { formatPhone, telHref } from '@/lib/format/countries';
 
 /**
@@ -280,9 +280,12 @@ export function invoiceEmail(params: {
   issueDate?: string;
   /** Set when part of it is already paid, so the mail does not ask twice for the same money. */
   paid?: string;
-  companyName: string;
+  /** The office this invoice is issued from — name in the subject, contact details in the
+   *  footer. PK invoices bill from Sialkot, so the mail must not offer the Chino desk. */
+  company: CompanyContact;
 }): MailBody {
-  const { invoiceNumber, billTo, total, amountDue, dueDate, issueDate, paid, companyName } = params;
+  const { invoiceNumber, billTo, total, amountDue, dueDate, issueDate, paid, company } = params;
+  const companyName = company.name;
 
   const rows: Array<{ label: string; value: string; strong?: boolean; accent?: boolean }> = [];
   // Dates first, then money. The two dates belong next to each other: read apart, "Aug 3" and
@@ -305,7 +308,7 @@ export function invoiceEmail(params: {
       body: `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">${greeting}</p>
         <p style="margin:0 0 4px;font-size:15px;line-height:1.6">Please find invoice <strong>${esc(invoiceNumber)}</strong> from ${esc(companyName)} attached as a PDF.</p>
         ${detailsTable(rows)}
-        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">Payment terms and remittance details are set out on the attached invoice. For any queries, contact us at <a href="mailto:${esc(COMPANY_CONTACT.email)}" style="color:${MUTED}">${esc(COMPANY_CONTACT.email)}</a> or <a href="${esc(telHref(COMPANY_CONTACT.phone))}" style="color:${MUTED}">${esc(formatPhone(COMPANY_CONTACT.phone))}</a>.</p>`,
+        <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">Payment terms and remittance details are set out on the attached invoice. For any queries, contact us at <a href="mailto:${esc(company.email)}" style="color:${MUTED}">${esc(company.email)}</a> or <a href="${esc(telHref(company.phone))}" style="color:${MUTED}">${esc(formatPhone(company.phone))}</a>.</p>`,
     }),
     text: [
       billTo ? `Hello ${billTo},` : 'Hello,',
@@ -318,7 +321,7 @@ export function invoiceEmail(params: {
       ...(paid ? [`Already paid: ${paid}`] : []),
       `Amount due: ${amountDue}`,
       '',
-      `Payment terms and remittance details are set out on the attached invoice. For any queries, contact us at ${COMPANY_CONTACT.email} or ${formatPhone(COMPANY_CONTACT.phone)}.`,
+      `Payment terms and remittance details are set out on the attached invoice. For any queries, contact us at ${company.email} or ${formatPhone(company.phone)}.`,
     ].join('\n'),
   };
 }

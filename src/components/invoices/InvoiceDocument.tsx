@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
+import { companyContactFor, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { formatMoney } from '@/lib/format/money';
 import { formatPhone, telHref } from '@/lib/format/countries';
@@ -121,6 +121,9 @@ export function InvoiceDocument({
      exempt on the ones that otherwise would, so the rate alone does not answer it. */
   const taxed = invoice.taxRate > 0 && invoice.taxAmount > 0;
   const typeLabel = TYPE_LABEL[invoice.type] ?? 'INVOICE';
+  // A PK invoice is issued from the Sialkot office, the other two from Chino — so the masthead
+  // follows the type rather than always printing the US address.
+  const company = companyContactFor(invoice.type);
 
   return (
     <div className="inv-doc">
@@ -263,16 +266,17 @@ export function InvoiceDocument({
           )}
         </div>
         <div className="inv-co">
-          <h1>{COMPANY_CONTACT.name}</h1>
-          <p>{COMPANY_CONTACT.addressLine1}</p>
-          <p>{COMPANY_CONTACT.addressLine2}</p>
+          <h1>{company.name}</h1>
+          {company.addressLines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
           <div className="gap" />
           {/* Dialable on a screen, ordinary text on paper — the href simply has nothing to do
               when printed, and the CSS below keeps it from looking like a link either way. */}
           <p>
-            <a href={telHref(COMPANY_CONTACT.phone)}>{formatPhone(COMPANY_CONTACT.phone)}</a>
+            <a href={telHref(company.phone)}>{formatPhone(company.phone)}</a>
           </p>
-          <p>{COMPANY_CONTACT.email}</p>
+          <p>{company.email}</p>
         </div>
         <div className="inv-meta">
           <div className="big">{typeLabel}</div>

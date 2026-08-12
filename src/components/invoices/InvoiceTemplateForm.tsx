@@ -8,7 +8,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Popover from '@mui/material/Popover';
 import { DateCalendarField } from '@/components/form/DateCalendarField';
-import { COMPANY_CONTACT, INVOICE_TERMS } from '@/modules/legal/company';
+import { companyContactFor, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
 import { formatMoney } from '@/lib/format/money';
@@ -310,6 +310,7 @@ export function InvoiceTemplateForm({
   onCustomerPick: (opt: CustomerOption | null) => void;
 }) {
   const policy = TAX_POLICY[form.type];
+  const company = companyContactFor(form.type);
   const resellerExempt = form.type === InvoiceType.Tax && form.reseller;
   const taxable =
     (policy === 'always' || (policy === 'optional' && form.applyTax)) && !resellerExempt;
@@ -712,15 +713,18 @@ export function InvoiceTemplateForm({
             style={{ width: '100%', height: 'auto' }}
           />
         </div>
+        {/* Follows the type picker in the masthead beside it: a PK invoice is issued from the
+            Sialkot office, the two US types from Chino. */}
         <div className="tpl-co">
-          <h1>{COMPANY_CONTACT.name}</h1>
-          <p>{COMPANY_CONTACT.addressLine1}</p>
-          <p>{COMPANY_CONTACT.addressLine2}</p>
+          <h1>{company.name}</h1>
+          {company.addressLines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
           <div className="gap" />
           <p>
-            <a href={telHref(COMPANY_CONTACT.phone)}>{formatPhone(COMPANY_CONTACT.phone)}</a>
+            <a href={telHref(company.phone)}>{formatPhone(company.phone)}</a>
           </p>
-          <p>{COMPANY_CONTACT.email}</p>
+          <p>{company.email}</p>
         </div>
         <div className="tpl-meta">
           <button

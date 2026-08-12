@@ -5,7 +5,7 @@ import { sendMail } from '@/lib/email/mailer';
 import { invoiceEmail } from '@/lib/email/templates';
 import { renderInvoicePdf, invoicePdfFilename } from '@/lib/pdf/invoicePdf';
 import { toDocumentData, type StoredInvoiceLike } from '@/modules/invoicing/documentData';
-import { COMPANY_CONTACT } from '@/modules/legal/company';
+import { companyContactFor } from '@/modules/legal/company';
 import { resolveSendTo } from '@/modules/invoicing/sendTo';
 import { formatMoney } from '@/lib/format/money';
 import { logger } from '@/lib/logger/logger';
@@ -73,7 +73,7 @@ export async function sendInvoiceToCustomer(
     amountDue: formatMoney(currency, doc.balanceDue ?? doc.grandTotal ?? 0),
     issueDate: dateLabel(doc.issueDate),
     dueDate: dateLabel(doc.dueDate),
-    companyName: COMPANY_CONTACT.name,
+    company: companyContactFor(doc.type),
   });
 
   const pdf = await renderInvoicePdf(toDocumentData(doc as unknown as StoredInvoiceLike));
