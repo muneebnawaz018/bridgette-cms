@@ -10,6 +10,9 @@ import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
 import InboxRounded from '@mui/icons-material/InboxRounded';
+import CheckRounded from '@mui/icons-material/CheckRounded';
+import CloseRounded from '@mui/icons-material/CloseRounded';
+import BlockRounded from '@mui/icons-material/BlockRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { useApi } from '@/lib/api/useApi';
@@ -194,15 +197,21 @@ export function IntakeReviewDialog({
               color="inherit"
               onClick={() => void review('rejected')}
               disabled={saving}
+              startIcon={<BlockRounded />}
             >
               Dismiss
             </Button>
-            <Button variant="contained" onClick={() => void review('approved')} disabled={saving}>
+            <Button
+              variant="contained"
+              onClick={() => void review('approved')}
+              disabled={saving}
+              startIcon={<CheckRounded />}
+            >
               Apply selected
             </Button>
           </>
         ) : (
-          <Button variant="outlined" color="inherit" onClick={onClose}>
+          <Button variant="outlined" color="inherit" onClick={onClose} startIcon={<CloseRounded />}>
             Close
           </Button>
         )

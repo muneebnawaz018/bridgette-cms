@@ -8,7 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": " rm -rf .next && next dev --turbopack",
+    "dev": "next dev --turbopack",
+    "dev:clean": "rm -rf .next && next dev --turbopack",
     "dev:webpack": "next dev",
     "build": "next build",
     "start": "next start",

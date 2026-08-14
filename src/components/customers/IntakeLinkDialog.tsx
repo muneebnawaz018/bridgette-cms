@@ -228,7 +228,7 @@ export function IntakeLinkDialog({
       icon={<LinkRounded />}
       maxWidth="sm"
       actions={
-        <Button variant="outlined" color="inherit" onClick={onClose}>
+        <Button variant="outlined" color="inherit" onClick={onClose} startIcon={<CheckRounded />}>
           Done
         </Button>
       }
@@ -248,12 +248,15 @@ export function IntakeLinkDialog({
                 },
               },
               input: {
-                sx: { bgcolor: colors.surface.subtle, pr: 0.5 },
+                // `edge="end"` is deliberately not used on the button below: it pulls the icon
+                // outward with a negative margin, leaving it tighter to the border than the text
+                // is on the left.
+                sx: { bgcolor: colors.surface.subtle, pr: 1 },
                 endAdornment: (
                   <InputAdornment position="end">
                     <Tooltip title={copied ? 'Copied' : 'Copy link'}>
                       <span>
-                        <IconButton onClick={copy} disabled={!issued} edge="end">
+                        <IconButton onClick={copy} disabled={!issued}>
                           {copied ? (
                             <CheckRounded sx={{ color: colors.status.success }} />
                           ) : (
@@ -276,61 +279,69 @@ export function IntakeLinkDialog({
 
         {/* Who it is for, and how it reaches them. */}
         <FormSection title="Send it">
+          {/* Who it goes to on one row, then the two ways to send it on the next. Email and
+              WhatsApp are the same decision, so they are laid out as siblings — welding Send to
+              the email field left WhatsApp orphaned underneath, looking like an afterthought. */}
           <Grid container spacing={2}>
-            <Grid size={12}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 label="Their name (optional)"
                 placeholder="e.g. James Young"
                 value={greetName}
                 onChange={(e) => setGreetName(e.target.value)}
-                helperText="Used to address the message. They confirm their own name on the form."
+                helperText="Used for the greeting."
                 fullWidth
               />
             </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label="Email address"
+                placeholder="name@company.com"
+                value={emailTo}
+                onChange={(e) => {
+                  setEmailTo(e.target.value);
+                  if (emailError) setEmailError('');
+                }}
+                error={Boolean(emailError)}
+                helperText={emailError || (emailedTo ? `Sent to ${emailedTo}` : ' ')}
+                fullWidth
+                disabled={!issued || sending}
+              />
+            </Grid>
 
-            {/* The button sits on the field's own row, so it stays level with the input while
-                the helper text grows underneath rather than pushing it out of line. */}
             <Grid size={12}>
-              <Stack direction="row" spacing={2} alignItems="flex-start">
-                <TextField
-                  label="Email address"
-                  placeholder="name@company.com"
-                  value={emailTo}
-                  onChange={(e) => {
-                    setEmailTo(e.target.value);
-                    if (emailError) setEmailError('');
-                  }}
-                  error={Boolean(emailError)}
-                  helperText={emailError || (emailedTo ? `Sent to ${emailedTo}` : undefined)}
-                  sx={{ flexGrow: 1 }}
-                  disabled={!issued || sending}
-                />
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <Button
                   variant="contained"
                   startIcon={<SendRounded />}
                   onClick={() => void sendEmail()}
                   disabled={!issued || sending}
-                  // Matches the input's height so the pair reads as one control, and holds a
-                  // fixed width so "Send" growing into "Send again" does not shift the field.
-                  sx={{ flexShrink: 0, minWidth: 140, height: 56 }}
+                  sx={{ flex: 1 }}
                 >
-                  {sending ? 'Sending…' : emailedTo ? 'Send again' : 'Send'}
+                  {sending ? 'Sending…' : emailedTo ? 'Send again' : 'Send email'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<WhatsAppIcon />}
+                  component="a"
+                  href={whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  disabled={!issued}
+                  sx={{
+                    flex: 1,
+                    color: colors.external.whatsapp,
+                    borderColor: colors.external.whatsapp,
+                    '&:hover': {
+                      borderColor: colors.external.whatsappDark,
+                      color: colors.external.whatsappDark,
+                      bgcolor: colors.status.successBg,
+                    },
+                  }}
+                >
+                  WhatsApp
                 </Button>
               </Stack>
-            </Grid>
-
-            <Grid size={12}>
-              <Button
-                variant="outlined"
-                startIcon={<WhatsAppIcon />}
-                component="a"
-                href={whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                disabled={!issued}
-              >
-                Share on WhatsApp
-              </Button>
             </Grid>
           </Grid>
         </FormSection>

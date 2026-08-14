@@ -134,6 +134,15 @@ export const colors = {
     controlBg: '#f6f7f9', // = surface.canvas
     placeholder: '#828b97', // = ink.400
   },
+  /*
+   * Third-party brand colours, used only on a control that hands off to that service. Not part
+   * of the palette: a WhatsApp button carries WhatsApp's green because the customer recognises
+   * it, and rendering it in our neutral grey made it read as disabled.
+   */
+  external: {
+    whatsapp: '#25d366',
+    whatsappDark: '#1da851',
+  },
 } as const;
 
 /** Reusable gradients (brand hero surfaces, accents). */

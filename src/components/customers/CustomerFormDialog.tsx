@@ -14,7 +14,6 @@ import SaveRounded from '@mui/icons-material/SaveRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
-import DownloadRounded from '@mui/icons-material/DownloadRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneField } from '@/components/ui/PhoneField';
@@ -28,15 +27,7 @@ import { statesFor, type AddressParts } from '@/modules/customers/address';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
-import { colors } from '@/lib/colors';
-
-/** What a reseller certificate may be: a scan, a PDF, or a Word document. */
-const CERT_ACCEPT_TYPES =
-  /^(image\/|application\/pdf$|application\/msword$|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document$)/;
-const CERT_ACCEPT =
-  'image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-/** 4MB raw. Base64 inflates by a third, so the encoded body stays inside the route's limit. */
-const CERT_MAX_BYTES = 4 * 1024 * 1024;
+import { CertificateDropzone, type CertificateFile } from './CertificateDropzone';
 
 /*
  * One dialog for creating and editing a customer (admin only). Mirrors UserFormDialog's shape:
@@ -351,9 +342,7 @@ export function CustomerFormDialog({
    * `null` means the user removed it, and an object is a newly picked file. That three-way is
    * what lets a PATCH tell "leave it alone" apart from "delete it".
    */
-  const [certificate, setCertificate] = useState<
-    { data: string; name: string; contentType: string; size: number } | null | undefined
-  >(undefined);
+  const [certificate, setCertificate] = useState<CertificateFile | null | undefined>(undefined);
   const [certError, setCertError] = useState<string>('');
   // Shipping bits that drive layout, so they need a render: the toggle and the two selects.
   const [shipSame, setShipSame] = useState(true);
@@ -456,35 +445,6 @@ export function CustomerFormDialog({
     [guard],
   );
 
-  /*
-   * The certificate is read into a data URL here rather than uploaded separately: it rides along
-   * with the save, so a picked file and a cancelled dialog leave nothing orphaned on the server.
-   */
-  const pickCertificate = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // let the same file be re-picked after an error
-    if (!file) return;
-    if (!CERT_ACCEPT_TYPES.test(file.type)) {
-      setCertError('Attach an image, a PDF or a Word document');
-      return;
-    }
-    if (file.size > CERT_MAX_BYTES) {
-      setCertError(`That file is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 4MB`);
-      return;
-    }
-    try {
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read that file'));
-        reader.readAsDataURL(file);
-      });
-      setCertificate({ data, name: file.name, contentType: file.type, size: file.size });
-      setCertError('');
-    } catch {
-      setCertError('Could not read that file');
-    }
-  }, []);
   const toggleShipSame = useCallback(
     (same: boolean) => {
       valuesRef.current.shipSameAsBilling = same;
@@ -603,7 +563,8 @@ export function CustomerFormDialog({
     certificate === null
       ? null
       : (certificate?.name ?? customer?.resellerCertificate?.name ?? null);
-  const canAttachCert = !locked && certName === null;
+  /** The stored file's size when nothing new has been picked, so the box reads the same either way. */
+  const certSize = certificate?.size ?? customer?.resellerCertificate?.size;
 
   const shipDisabled = locked || shipSame;
 
@@ -836,117 +797,35 @@ export function CustomerFormDialog({
               {/* Only for resellers — the certificate is the evidence for the exemption, so it
                   has nowhere to belong on a customer who is not claiming one. */}
               {reseller && (
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  {/*
-                   * Borrows the outlined input's own tokens — same radius, border colour, 56px
-                   * height and paper fill — so it sits in the grid as a peer of the Reseller
-                   * select beside it.
-                   *
-                   * With no file attached the whole box IS the file input's label, so the click
-                   * target is the control rather than three words at its right edge. Once a file
-                   * is on it the box goes inert again: the only action then is Remove, and a box
-                   * that silently reopened the picker would undo a deliberate choice.
-                   */}
-                  <Box
-                    component={canAttachCert ? 'label' : 'div'}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: certError ? 'error.main' : colors.surface.borderStrong,
-                      borderRadius: 1,
-                      bgcolor: 'background.paper',
-                      pl: 1.75,
-                      pr: 1,
-                      py: 0.75,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      minHeight: 56,
-                      ...(canAttachCert
-                        ? {
-                            cursor: 'pointer',
-                            transition: 'border-color .16s ease, background-color .16s ease',
-                            '&:hover': {
-                              borderColor: 'primary.main',
-                              bgcolor: 'action.hover',
-                            },
-                          }
-                        : null),
-                    }}
+                <Grid size={12}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mb: 1, display: 'block' }}
                   >
-                    {canAttachCert && (
-                      <input
-                        hidden
-                        type="file"
-                        accept={CERT_ACCEPT}
-                        onChange={pickCertificate}
-                        disabled={saving}
-                      />
-                    )}
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block' }}
-                      >
-                        Reseller certificate
-                      </Typography>
-                      {/* The filename when there is a file, and nothing but the label when there
-                          is not. A removal used to announce itself here, which read as an error
-                          on a field the user had just deliberately cleared. */}
-                      <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-                        {certName ?? 'None attached'}
-                      </Typography>
-                    </Box>
-                    {/*
-                     * One action, chosen by what the box is for right now.
-                     *
-                     * Reading a record: Download, and only for a file already saved — a freshly
-                     * picked one exists solely in this dialog and has no URL to fetch yet.
-                     * Editing: Attach when empty, Remove when full. Attach is a cue rather than
-                     * a control, since the label wrapping the whole box already takes the click
-                     * and a nested one would fire the picker twice.
-                     */}
-                    {readOnly
-                      ? customer?.resellerCertificate && (
-                          <Button
-                            size="small"
-                            component="a"
-                            href={`/api/customers/${customer._id}/certificate`}
-                            download
-                            startIcon={<DownloadRounded />}
-                            sx={{ flexShrink: 0 }}
-                          >
-                            Download
-                          </Button>
-                        )
-                      : !locked &&
-                        (canAttachCert ? (
-                          <Typography
-                            variant="button"
-                            color="primary"
-                            sx={{ pr: 1, pointerEvents: 'none', flexShrink: 0 }}
-                          >
-                            Attach
-                          </Typography>
-                        ) : (
-                          <Button
-                            size="small"
-                            color="inherit"
-                            disabled={saving}
-                            onClick={() => {
-                              setCertificate(null);
-                              setCertError('');
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        ))}
-                  </Box>
-                  {certError && (
-                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
-                      {certError}
-                    </Typography>
-                  )}
+                    Reseller certificate
+                  </Typography>
+                  {/* The same dropzone the customer sees on their intake form, so a certificate
+                      staff attach and one a customer uploads are the same control. */}
+                  <CertificateDropzone
+                    file={certName ? { name: certName, size: certSize } : null}
+                    onPick={(f) => {
+                      setCertificate(f);
+                      setCertError('');
+                    }}
+                    onRemove={() => {
+                      setCertificate(null);
+                      setCertError('');
+                    }}
+                    onError={setCertError}
+                    error={certError}
+                    disabled={locked || saving}
+                    downloadHref={
+                      readOnly && customer?.resellerCertificate
+                        ? `/api/customers/${customer._id}/certificate`
+                        : undefined
+                    }
+                  />
                 </Grid>
               )}
               <Grid size={{ xs: 12, sm: 6 }}>

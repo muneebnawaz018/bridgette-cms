@@ -4,14 +4,11 @@ import { useCallback, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
-import Stack from '@mui/material/Stack';
-import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
-import UploadFileRounded from '@mui/icons-material/UploadFileRounded';
 import { useSnackbar } from 'notistack';
 import { BrandLockup } from '@/components/layout/BrandLockup';
 import { FormSection, TextInput, SelectInput } from '@/components/form/fields';
@@ -21,6 +18,10 @@ import { customerIntakeSubmitSchema } from '@/modules/customers/intake.schemas';
 import { apiPost } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 import { colors, gradients } from '@/lib/colors';
+import {
+  CertificateDropzone,
+  type CertificateFile,
+} from '@/components/customers/CertificateDropzone';
 import { COMPANY_CONTACT_US } from '@/modules/legal/company';
 
 /*
@@ -42,21 +43,6 @@ const STATE_OPTIONS: Record<'US' | 'PK', { value: string; label: string }[]> = {
   US: statesFor('US').map((s) => ({ value: s.code, label: `${s.code} · ${s.name}` })),
   PK: statesFor('PK').map((s) => ({ value: s.code, label: s.name })),
 };
-
-/** Mirrors the server's allowlist. The server re-checks the bytes; this only saves a round trip. */
-const CERT_ACCEPT =
-  'image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-const CERT_ACCEPT_TYPES =
-  /^(image\/|application\/pdf$|application\/msword$|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document$)/;
-/** 4MB raw. Base64 inflates by a third, keeping the encoded body inside the route's ceiling. */
-const CERT_MAX_BYTES = 4 * 1024 * 1024;
-
-interface Certificate {
-  data: string;
-  name: string;
-  contentType: string;
-  size: number;
-}
 
 type Country = 'US' | 'PK';
 
@@ -110,7 +96,7 @@ function toPayload(
   country: Country,
   shipCountry: Country,
   shipSame: boolean,
-  certificate: Certificate | null,
+  certificate: CertificateFile | null,
 ) {
   return {
     firstName: v.firstName || undefined,
@@ -184,7 +170,7 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
   const [state, setState] = useState('');
   const [shipState, setShipState] = useState('');
   const [shipSame, setShipSame] = useState(true);
-  const [certificate, setCertificate] = useState<Certificate | null>(null);
+  const [certificate, setCertificate] = useState<CertificateFile | null>(null);
   const [certError, setCertError] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -205,31 +191,18 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
   /** An error is shown once its field has been visited, or once submit has been attempted. */
   const shown = (name: string) => (submitted || touched[name] ? errors[name] : undefined);
 
-  const pickCertificate = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // let the same file be re-picked after an error
-    if (!file) return;
-
-    if (!CERT_ACCEPT_TYPES.test(file.type)) {
-      setCertError('Attach an image, a PDF or a Word document');
-      return;
-    }
-    if (file.size > CERT_MAX_BYTES) {
-      setCertError(`That file is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 4MB`);
-      return;
-    }
-    try {
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Could not read that file'));
-        reader.readAsDataURL(file);
-      });
-      setCertificate({ data, name: file.name, contentType: file.type, size: file.size });
-      setCertError('');
-    } catch {
-      setCertError('Could not read that file');
-    }
+  /*
+   * Drop a field's error the moment it is answered. The text inputs re-validate on submit and
+   * hold their own value, but a select's error is only recomputed on the next submit — so
+   * without this, picking a state left "A state is required" sitting under a filled-in field.
+   */
+  const clearError = useCallback((name: string) => {
+    setErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   }, []);
 
   async function submit() {
@@ -417,10 +390,12 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
                 value={state}
                 options={STATE_OPTIONS[country]}
                 placeholderLabel={country === 'US' ? 'Pick a state' : 'Pick a province'}
+                required
                 helperText={shown('state')}
                 error={Boolean(shown('state'))}
                 onChange={(_name, value) => {
                   setState(value);
+                  clearError('state');
                   setTouched((t) => ({ ...t, state: true }));
                 }}
               />
@@ -535,7 +510,10 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
                   required
                   helperText={shown('shipState')}
                   error={Boolean(shown('shipState'))}
-                  onChange={(_name, value) => setShipState(value)}
+                  onChange={(_name, value) => {
+                    setShipState(value);
+                    clearError('shipState');
+                  }}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
@@ -561,32 +539,17 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
             Only if you buy for resale and hold a valid certificate. Attaching it removes sales tax
             from your invoices. Skip this if it does not apply to you.
           </Typography>
-          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-            <Button
-              component="label"
-              variant="outlined"
-              startIcon={<UploadFileRounded />}
-              disabled={saving}
-            >
-              {certificate ? 'Replace file' : 'Attach certificate'}
-              <input hidden type="file" accept={CERT_ACCEPT} onChange={pickCertificate} />
-            </Button>
-            {certificate && (
-              <>
-                <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0 }} noWrap>
-                  {certificate.name}
-                </Typography>
-                <Button size="small" color="inherit" onClick={() => setCertificate(null)}>
-                  Remove
-                </Button>
-              </>
-            )}
-          </Stack>
-          {(certError || errors['resellerCertificate.data']) && (
-            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
-              {certError || errors['resellerCertificate.data']}
-            </Typography>
-          )}
+          <CertificateDropzone
+            file={certificate}
+            onPick={(f) => {
+              setCertificate(f);
+              setCertError('');
+            }}
+            onRemove={() => setCertificate(null)}
+            onError={setCertError}
+            error={certError || errors['resellerCertificate.data']}
+            disabled={saving}
+          />
         </FormSection>
 
         <FormSection title="Anything else">
