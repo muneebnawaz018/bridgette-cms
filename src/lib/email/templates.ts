@@ -174,7 +174,7 @@ export function resetPasswordEmail(name: string, link: string): MailBody {
         <p style="margin:0;font-size:15px;line-height:1.6">We received a request to reset the password for your ${esc(PRODUCT)} account. Choose a new one here:</p>
         ${button(link, 'Reset password')}
         <p style="margin:16px 0 0;font-size:13px;color:${MUTED}">This link expires in <strong>30 minutes</strong> and can only be used once.</p>
-        <p style="margin:8px 0 0;font-size:13px;color:${MUTED}">If you did not request a reset, ignore this email — your password stays unchanged.</p>`,
+        <p style="margin:8px 0 0;font-size:13px;color:${MUTED}">If you did not request a reset, ignore this email and your password stays unchanged.</p>`,
     }),
     text: [
       `Hi ${name},`,
@@ -183,7 +183,7 @@ export function resetPasswordEmail(name: string, link: string): MailBody {
       `Reset it here: ${link}`,
       '',
       'This link expires in 30 minutes and can only be used once.',
-      'If you did not request a reset, ignore this email — your password stays unchanged.',
+      'If you did not request a reset, ignore this email and your password stays unchanged.',
     ].join('\n'),
   };
 }
@@ -208,6 +208,98 @@ export function changeEmailOtpEmail(name: string, code: string): MailBody {
       '',
       'This code expires in 15 minutes.',
       'If you did not request this change, ignore this email and consider changing your password.',
+    ].join('\n'),
+  };
+}
+
+/**
+ * The intake invitation: asks a customer to supply their billing details through a one-time
+ * link, instead of dictating them over the phone.
+ *
+ * Kept to one paragraph and one button. It goes to someone outside the company who may never
+ * have heard from us, and a long list of instructions reads as either a chore or a phishing
+ * attempt — so it says what is needed, what the link does, and stops.
+ *
+ * It names itself as automated rather than inviting a reply, because the footer says not to
+ * reply and the sending mailbox is not monitored. Anyone who does need a person is pointed at
+ * the office address and phone instead. The expiry is stated so a link found weeks later
+ * explains itself instead of looking broken.
+ */
+export function customerIntakeEmail(params: {
+  customerName?: string;
+  link: string;
+  expiresInDays: number;
+  company: CompanyContact;
+}): MailBody {
+  const { customerName, link, expiresInDays, company } = params;
+  const greeting = customerName ? `Dear ${esc(customerName)},` : 'Hello,';
+  const address = company.addressLines.join(', ');
+
+  return {
+    subject: `Your billing details for ${company.name}`,
+    html: shell({
+      title: 'Your billing details',
+      preheader: `${company.name} has invited you to confirm your billing and shipping details. The link is valid for ${expiresInDays} days.`,
+      body: `<p style="margin:0 0 14px;font-size:15px;line-height:1.6">${greeting}</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Before we can raise your invoices, we need your billing and shipping details on file. Use the link below to enter them. It takes about a minute, and no account or password is required.</p>
+        ${button(link, 'Enter my details')}
+        <p style="margin:14px 0 0;font-size:13px;color:${MUTED}">The link is unique to you and expires in ${expiresInDays} days. If you hold a valid resale certificate, attach it on the same form and your invoices will be issued without sales tax.</p>
+        <p style="margin:14px 0 0;font-size:13px;color:${MUTED}">Sent automatically by the ${esc(company.name)} billing system. For anything else, contact us at <a href="mailto:${esc(company.email)}" style="color:${MUTED}">${esc(company.email)}</a> or <a href="${esc(telHref(company.phone))}" style="color:${MUTED}">${esc(formatPhone(company.phone))}</a>.</p>
+        <p style="margin:18px 0 0;font-size:14px;line-height:1.6">Kind regards,<br /><strong>${esc(company.name)}</strong><br /><span style="color:${MUTED}">${esc(address)}</span></p>`,
+    }),
+    text: [
+      customerName ? `Dear ${customerName},` : 'Hello,',
+      '',
+      'Before we can raise your invoices, we need your billing and shipping details on file. Use the link below to enter them. It takes about a minute, and no account or password is required.',
+      '',
+      link,
+      '',
+      `The link is unique to you and expires in ${expiresInDays} days. If you hold a valid resale certificate, attach it on the same form and your invoices will be issued without sales tax.`,
+      '',
+      `Sent automatically by the ${company.name} billing system. For anything else, contact us at ${company.email} or ${formatPhone(company.phone)}.`,
+      '',
+      'Kind regards,',
+      company.name,
+      address,
+    ].join('\n'),
+  };
+}
+
+/**
+ * Staff alert — a customer set their own tax exemption by uploading a certificate. Applied
+ * already, not waiting on anyone; this exists so nobody discovers it a month later on an
+ * invoice that charged no sales tax.
+ */
+export function resellerSetByIntakeEmail(params: {
+  customerName: string;
+  customerLink: string;
+  certificateName?: string;
+}): MailBody {
+  const { customerName, customerLink, certificateName } = params;
+
+  return {
+    subject: `${customerName} set themselves tax-exempt`,
+    html: shell({
+      title: 'Tax exemption applied',
+      preheader: `${customerName} uploaded a resale certificate and is now exempt from sales tax.`,
+      body: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6"><strong>${esc(customerName)}</strong> uploaded a resale certificate through their intake link. Their invoices no longer charge sales tax, effective immediately.</p>
+        ${detailsTable([
+          { label: 'Customer', value: customerName },
+          { label: 'Certificate', value: certificateName || 'Attached' },
+          { label: 'Applied', value: 'Immediately, by the customer' },
+        ])}
+        ${button(customerLink, 'Review the certificate')}
+        <p style="margin:0;font-size:13px;color:${MUTED}">Open the customer to check the document. If it does not hold up, turn the exemption off there.</p>`,
+    }),
+    text: [
+      `${customerName} uploaded a resale certificate through their intake link.`,
+      'Their invoices no longer charge sales tax, effective now.',
+      '',
+      `Certificate: ${certificateName || 'Attached'}`,
+      '',
+      `Review it here: ${customerLink}`,
+      '',
+      'If it does not hold up, turn the exemption off on the customer record.',
     ].join('\n'),
   };
 }
@@ -242,7 +334,7 @@ export function reminderEmail(params: {
     html: shell({
       title: 'Invoice reminder',
       preheader: `Invoice ${invoiceNumber} is past its reminder date and still unpaid${
-        amountDue ? ` — ${amountDue} outstanding` : ''
+        amountDue ? `, ${amountDue} outstanding` : ''
       }.`,
       body: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">This is a reminder that invoice <strong>${esc(invoiceNumber)}</strong> has passed its reminder date and is still open. Please review it and record a payment if one has been received.</p>
         ${rows.length ? detailsTable(rows) : ''}

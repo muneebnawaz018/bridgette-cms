@@ -157,6 +157,38 @@ export const LIMITS = {
   /** Any authenticated mutation. Generous: it is a backstop, not a UX constraint. */
   writePerUser: { limit: 120, windowSec: 60 },
 
+  /*
+   * The customer intake link — the only unauthenticated write in the app.
+   *
+   * Opening the form is cheap and a customer may reload it a few times, so the read limit is
+   * loose; it exists to stop a script walking token guesses. The submit limit is tight because
+   * each accepted call writes a document that can carry a 5MB certificate, and a customer only
+   * ever submits once.
+   */
+  intakeOpenPerIp: { limit: 60, windowSec: 3600 },
+  intakeSubmitPerIp: { limit: 10, windowSec: 3600 },
+
   /** The heaviest authenticated call: scans and serialises up to 5000 invoices. */
   exportPerUser: { limit: 20, windowSec: 3600 },
+
+  /*
+   * Minting an invite link.
+   *
+   * Below `writePerUser` because a render loop here once fired 48 calls in 40 seconds without
+   * troubling the 120/minute generic budget. What it costs now is only token rows, which expire
+   * on their own — an unanswered invite creates no customer, so a runaway caller no longer
+   * leaves anyone a list to clean up by hand.
+   *
+   * Sized against how the dialog behaves rather than how many customers get onboarded: it mints
+   * on open, so re-opening it to re-copy a link spends the budget too. An hour's worth of that
+   * plus real invitations still fits well inside 60.
+   */
+  intakeInvitePerUser: { limit: 60, windowSec: 3600 },
+
+  /*
+   * Emailing an invite link. Every accepted call sends real mail to an address staff type in,
+   * so this protects the sending domain's reputation as much as the server: a typo repeated
+   * into a stranger's inbox is a complaint, and enough of them is a blocklisting.
+   */
+  intakeInviteEmailPerUser: { limit: 30, windowSec: 3600 },
 } as const satisfies Record<string, RateLimitRule>;

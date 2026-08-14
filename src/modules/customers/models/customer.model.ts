@@ -107,6 +107,27 @@ const customerSchema = new Schema(
       ),
       default: undefined,
     },
+    /*
+     * How the exemption above came to be set. Staff-set exemptions leave this empty; one granted
+     * by a customer uploading their own certificate through an intake link records which
+     * submission did it, when, and from where.
+     *
+     * `reseller` is a bare boolean, and on its own it cannot answer the only question that
+     * matters when a tax position is queried years later: on what evidence. This is that answer.
+     */
+    resellerSource: {
+      type: new Schema(
+        {
+          via: { type: String, enum: ['intake'] },
+          intake: { type: Schema.Types.ObjectId, ref: 'CustomerIntake' },
+          at: { type: Date },
+          ip: { type: String },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+
     // The kind of invoice this customer is usually billed with, so picking them can set the
     // invoice type. Optional — leaving it blank means "no default".
     invoiceType: { type: String, enum: Object.values(InvoiceType) },

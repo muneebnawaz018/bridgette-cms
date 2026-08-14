@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import AddRounded from '@mui/icons-material/AddRounded';
+import PersonAddAlt1Rounded from '@mui/icons-material/PersonAddAlt1Rounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -21,10 +22,14 @@ import {
   CustomerFormDialog,
   type EditableCustomer,
 } from '@/components/customers/CustomerFormDialog';
+import { IntakeLinkDialog } from '@/components/customers/IntakeLinkDialog';
+import { IntakeReviewDialog } from '@/components/customers/IntakeReviewDialog';
 import type { FormMode } from '@/components/ui/Modal';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
+import Chip from '@mui/material/Chip';
+import { colors } from '@/lib/colors';
 import { apiDelete } from '@/lib/api/client';
 import type { AddressParts } from '@/modules/customers/address';
 
@@ -41,6 +46,8 @@ interface CustomerRow {
   invoiceType?: string;
   /** Product ids this customer buys — the edit form prefills its picker from these. */
   products?: string[];
+  /** True when this customer has sent details that nobody has reviewed yet. */
+  pendingIntake?: boolean;
   /** Delivery details, when they differ from billing. */
   shipping?: {
     sameAsBilling?: boolean;
@@ -91,6 +98,28 @@ export default function CustomersPage() {
     setPaginationModel((m) => (m.pageSize === pageSize ? m : { page: 0, pageSize }));
   }, [pageSize]);
 
+  // One dialog handles create and edit; null = create.
+  const [formOpen, setFormOpen] = useState(false);
+  const [formCustomer, setFormCustomer] = useState<EditableCustomer | null>(null);
+  // Rows open read-only. Editing is reached from the pencil inside, or from the row menu.
+  const [formMode, setFormMode] = useState<FormMode>('edit');
+  // Sharing a link and reviewing what came back are two separate moments in the same flow, so
+  // they are two dialogs rather than one with a mode.
+  const [linkCustomer, setLinkCustomer] = useState<CustomerRow | null>(null);
+  /*
+   * Opened with no customer attached: an open invitation, which creates nothing until somebody
+   * fills it in. Tracked separately from `linkCustomer` because "invite somebody new" and "no
+   * row selected yet" are otherwise the same null.
+   */
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [reviewCustomer, setReviewCustomer] = useState<CustomerRow | null>(null);
+  const [toDelete, setToDelete] = useState<CustomerRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  /** Anything covering the list. Declared before the fetch, which reads it. */
+  const dialogOpen =
+    formOpen || Boolean(linkCustomer) || inviteOpen || Boolean(reviewCustomer) || Boolean(toDelete);
+
   const params = new URLSearchParams({
     page: String(paginationModel.page + 1),
     limit: String(paginationModel.pageSize),
@@ -98,15 +127,18 @@ export default function CustomersPage() {
   if (search) params.set('search', search);
   const { data, isLoading, mutate } = useApi<{ items: CustomerRow[]; total: number }>(
     `/api/customers?${params.toString()}`,
+    {
+      /*
+       * Nothing behind an open dialog can be read or acted on, and every dialog that changes the
+       * list already refreshes it on save. Leaving focus revalidation on meant clicking between
+       * the dialog and DevTools — or opening WhatsApp from the invite dialog and coming back —
+       * refetched the whole list for a view nobody is looking at.
+       */
+      revalidateOnFocus: !dialogOpen,
+    },
   );
   const rows = data?.items ?? [];
   const rowCount = data?.total ?? 0;
-
-  // One dialog handles create and edit; null = create.
-  const [formOpen, setFormOpen] = useState(false);
-  const [formCustomer, setFormCustomer] = useState<EditableCustomer | null>(null);
-  // Rows open read-only. Editing is reached from the pencil inside, or from the row menu.
-  const [formMode, setFormMode] = useState<FormMode>('edit');
 
   const openCreate = useCallback(() => {
     setFormCustomer(null);
@@ -126,9 +158,6 @@ export default function CustomersPage() {
     setFormOpen(true);
   }, []);
 
-  const [toDelete, setToDelete] = useState<CustomerRow | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
   async function confirmDelete() {
     if (!toDelete) return;
     setDeleting(true);
@@ -145,7 +174,37 @@ export default function CustomersPage() {
 
   const columns: GridColDef<CustomerRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1.3, minWidth: 130 },
+      {
+        field: 'name',
+        headerName: 'Name',
+        flex: 1.3,
+        minWidth: 130,
+        renderCell: (p) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+            <Box
+              component="span"
+              sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+            >
+              {p.row.name}
+            </Box>
+            {/* The only place a waiting submission announces itself. Name is the one column that
+                survives every breakpoint, so the badge rides along with it. */}
+            {p.row.pendingIntake && (
+              <Chip
+                size="small"
+                label="New details"
+                onClick={() => setReviewCustomer(p.row)}
+                sx={{
+                  fontWeight: 700,
+                  bgcolor: colors.status.infoBg,
+                  color: colors.status.info,
+                  cursor: 'pointer',
+                }}
+              />
+            )}
+          </Box>
+        ),
+      },
       {
         field: 'email',
         headerName: 'Email',
@@ -192,6 +251,16 @@ export default function CustomersPage() {
           const actions: RowAction[] = [];
           actions.push({ label: 'View', onClick: () => openView(p.row) });
           if (canEdit) actions.push({ label: 'Edit', onClick: () => openEdit(p.row) });
+          if (canEdit) {
+            actions.push({
+              label: 'Request details',
+              onClick: () => setLinkCustomer(p.row),
+            });
+            actions.push({
+              label: p.row.pendingIntake ? 'Review new details' : 'Review submissions',
+              onClick: () => setReviewCustomer(p.row),
+            });
+          }
           if (canDelete)
             actions.push({ label: 'Delete', danger: true, onClick: () => setToDelete(p.row) });
           if (actions.length === 0) return null;
@@ -213,9 +282,20 @@ export default function CustomersPage() {
         subtitle={`${rowCount} ${rowCount === 1 ? 'customer' : 'customers'} · reusable billing parties`}
         actions={
           canCreate && (
-            <Button variant="contained" onClick={openCreate} startIcon={<AddRounded />}>
-              New customer
-            </Button>
+            <>
+              {/* Outlined, so "New customer" stays the primary action for staff who already
+                  have the details in front of them. */}
+              <Button
+                variant="outlined"
+                onClick={() => setInviteOpen(true)}
+                startIcon={<PersonAddAlt1Rounded />}
+              >
+                Invite customer
+              </Button>
+              <Button variant="contained" onClick={openCreate} startIcon={<AddRounded />}>
+                New customer
+              </Button>
+            </>
           )
         }
       />
@@ -249,6 +329,22 @@ export default function CustomersPage() {
         canEdit={canEdit}
         onClose={() => setFormOpen(false)}
         onSaved={() => void mutate()}
+      />
+
+      <IntakeLinkDialog
+        open={Boolean(linkCustomer)}
+        customer={linkCustomer}
+        onClose={() => setLinkCustomer(null)}
+      />
+
+      {/* Same dialog, no customer: an open invitation, which creates nothing until it is used. */}
+      <IntakeLinkDialog open={inviteOpen} customer={null} onClose={() => setInviteOpen(false)} />
+
+      <IntakeReviewDialog
+        open={Boolean(reviewCustomer)}
+        customer={reviewCustomer}
+        onClose={() => setReviewCustomer(null)}
+        onApplied={() => void mutate()}
       />
 
       <ConfirmDialog

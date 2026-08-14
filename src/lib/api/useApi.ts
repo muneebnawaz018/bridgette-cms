@@ -42,6 +42,14 @@ export function useApi<T>(key: string | null, config?: UseApiConfig<T>) {
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<T>(key, fetcher, {
     revalidateOnFocus: true,
+    /*
+     * How often regaining focus may trigger a refetch. SWR's default is 5s, which is far too
+     * eager for this app: switching to DevTools, to a WhatsApp tab, or to any other window and
+     * back is a focus event, so a minute of ordinary work refetched every list on screen a
+     * dozen times over. None of this data changes second to second — it is edited by the handful
+     * of people using the portal — so a minute between focus-driven refetches is plenty.
+     */
+    focusThrottleInterval: 60_000,
     dedupingInterval: 5000,
     keepPreviousData: true,
     ...swrConfig,

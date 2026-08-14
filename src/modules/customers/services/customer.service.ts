@@ -64,6 +64,34 @@ export async function listCustomers(
   const stages: PipelineStage[] = [
     { $match: activeMatch(query.search) },
     { $project: LIST_PROJECTION },
+    /*
+     * Whether this customer has an intake submission waiting on someone.
+     *
+     * Joined onto the list rather than fetched per row: without it the review dialog is only
+     * reachable by opening a row menu on the off-chance, so a customer could fill in their
+     * details and have that sit unnoticed indefinitely. The lookup projects a single `_id` and
+     * stops at the first match, so it costs one indexed hit per row.
+     */
+    {
+      $lookup: {
+        from: 'customerintakes',
+        let: { customerId: '$_id' },
+        as: 'pendingIntakes',
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [{ $eq: ['$customer', '$$customerId'] }, { $eq: ['$status', 'pending'] }],
+              },
+            },
+          },
+          { $limit: 1 },
+          { $project: { _id: 1 } },
+        ],
+      },
+    },
+    { $addFields: { pendingIntake: { $gt: [{ $size: '$pendingIntakes' }, 0] } } },
+    { $project: { pendingIntakes: 0 } },
   ];
   // Customers read best name-first; aggregatePaginate applies this sort inside its $facet page.
   return aggregatePaginate<CustomerDoc>(

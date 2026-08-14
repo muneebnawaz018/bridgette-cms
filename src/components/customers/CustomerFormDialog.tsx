@@ -110,8 +110,8 @@ const TYPE_OPTIONS: SelectOption[] = [
 
 /** Reseller drives tax exemption; a dropdown reads better than a lone checkbox in this row. */
 const RESELLER_OPTIONS: SelectOption[] = [
-  { value: 'no', label: 'No — charges sales tax' },
-  { value: 'yes', label: 'Yes — tax-exempt' },
+  { value: 'no', label: 'No, charges sales tax' },
+  { value: 'yes', label: 'Yes, tax-exempt' },
 ];
 
 const COUNTRY_OPTIONS: SelectOption[] = [
@@ -121,7 +121,7 @@ const COUNTRY_OPTIONS: SelectOption[] = [
 
 /** US states or PK provinces, same shape either way. */
 const STATE_OPTIONS: Record<'US' | 'PK', SelectOption[]> = {
-  US: statesFor('US').map((s) => ({ value: s.code, label: `${s.code} — ${s.name}` })),
+  US: statesFor('US').map((s) => ({ value: s.code, label: `${s.code} · ${s.name}` })),
   PK: statesFor('PK').map((s) => ({ value: s.code, label: s.name })),
 };
 

@@ -76,7 +76,7 @@ export function CustomerProductsField({
       isOptionEqualToValue={(o, v) => o._id === v._id}
       onChange={(_e, picked) => onChange(picked.map((p) => p._id))}
       noOptionsText={
-        options.length === 0 ? 'No products yet — add one under Products & Fabrics' : 'No match'
+        options.length === 0 ? 'No products yet. Add one under Products & Fabrics.' : 'No match'
       }
       renderOption={(props, o) => (
         <Box component="li" {...props} key={o._id}>
