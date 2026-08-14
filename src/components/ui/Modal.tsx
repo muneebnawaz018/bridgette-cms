@@ -164,7 +164,11 @@ export function Modal({
               {icon}
             </Box>
           )}
-          <Box sx={{ minWidth: 0 }}>
+          {/* `minWidth: 0` alone is not enough: it lets the box shrink, but a title with no
+              space in it — "Edit " plus a customer name typed as one long run of characters —
+              has nowhere to break and overflows the dialog anyway. `anywhere` gives it a
+              break point of last resort, and only bites on words that would otherwise spill. */}
+          <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
             <Typography
               component="h2"
               sx={{ fontWeight: 700, fontSize: { xs: '1.05rem', sm: '1.15rem' }, lineHeight: 1.3 }}

@@ -37,6 +37,9 @@ export function PageHeader({
         sx={{
           flexGrow: 1,
           minWidth: 0,
+          // Titles carry customer and product names, which arrive as whatever someone typed —
+          // a long unbroken run has no space to break at and would otherwise run off the page.
+          overflowWrap: 'anywhere',
           textAlign: 'center',
           '@media (min-width:768px)': { textAlign: 'left' },
         }}

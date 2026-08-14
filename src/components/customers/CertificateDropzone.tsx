@@ -128,12 +128,23 @@ export function CertificateDropzone({
               : colors.surface.border,
           bgcolor: dragging ? redA(0.04) : colors.surface.subtle,
           transition: 'border-color 120ms, background-color 120ms',
+          // Never let a long filename set the width of whatever this sits in.
+          minWidth: 0,
         }}
       >
         {file ? (
-          <Stack direction="row" spacing={2} alignItems="center">
+          // Wraps rather than overflows: a long filename plus two buttons will not fit a narrow
+          // dialog column, and the actions dropping to their own line beats a clipped row.
+          <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ rowGap: 1.5 }}
+          >
             <DescriptionRounded sx={{ color: colors.status.success, flexShrink: 0 }} />
-            <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Box sx={{ minWidth: 0, flexGrow: 1, flexBasis: 160 }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
                 {file.name}
               </Typography>

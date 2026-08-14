@@ -292,6 +292,13 @@ const PANEL_CELL = {
   overflowY: { sm: 'auto' },
   // Room for the scrollbar so it never sits on top of a field's focus ring.
   pr: { sm: 1 },
+  /*
+   * A grid item's min-width defaults to `auto`, meaning it refuses to shrink below its widest
+   * child's min-content. Both panels share this one cell, so a single unshrinkable row — a long
+   * filename beside a Download button — widened the cell, and with it every field in both tabs,
+   * until the content ran past the dialog's own padding.
+   */
+  minWidth: 0,
 } as const;
 
 export function CustomerFormDialog({
