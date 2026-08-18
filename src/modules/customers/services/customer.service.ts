@@ -2,6 +2,7 @@ import 'server-only';
 import type { PipelineStage } from 'mongoose';
 import { connectDb } from '@/lib/db/connection';
 import { escapeRegex } from '@/lib/query/escapeRegex';
+import { FieldError } from '@/lib/api/errors';
 import { aggregatePaginate, type Paginated } from '@/lib/query/paginate';
 import { Permission, assertCan, type SessionUser } from '@/modules/auth';
 import {
@@ -216,7 +217,13 @@ function isDuplicateKey(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);
 }
 
-const DUPLICATE_EMAIL = 'A customer with that email already exists';
+/** Pinned to the email box rather than raised as a toast: it is one field that is wrong. */
+const duplicateEmail = () =>
+  new FieldError(
+    'email',
+    'A customer with that email already exists',
+    'Already used by another customer — search for them instead',
+  );
 
 /** Create a customer. Admin only. */
 export async function createCustomer(actor: SessionUser, input: CustomerCreateInput) {
@@ -254,7 +261,7 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
     }
     return doc.toObject();
   } catch (err) {
-    if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
+    if (isDuplicateKey(err)) throw duplicateEmail();
     throw err;
   }
 }
@@ -317,7 +324,7 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   try {
     await doc.save();
   } catch (err) {
-    if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
+    if (isDuplicateKey(err)) throw duplicateEmail();
     throw err;
   }
   // Whole-list replace, so an entry dropped in the form stops applying. An absent key means the

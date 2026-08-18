@@ -193,7 +193,9 @@ function buildPayload(f: FormValues) {
     firstName: f.firstName.trim(),
     lastName: f.lastName.trim() || undefined,
     email: f.email.trim(),
-    phone: f.phone.trim() || undefined,
+    // Sent as typed, blank included: the schema has a message for an empty phone, and an omitted
+    // one would come back as "Required" instead.
+    phone: f.phone.trim(),
     // Always sent, so clearing every box actually clears the stored address.
     addressParts: {
       country: f.country,
@@ -612,11 +614,9 @@ export function CustomerFormDialog({
     setSaving(false);
 
     if (!res.ok) {
-      const fieldErrors = serverFieldErrors(res.details);
-      // A duplicate email comes back as a plain message, not a field path; pin it to the field
-      // so the form marks it rather than only flashing a toast.
-      if (res.error && /email/i.test(res.error)) fieldErrors.email = res.error;
-      setErrors(fieldErrors);
+      // A duplicate email arrives as a field error (see lib/api/errors), so it lands on the
+      // email box the same way a validation failure does.
+      setErrors(serverFieldErrors(res.details));
       enqueueSnackbar(
         res.error ?? (isEdit ? 'Could not update customer' : 'Could not create customer'),
         { variant: 'error' },

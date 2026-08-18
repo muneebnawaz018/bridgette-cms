@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_LIMIT } from '@/lib/query/limits';
+import { phoneField } from '@/lib/validation/phone';
 import { InvoiceType } from '@/modules/invoicing/enums';
 import { isStateCode } from './address';
 
@@ -191,12 +192,11 @@ export const customerCreateSchema = z.object({
   firstName: optionalText(FIELD_MAX),
   lastName: optionalText(FIELD_MAX),
   email: emailField,
-  /** Required: every customer is reachable by phone, whoever entered them. */
-  phone: z
-    .string()
-    .trim()
-    .min(1, 'A phone number is required')
-    .max(FIELD_MAX, 'That value is too long'),
+  /**
+   * Required, and held to the same rule as a user's: every customer is reachable by phone,
+   * whoever entered them, and a half-typed number is not a way to be reached.
+   */
+  phone: phoneField('A phone number is required'),
   address: optionalText(ADDRESS_MAX),
   addressParts: addressPartsSchema,
   shipping: shippingSchema.optional(),
@@ -229,11 +229,7 @@ export const customerFormSchema = z.object({
     .max(FIELD_MAX, 'That value is too long'),
   lastName: z.string().trim().max(FIELD_MAX, 'That value is too long'),
   email: emailField,
-  phone: z
-    .string()
-    .trim()
-    .min(1, 'A phone number is required')
-    .max(FIELD_MAX, 'That value is too long'),
+  phone: phoneField('A phone number is required'),
   country: z.enum(['US', 'PK']),
   line1: z
     .string()

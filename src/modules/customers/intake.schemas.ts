@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { phoneField } from '@/lib/validation/phone';
 import { canBeReseller } from './invoiceType';
 import { addressPartsSchema, shippingSchema } from './schemas';
 
@@ -159,7 +160,12 @@ export const intakeCertificateSchema = z
  */
 export const customerIntakeSubmitSchema = z
   .object({
-    firstName: optionalText(FIELD_MAX),
+    /* A record with no name on it is not a customer, so this is the one name field asked for. */
+    firstName: z
+      .string()
+      .trim()
+      .min(1, 'A first name is required')
+      .max(FIELD_MAX, 'That value is too long'),
     lastName: optionalText(FIELD_MAX),
     name: optionalText(FIELD_MAX),
     email: z
@@ -169,15 +175,12 @@ export const customerIntakeSubmitSchema = z
       .min(1, 'An email is required')
       .email('Enter a valid email address'),
     /*
-     * Required, unlike most of this form. An invoice that needs chasing is chased by phone far
-     * more often than by email, and this is the one moment the customer is in front of the
-     * question — going back for it later costs a round of messages.
+     * Required, unlike most of this form, and held to the same rule as everywhere else. An
+     * invoice that needs chasing is chased by phone far more often than by email, and this is
+     * the one moment the customer is in front of the question — going back for it later costs a
+     * round of messages.
      */
-    phone: z
-      .string()
-      .trim()
-      .min(1, 'A phone number is required')
-      .max(FIELD_MAX, 'That value is too long'),
+    phone: phoneField('A phone number is required'),
     address: optionalText(ADDRESS_MAX),
     addressParts: addressPartsSchema,
     shipping: shippingSchema.optional(),

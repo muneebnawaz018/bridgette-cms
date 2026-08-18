@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { logger } from '@/lib/logger/logger';
 import { RateLimitedError } from '@/lib/security/rateLimit';
+import { FieldError } from './errors';
 import { CaptchaRequiredError } from '@/lib/security/turnstile';
 
 export function ok<T>(data: T, status = 200): NextResponse {
@@ -25,6 +26,13 @@ function errorResponse(err: unknown): NextResponse {
   }
   if (err instanceof CaptchaRequiredError) {
     return fail(err.message, 403, { captchaRequired: true });
+  }
+  /*
+   * 409, and shaped like a Zod failure so the same client-side helper reads it: the form marks
+   * the offending input rather than only raising a toast the reader has to match to a field.
+   */
+  if (err instanceof FieldError) {
+    return fail(err.message, 409, { fieldErrors: { [err.field]: [err.fieldMessage] } });
   }
   const message = err instanceof Error ? err.message : 'Unexpected error';
   if (message === 'Unauthorized') return fail(message, 401);

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MAX_LIMIT } from '@/lib/query/limits';
-import { isValidPhoneNumber } from 'libphonenumber-js';
+import { phoneField, optionalPhoneField } from '@/lib/validation/phone';
 import { Role } from './rbac';
 import { UserStatus } from './enums';
 
@@ -25,30 +25,8 @@ export const loginSchema = z.object({
 const jobTitle = z.string().trim().max(80).optional();
 const notes = z.string().trim().max(500).optional();
 
-/**
- * Contact number in E.164 — `+` then country code then the national number, digits only.
- * The UI composes this from its country picker; this file is client-safe, so the browser and
- * the server validate against exactly the same rule.
- *
- * The regex is only a shape check: it accepts 8-15 digits, which is E.164's global bound and
- * says nothing about the country. `+9230275` passed it happily despite being an incomplete
- * Pakistani number, so half-typed numbers saved. `isValidPhoneNumber` applies the actual
- * per-country rules — length, valid prefixes, mobile vs fixed-line — which cannot be
- * expressed as one pattern because they differ per country and vary within a country.
- *
- * Deliberately not derived from the `groups` data in lib/format/countries: that is display
- * spacing, set for only a handful of countries, and would silently break validation the day
- * someone adjusted how a number is rendered.
- */
-export const E164 = /^\+[1-9]\d{7,14}$/;
-const PHONE_INCOMPLETE = 'Enter a complete number for the selected country';
-
-const phone = z
-  .string()
-  .trim()
-  .min(1, 'A contact number is required')
-  .regex(E164, 'Enter a valid number including the country code')
-  .refine(isValidPhoneNumber, PHONE_INCOMPLETE);
+/** Contact number in E.164, composed by the country picker. See lib/validation/phone. */
+const phone = phoneField();
 
 export const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
@@ -114,19 +92,9 @@ export const changePasswordSchema = z.object({
 export const updateProfileSchema = z
   .object({
     name: z.string().trim().min(1, 'Name is required').max(120).optional(),
-    // The same E.164 rule user management enforces, so a number saved from the profile page
-    // and one saved by an admin are the same shape. Empty clears it: unlike a team member
+    // The same rule everything else enforces, except that empty clears it: unlike a team member
     // created by an admin, your own profile is not blocked on having a contact number.
-    phone: z
-      .union([
-        z.literal(''),
-        z
-          .string()
-          .trim()
-          .regex(E164, 'Enter a valid number including the country code')
-          .refine(isValidPhoneNumber, PHONE_INCOMPLETE),
-      ])
-      .optional(),
+    phone: optionalPhoneField().optional(),
     avatarUrl: avatarUrl.optional(),
   })
   .refine((v) => v.name !== undefined || v.phone !== undefined || v.avatarUrl !== undefined, {

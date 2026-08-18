@@ -108,10 +108,12 @@ function toPayload(
   certificate: CertificateFile | null,
 ) {
   return {
-    firstName: v.firstName || undefined,
+    // The two required ones go through as typed, blank included: an omitted field reads back as
+    // "Required", while an empty string gets the message the schema actually wrote for it.
+    firstName: v.firstName,
     lastName: v.lastName || undefined,
     email: v.email,
-    phone: v.phone || undefined,
+    phone: v.phone,
     addressParts: {
       country,
       line1: v.line1,
@@ -329,6 +331,7 @@ export function IntakeForm({ token }: { token: string }) {
                 name="firstName"
                 defaultValue=""
                 label="First name"
+                required
                 helperText={shown('firstName')}
                 error={Boolean(shown('firstName'))}
                 onChange={setText}

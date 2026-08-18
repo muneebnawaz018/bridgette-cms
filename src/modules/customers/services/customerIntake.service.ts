@@ -6,7 +6,8 @@ import { env } from '@/lib/config/env';
 import { Permission, assertCan, Role, UserStatus, User, type SessionUser } from '@/modules/auth';
 import { sendMail } from '@/lib/email/mailer';
 import { customerIntakeEmail, resellerSetByIntakeEmail } from '@/lib/email/templates';
-import { companyContactFor } from '@/modules/legal/company';
+import { FieldError } from '@/lib/api/errors';
+import { COMPANY_CONTACT_US, companyContactFor } from '@/modules/legal/company';
 import { Customer } from '../models/customer.model';
 import { CustomerIntakeToken } from '../models/customerIntakeToken.model';
 import { CustomerIntake } from '../models/customerIntake.model';
@@ -18,12 +19,18 @@ import { INTAKE_TTL_DAYS } from '../intake.constants';
 export { INTAKE_TTL_DAYS };
 
 /**
- * What somebody sees when the address they typed already belongs to a customer. Deliberately not
- * "that email is taken": the person reading it is a customer, not a user picking a username, and
- * the answer they need is who to talk to.
+ * What somebody sees when the address they typed already belongs to a customer.
+ *
+ * Short, because it is read as a toast across the top of the page. The email box carries the
+ * second line, where there is room to say what to do about it — which is also where the reader
+ * is already looking once they know it is the email that is wrong.
  */
-const ALREADY_ON_FILE =
-  'These details are already on file. Please contact us and we will update them for you.';
+const ALREADY_ON_FILE = () =>
+  new FieldError(
+    'email',
+    'That email address is already registered with any other user',
+    `This email is already used by another customer. Enter a different one, or email ${COMPANY_CONTACT_US.email} for help.`,
+  );
 
 /** Mongo's unique-index violation. */
 function isDuplicateKey(err: unknown): boolean {
@@ -288,7 +295,7 @@ export async function submitIntake(
       tokenId: String(row._id),
       ip: meta.ip,
     });
-    throw new Error(ALREADY_ON_FILE);
+    throw ALREADY_ON_FILE();
   }
 
   /*
@@ -331,7 +338,7 @@ export async function submitIntake(
      * gets the same wording, since to the person reading it the situation is identical.
      */
     await CustomerIntakeToken.updateOne({ _id: row._id }, { $set: { consumedAt: null } });
-    if (isDuplicateKey(err)) throw new Error(ALREADY_ON_FILE);
+    if (isDuplicateKey(err)) throw ALREADY_ON_FILE();
     throw err;
   }
 
