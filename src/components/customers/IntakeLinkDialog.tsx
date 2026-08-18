@@ -26,7 +26,11 @@ import { colors } from '@/lib/colors';
 import { COMPANY_CONTACT_US } from '@/modules/legal/company';
 
 /*
- * Hands staff a one-time link to send the customer.
+ * Hands staff a one-time link for somebody who is not on file yet.
+ *
+ * Only ever for a new customer. A link creates a record and never edits one, so nobody already
+ * in the list is sent one — that is what keeps a forwarded URL from rewriting billing details
+ * staff have verified.
  *
  * The link is shown, not just emailed: a good share of these go out over WhatsApp, especially on
  * the Pakistan side, and an email-only flow would strand every customer who does not read one.
@@ -38,22 +42,7 @@ interface Issued {
   expiresAt: string;
 }
 
-export interface IntakeLinkTarget {
-  _id: string;
-  name: string;
-  email?: string;
-}
-
-export function IntakeLinkDialog({
-  open,
-  customer,
-  onClose,
-}: {
-  open: boolean;
-  /** The customer to invite. `null` opens the dialog for someone not yet on file. */
-  customer: IntakeLinkTarget | null;
-  onClose: () => void;
-}) {
+export function IntakeLinkDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { enqueueSnackbar } = useSnackbar();
   const [issued, setIssued] = useState<Issued | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,16 +50,8 @@ export function IntakeLinkDialog({
   const [copied, setCopied] = useState(false);
 
   /*
-   * Two ways in, and both end at the same link. With a customer, this is "send them a link".
-   * Without one, staff are onboarding somebody they have not spoken to yet, so an empty record
-   * is created and the customer supplies everything — including their name — through the form.
-   * The record still exists first, so the link is always bound to one known row.
-   */
-  const isNew = !customer;
-  /*
    * Where the invitation goes — not the customer's billing email, which they supply themselves
-   * on the form. Prefilled from the record when there is one, because re-typing an address the
-   * system already holds is how a typo reaches a stranger's inbox.
+   * on the form.
    */
   const [emailTo, setEmailTo] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -81,15 +62,10 @@ export function IntakeLinkDialog({
    * from memory here would otherwise overwrite the one they actually go by.
    */
   const [greetName, setGreetName] = useState('');
-  // The id, not the object: a parent that rebuilds the row object on each render would otherwise
-  // look like a different customer every time and re-trigger the effect below.
-  const customerId = customer?._id;
 
   const issue = useCallback(async () => {
     setLoading(true);
-    const res = customer
-      ? await apiPost<Issued>(`/api/customers/${customer._id}/intake-link`)
-      : await apiPost<Issued>('/api/customers/invite');
+    const res = await apiPost<Issued>('/api/customers/invite');
     setLoading(false);
 
     if (!res.ok || !res.data) {
@@ -98,9 +74,9 @@ export function IntakeLinkDialog({
     }
     setIssued(res.data);
     setCopied(false);
-    // Nothing to tell the list behind: an open invitation writes a customer only when it is
+    // Nothing to tell the list behind: an invitation writes a customer only when it is
     // submitted, so there is no new row to refresh into view.
-  }, [customer, enqueueSnackbar]);
+  }, [enqueueSnackbar]);
 
   /*
    * Minted once, when the dialog opens: issuing invalidates any previous link, so doing it on a
@@ -117,32 +93,29 @@ export function IntakeLinkDialog({
   issueRef.current = issue;
 
   /*
-   * Which target has already been minted for during this opening. React's dev StrictMode runs
-   * every effect twice, and on the invite path each run creates a customer — so without this the
-   * list gains a phantom row on every open, in development only, which is exactly the kind of
-   * thing that gets found in production instead.
+   * Whether this opening has already minted. React's dev StrictMode runs every effect twice, and
+   * each run burns a token — so without this, opening the dialog once quietly issues two links
+   * and invalidates the first, in development only, which is exactly the kind of thing that gets
+   * found in production instead.
    */
-  const mintedForRef = useRef<string | null>(null);
+  const mintedRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
-      mintedForRef.current = null;
+      mintedRef.current = false;
       return;
     }
-    const target = customerId ?? 'new';
-    if (mintedForRef.current === target) return;
-    mintedForRef.current = target;
+    if (mintedRef.current) return;
+    mintedRef.current = true;
 
     setIssued(null);
     setCopied(false);
     setEmailError('');
     setEmailedTo('');
-    setEmailTo(customer?.email ?? '');
-    setGreetName(customer?.name ?? '');
+    setEmailTo('');
+    setGreetName('');
     void issueRef.current();
-    // `customer` is only read to seed the field; `customerId` is what identifies the target.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, customerId]);
+  }, [open]);
 
   /*
    * Sends the link already on screen rather than minting a fresh one. Re-issuing would
@@ -219,11 +192,9 @@ export function IntakeLinkDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title={isNew ? 'Invite a new customer' : 'Ask the customer for their details'}
+      title="Invite a new customer"
       description={
-        customer
-          ? `A one-time link for ${customer.name} to fill in their own billing and shipping details.`
-          : 'A one-time link for someone new. Nothing is added to your customer list until they fill it in and submit.'
+        'A one-time link for someone new. Nothing is added to your customer list until they fill it in and submit.'
       }
       icon={<LinkRounded />}
       maxWidth="sm"
@@ -358,9 +329,10 @@ export function IntakeLinkDialog({
         >
           <InfoOutlined fontSize="small" sx={{ mt: 0.15, flexShrink: 0 }} />
           <Typography variant="caption" sx={{ lineHeight: 1.6 }}>
-            {isNew
-              ? 'They appear in your customer list once they submit the form, not before.'
-              : 'What they submit waits for your approval. Nothing changes on this record until you accept it. A resale certificate they attach applies straight away.'}
+            They appear in your customer list once they submit the form, not before. If the email
+            they enter already belongs to a customer, the form asks them to contact you instead —
+            a link never changes a record that already exists — and the link stays usable, so a
+            mistyped address can be corrected.
           </Typography>
         </Box>
       </Stack>

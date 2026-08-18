@@ -17,7 +17,7 @@ import { IntakeForm, IntakeShell } from './IntakeForm';
 
 export const metadata: Metadata = {
   title: 'Your details',
-  // A one-time link to a named customer's form has no business in an index.
+  // A one-time invitation link has no business in an index.
   robots: { index: false, follow: false },
 };
 
@@ -53,7 +53,7 @@ export default async function IntakePage({ params }: Props) {
     // The heading belongs to the form, not to this page: it has to disappear once the form is
     // submitted, and "fill in your details" sitting above a thank-you card reads as a failure.
     <IntakeShell>
-      <IntakeForm token={token} customerName={intake.customerName} />
+      <IntakeForm token={token} />
     </IntakeShell>
   );
 }

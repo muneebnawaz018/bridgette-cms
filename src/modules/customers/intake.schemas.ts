@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { canBeReseller } from './invoiceType';
 import { addressPartsSchema, shippingSchema } from './schemas';
 
 /**
@@ -156,31 +157,50 @@ export const intakeCertificateSchema = z
  * `invoiceType`, `notes`, and `reseller` as a free-standing flag — the exemption follows from a
  * certificate that passed the checks above, never from a field the form can set on its own.
  */
-export const customerIntakeSubmitSchema = z.object({
-  firstName: optionalText(FIELD_MAX),
-  lastName: optionalText(FIELD_MAX),
-  name: optionalText(FIELD_MAX),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .min(1, 'An email is required')
-    .email('Enter a valid email address'),
-  phone: optionalText(FIELD_MAX),
-  address: optionalText(ADDRESS_MAX),
-  addressParts: addressPartsSchema,
-  shipping: shippingSchema.optional(),
-  customerNote: optionalText(NOTE_MAX),
-  resellerCertificate: intakeCertificateSchema.optional(),
-});
+export const customerIntakeSubmitSchema = z
+  .object({
+    firstName: optionalText(FIELD_MAX),
+    lastName: optionalText(FIELD_MAX),
+    name: optionalText(FIELD_MAX),
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .min(1, 'An email is required')
+      .email('Enter a valid email address'),
+    /*
+     * Required, unlike most of this form. An invoice that needs chasing is chased by phone far
+     * more often than by email, and this is the one moment the customer is in front of the
+     * question — going back for it later costs a round of messages.
+     */
+    phone: z
+      .string()
+      .trim()
+      .min(1, 'A phone number is required')
+      .max(FIELD_MAX, 'That value is too long'),
+    address: optionalText(ADDRESS_MAX),
+    addressParts: addressPartsSchema,
+    shipping: shippingSchema.optional(),
+    customerNote: optionalText(NOTE_MAX),
+    resellerCertificate: intakeCertificateSchema.optional(),
+  })
+  /*
+   * A resale certificate only means something against US sales tax, so a Pakistani address and a
+   * certificate cannot both be true. The form hides the upload once Pakistan is picked; this is
+   * what makes that a rule rather than a UI courtesy, since the payload is the customer's to
+   * shape. The submission is refused outright instead of quietly dropping the file: somebody who
+   * attached one and got billed Pakistani tax anyway would have no idea why.
+   */
+  .superRefine((input, ctx) => {
+    if (input.resellerCertificate && !canBeReseller(input.addressParts?.country)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['resellerCertificate', 'data'],
+        message: 'Resale certificates apply to US addresses only',
+      });
+    }
+  });
 
 export type CustomerIntakeSubmitInput = z.infer<typeof customerIntakeSubmitSchema>;
-
-/** Review: which of the submitted fields to copy onto the customer record. */
-export const reviewIntakeSchema = z.object({
-  fields: z.array(z.string().max(60)).max(40),
-});
-
-export type ReviewIntakeInput = z.infer<typeof reviewIntakeSchema>;
 
 export { MAX_CERT_BYTES, ALLOWED_CERT_TYPES };

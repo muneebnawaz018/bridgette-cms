@@ -12,9 +12,12 @@ import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import { useSnackbar } from 'notistack';
 import { BrandLockup } from '@/components/layout/BrandLockup';
 import { FormSection, TextInput, SelectInput } from '@/components/form/fields';
+import { PhoneField } from '@/components/ui/PhoneField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countries';
 import { statesFor } from '@/modules/customers/address';
 import { customerIntakeSubmitSchema } from '@/modules/customers/intake.schemas';
+import { canBeReseller } from '@/modules/customers/invoiceType';
 import { apiPost } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 import { colors, gradients } from '@/lib/colors';
@@ -33,6 +36,12 @@ import { COMPANY_CONTACT_US } from '@/modules/legal/company';
  * before the round trip rather than after it. Values live in a ref, matching the admin dialogs:
  * typing re-renders only the input being typed in.
  */
+
+/** The admin form's reseller question, in words the customer answering it can act on. */
+const RESELLER_OPTIONS = [
+  { value: 'no', label: 'No, I pay sales tax' },
+  { value: 'yes', label: 'Yes, I hold a resale certificate' },
+];
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: 'United States' },
@@ -129,7 +138,8 @@ function toPayload(
           },
         },
     customerNote: v.customerNote || undefined,
-    resellerCertificate: certificate ?? undefined,
+    // Never sent for a Pakistani address: US sales tax is what a certificate exempts.
+    resellerCertificate: (canBeReseller(country) && certificate) || undefined,
   };
 }
 
@@ -156,7 +166,7 @@ function toInputNames(errors: FieldErrors): FieldErrors {
   return mapped;
 }
 
-export function IntakeForm({ token, customerName }: { token: string; customerName: string }) {
+export function IntakeForm({ token }: { token: string }) {
   const { enqueueSnackbar } = useSnackbar();
   const valuesRef = useRef<Values>({ ...EMPTY });
 
@@ -170,6 +180,16 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
   const [state, setState] = useState('');
   const [shipState, setShipState] = useState('');
   const [shipSame, setShipSame] = useState(true);
+  /*
+   * The phone picker is controlled by its two halves; the joined E.164 string is what the ref
+   * carries and the API stores, the same way the admin dialog holds it.
+   */
+  const [phone, setPhone] = useState({ iso2: DEFAULT_COUNTRY_ISO2, national: '' });
+  /*
+   * Whether they are claiming an exemption. On screen only — the payload carries the certificate
+   * and nothing else, so the exemption follows from the file rather than from a tick.
+   */
+  const [reseller, setReseller] = useState(false);
   const [certificate, setCertificate] = useState<CertificateFile | null>(null);
   const [certError, setCertError] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -186,6 +206,11 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
 
   const blurField = useCallback((name: string) => {
     setTouched((t) => ({ ...t, [name]: true }));
+  }, []);
+
+  const changePhone = useCallback((next: { iso2: string; national: string; e164: string }) => {
+    setPhone({ iso2: next.iso2, national: next.national });
+    valuesRef.current.phone = next.e164;
   }, []);
 
   /** An error is shown once its field has been visited, or once submit has been attempted. */
@@ -207,6 +232,18 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
 
   async function submit() {
     setSubmitted(true);
+
+    /*
+     * Answering yes without attaching anything would send a submission that changes nothing: the
+     * exemption comes from the file, never from the answer. Caught here rather than silently
+     * ignored, so nobody leaves believing they are tax-exempt.
+     */
+    if (reseller && !certificate) {
+      setCertError('Attach your resale certificate, or answer "No"');
+      enqueueSnackbar('Attach your resale certificate', { variant: 'warning' });
+      return;
+    }
+
     const payload = toPayload(
       { ...valuesRef.current, state, shipState },
       country,
@@ -257,7 +294,10 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
             <CheckCircleRounded sx={{ fontSize: 42, color: colors.status.success }} />
           </Box>
           <Typography variant="h4" sx={{ fontWeight: 800, mt: 2.5 }}>
-            {customerName ? `Thank you, ${customerName}` : 'Thank you'}
+            {/* Their own name, as they just typed it — the invitation carried none. */}
+            {valuesRef.current.firstName
+              ? `Thank you, ${valuesRef.current.firstName}`
+              : 'Thank you'}
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 1.5, maxWidth: 440, mx: 'auto' }}>
             We have your details. They will be used on your next invoice, and there is nothing else
@@ -275,7 +315,7 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
   return (
     <>
       <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.5 }}>
-        {customerName ? `Hello ${customerName}` : 'Your details'}
+        Your details
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2.5 }}>
         Fill in your billing and shipping details so we can raise your invoices correctly. It takes
@@ -319,15 +359,15 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextInput
-                name="phone"
-                defaultValue=""
-                label="Phone"
-                placeholder="e.g. +1 909 516 8570"
+              <PhoneField
+                iso2={phone.iso2}
+                national={phone.national}
+                onChange={changePhone}
+                onBlur={() => blurField('phone')}
+                required
                 helperText={shown('phone')}
                 error={Boolean(shown('phone'))}
-                onChange={setText}
-                onBlur={blurField}
+                disabled={saving}
               />
             </Grid>
           </Grid>
@@ -342,9 +382,29 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
                 value={country}
                 options={COUNTRY_OPTIONS}
                 onChange={(_name, value) => {
-                  setCountry(value === 'PK' ? 'PK' : 'US');
+                  const next = value === 'PK' ? 'PK' : 'US';
+                  setCountry(next);
                   // A state picked from the other country's list is not in this one's.
                   setState('');
+                  /*
+                   * The dial code follows the country: somebody billed in Pakistan is reached on
+                   * a +92 number far more often than not. Digits already typed are kept — only
+                   * the code in front of them changes — and the picker still overrides it.
+                   */
+                  const { national } = splitPhone(valuesRef.current.phone);
+                  valuesRef.current.phone = joinPhone(next, national);
+                  setPhone({ iso2: next, national });
+                  /*
+                   * A resale certificate exempts a customer from US sales tax, which a Pakistani
+                   * customer is not charged in the first place. Switching to Pakistan drops the
+                   * question and any file already attached, so the section cannot disappear still
+                   * holding one and post it — the server refuses that combination anyway.
+                   */
+                  if (!canBeReseller(next)) {
+                    setReseller(false);
+                    setCertificate(null);
+                    setCertError('');
+                  }
                 }}
               />
             </Grid>
@@ -458,6 +518,7 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
                   name="shipPhone"
                   defaultValue=""
                   label="Recipient phone"
+                  placeholder="e.g. 415 555 0132"
                   helperText={shown('shipPhone')}
                   error={Boolean(shown('shipPhone'))}
                   onChange={setText}
@@ -534,23 +595,55 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
           )}
         </FormSection>
 
-        <FormSection title="Resale certificate">
-          <Typography color="text.secondary" variant="body2" sx={{ mb: 1.5 }}>
-            Only if you buy for resale and hold a valid certificate. Attaching it removes sales tax
-            from your invoices. Skip this if it does not apply to you.
-          </Typography>
-          <CertificateDropzone
-            file={certificate}
-            onPick={(f) => {
-              setCertificate(f);
-              setCertError('');
-            }}
-            onRemove={() => setCertificate(null)}
-            onError={setCertError}
-            error={certError || errors['resellerCertificate.data']}
-            disabled={saving}
-          />
-        </FormSection>
+        {/* US only: the certificate is a US sales-tax instrument, and a Pakistani customer has
+            nothing to exempt. Asking them for one would only invite a file we must reject. */}
+        {canBeReseller(country) && (
+          <FormSection title="Resale certificate">
+            <Typography color="text.secondary" variant="body2" sx={{ mb: 1.5 }}>
+              Answer yes only if you buy for resale and hold a valid certificate. Attaching it
+              removes sales tax from your invoices.
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <SelectInput
+                  name="reseller"
+                  label="Reseller"
+                  value={reseller ? 'yes' : 'no'}
+                  options={RESELLER_OPTIONS}
+                  disabled={saving}
+                  onChange={(_name, value) => {
+                    const isReseller = value === 'yes';
+                    setReseller(isReseller);
+                    // Going back to "no" drops the file, so the answer on screen and what gets
+                    // posted cannot disagree.
+                    if (!isReseller) {
+                      setCertificate(null);
+                      setCertError('');
+                    }
+                  }}
+                />
+              </Grid>
+              {/* The upload appears once they answer yes, the way the admin form reveals it —
+                  the file is the whole of what "yes" means, since nothing else on this form can
+                  grant an exemption. */}
+              {reseller && (
+                <Grid size={12}>
+                  <CertificateDropzone
+                    file={certificate}
+                    onPick={(f) => {
+                      setCertificate(f);
+                      setCertError('');
+                    }}
+                    onRemove={() => setCertificate(null)}
+                    onError={setCertError}
+                    error={certError || errors['resellerCertificate.data']}
+                    disabled={saving}
+                  />
+                </Grid>
+              )}
+            </Grid>
+          </FormSection>
+        )}
 
         <FormSection title="Anything else">
           <TextInput
@@ -582,7 +675,7 @@ export function IntakeForm({ token, customerName }: { token: string; customerNam
           color="text.secondary"
           sx={{ display: 'block', mt: 1.5, textAlign: 'right' }}
         >
-          This link works once. {customerName ? `Sent for ${customerName}.` : ''}
+          This link works once.
         </Typography>
       </Paper>
     </>

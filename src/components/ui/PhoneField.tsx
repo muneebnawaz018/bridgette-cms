@@ -9,7 +9,13 @@ import MenuItem from '@mui/material/MenuItem';
 import ButtonBase from '@mui/material/ButtonBase';
 import Typography from '@mui/material/Typography';
 import ArrowDropDownRounded from '@mui/icons-material/ArrowDropDownRounded';
-import { COUNTRIES, countryByIso2, joinPhone, formatNational } from '@/lib/format/countries';
+import {
+  COUNTRIES,
+  countryByIso2,
+  joinPhone,
+  formatNational,
+  sampleNational,
+} from '@/lib/format/countries';
 import { colors } from '@/lib/colors';
 
 /** Hoisted: these never change, so they should not be rebuilt on every render. */
@@ -114,7 +120,7 @@ export const PhoneField = memo(function PhoneField({
         onChange={(e) => handleNumber(e.target.value)}
         onBlur={onBlur}
         fullWidth
-        placeholder={formatNational(iso2, '3001234567')}
+        placeholder={formatNational(iso2, sampleNational(iso2))}
         InputLabelProps={SHRINK_LABEL}
         inputProps={INPUT_PROPS}
         InputProps={{

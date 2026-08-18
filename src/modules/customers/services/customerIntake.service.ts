@@ -7,104 +7,50 @@ import { Permission, assertCan, Role, UserStatus, User, type SessionUser } from 
 import { sendMail } from '@/lib/email/mailer';
 import { customerIntakeEmail, resellerSetByIntakeEmail } from '@/lib/email/templates';
 import { companyContactFor } from '@/modules/legal/company';
-import { Customer, type CustomerDoc } from '../models/customer.model';
+import { Customer } from '../models/customer.model';
 import { CustomerIntakeToken } from '../models/customerIntakeToken.model';
-import { CustomerIntake, type CustomerIntakeDoc } from '../models/customerIntake.model';
+import { CustomerIntake } from '../models/customerIntake.model';
 import { formatAddress, isBlankAddress } from '../address';
+import { canBeReseller, invoiceTypeFor } from '../invoiceType';
 import type { CustomerIntakeSubmitInput } from '../intake.schemas';
 import { INTAKE_TTL_DAYS } from '../intake.constants';
 
 export { INTAKE_TTL_DAYS };
 
 /**
- * The fields a customer may fill in, and therefore the only ones an approval can copy across.
- * Enforced here rather than trusted from the review UI: the request names which fields to apply,
- * and a hand-made call could otherwise name `reseller` or `invoiceType`.
+ * What somebody sees when the address they typed already belongs to a customer. Deliberately not
+ * "that email is taken": the person reading it is a customer, not a user picking a username, and
+ * the answer they need is who to talk to.
  */
-export const INTAKE_FIELDS = [
-  'name',
-  'firstName',
-  'lastName',
-  'email',
-  'phone',
-  'address',
-  'addressParts',
-  'shipping',
-] as const;
+const ALREADY_ON_FILE =
+  'These details are already on file. Please contact us and we will update them for you.';
 
-export type IntakeField = (typeof INTAKE_FIELDS)[number];
+/** Mongo's unique-index violation. */
+function isDuplicateKey(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);
+}
 
 /** SHA-256, hex. See the token model for why this is not bcrypt. */
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-/**
- * Mint a fresh link for one customer and consume any earlier one.
- *
- * Returns the plaintext token exactly once — only its hash is stored, so a lost link cannot be
- * recovered and has to be reissued. That is deliberate: it means a leaked database gives up no
- * working intake URLs.
- */
-export async function issueIntakeLink(actor: SessionUser, customerId: string) {
-  assertCan(actor.role, Permission.CustomerEdit);
-  await connectDb();
-
-  const customer = await Customer.findOne({ _id: customerId, isDeleted: { $ne: true } })
-    .select({ name: 1, email: 1, invoiceType: 1 })
-    .lean<Pick<CustomerDoc, 'name' | 'email' | 'invoiceType'> & { _id: unknown }>();
-  if (!customer) throw new Error('Customer not found');
-
-  // One live link per customer: a reissue invalidates the previous one, so "resend" never leaves
-  // two working URLs out there and revoking is simply issuing again.
-  await CustomerIntakeToken.updateMany(
-    { customer: customerId, consumedAt: null },
-    { $set: { consumedAt: new Date() } },
-  );
-
-  const token = randomBytes(32).toString('base64url');
-  const doc = await CustomerIntakeToken.create({
-    customer: customerId,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + INTAKE_TTL_DAYS * 24 * 60 * 60 * 1000),
-    createdBy: actor.userId,
-  });
-
-  logger.info('customer intake link issued', {
-    customerId,
-    tokenId: String(doc._id),
-    by: actor.userId,
-  });
-
-  return {
-    tokenId: String(doc._id),
-    // The token itself never appears in a log line — only the row id it belongs to.
-    url: `${env.appUrl}/intake/${token}`,
-    expiresAt: doc.expiresAt,
-    customer: {
-      id: String(customer._id),
-      name: customer.name,
-      email: customer.email,
-      invoiceType: customer.invoiceType,
-    },
-  };
-}
-
-/** The one place the invite mail is built and sent, so both entry points say the same thing. */
+/** Building and sending the invitation, kept in one place. */
 async function deliverInvite(args: {
   to: string;
   url: string;
   tokenId: string;
   customerName?: string;
-  invoiceType?: string;
-  customerId: string;
 }): Promise<boolean> {
   const mail = customerIntakeEmail({
     customerName: args.customerName,
     link: args.url,
     expiresInDays: INTAKE_TTL_DAYS,
-    // A PK customer hears from the Sialkot office, not the Chino desk.
-    company: companyContactFor(args.invoiceType),
+    /*
+     * From the US entity. An invitation goes out before there is a record, so there is no
+     * country to pick an office from — the form is where they tell us where they are.
+     */
+    company: companyContactFor(undefined),
   });
 
   try {
@@ -116,7 +62,7 @@ async function deliverInvite(args: {
     return true;
   } catch (err) {
     logger.error('customer intake email failed', {
-      customerId: args.customerId,
+      tokenId: args.tokenId,
       err: err instanceof Error ? err.message : String(err),
     });
     return false;
@@ -149,48 +95,38 @@ export async function emailExistingIntakeLink(
     tokenHash: hashToken(token),
     consumedAt: null,
     expiresAt: { $gt: new Date() },
-  }).lean<{ _id: unknown; customer: unknown | null } | null>();
+  }).lean<{ _id: unknown } | null>();
   if (!row) throw new Error('That link has expired or has already been used. Create a new one.');
-
-  /*
-   * An open invitation has no customer attached, so there is no name to greet and no default
-   * invoice type to pick an office from — the mail goes out generic, from the US entity.
-   */
-  const customer = row.customer
-    ? await Customer.findOne({ _id: row.customer, isDeleted: { $ne: true } })
-        .select({ name: 1, invoiceType: 1 })
-        .lean<{ name?: string; invoiceType?: string }>()
-    : null;
-  if (row.customer && !customer) throw new Error('Customer not found');
 
   const sent = await deliverInvite({
     to,
     url: `${env.appUrl}/intake/${token}`,
     tokenId: String(row._id),
-    // A name staff typed wins over the stored one: they are addressing whoever they are about
-    // to write to, which on an open invitation is the only name anybody has.
-    customerName: greetName?.trim() || customer?.name,
-    invoiceType: customer?.invoiceType,
-    customerId: row.customer ? String(row.customer) : 'open-invitation',
+    // The only name anybody has at this point: the customer states their own on the form.
+    customerName: greetName?.trim() || undefined,
   });
   if (!sent) throw new Error('The email could not be sent. Copy the link and share it instead.');
 
   logger.info('customer intake link emailed', {
-    customerId: String(row.customer),
+    tokenId: String(row._id),
     by: actor.userId,
   });
   return { sent: true, to };
 }
 
 /**
- * Mint an open invitation — a link for somebody who is not in the system yet.
+ * Mint an invitation — a one-time link for somebody who is not in the system yet.
+ *
+ * The only kind of link there is. A customer is either typed in by staff or created by answering
+ * one of these; a record already on file is never sent one, so nothing a stranger submits can
+ * reach a customer somebody already verified.
  *
  * Creates no customer. The record is written when they submit, from what they actually tell us,
  * so clicking "Invite" never leaves a half-empty row for staff to clean up and a link nobody
  * answers costs nothing but a token that expires on its own.
  *
- * A link can create at most one customer: it is consumed on submission, so an invitation that
- * gets forwarded adds one record, not a stream of them.
+ * A link creates at most one customer: it is consumed on submission, so an invitation that gets
+ * forwarded adds one record, not a stream of them.
  */
 export async function issueOpenInvite(actor: SessionUser) {
   assertCan(actor.role, Permission.CustomerCreate);
@@ -210,29 +146,18 @@ export async function issueOpenInvite(actor: SessionUser) {
     tokenId: String(doc._id),
     url: `${env.appUrl}/intake/${token}`,
     expiresAt: doc.expiresAt,
-    customer: {
-      id: '',
-      name: undefined as string | undefined,
-      email: undefined as string | undefined,
-      invoiceType: undefined as string | undefined,
-    },
   };
 }
 
 interface OpenIntake {
   tokenId: string;
-  /** Null for an open invitation: the customer does not exist until the form is submitted. */
-  customerId: string | null;
-  /** Greeting only. No address, email or phone — a forwarded link must not leak the record. */
-  customerName: string;
 }
 
 /**
- * Resolve a token to the intake it opens, or null.
+ * Check that a token opens something, or return null.
  *
- * Returns nothing about the customer beyond their name. The form opens blank by design: if it
- * echoed back the stored address and phone, forwarding the link — or finding it in a shared
- * inbox — would be enough to read someone's details without ever submitting anything.
+ * Nothing about anybody comes back. An invitation belongs to no record until it is answered, and
+ * a link that is forwarded, or found in a shared inbox, must not be a way to read one.
  */
 export async function openIntake(token: string): Promise<OpenIntake | null> {
   await connectDb();
@@ -240,24 +165,7 @@ export async function openIntake(token: string): Promise<OpenIntake | null> {
   if (!row) return null;
   if (row.consumedAt) return null;
   if (row.expiresAt.getTime() < Date.now()) return null;
-
-  // An open invitation has nobody attached yet, so there is no name to greet and nothing to
-  // check for deletion — the form simply opens.
-  if (!row.customer) {
-    return { tokenId: String(row._id), customerId: null, customerName: '' };
-  }
-
-  const customer = await Customer.findOne({ _id: row.customer, isDeleted: { $ne: true } })
-    .select({ name: 1 })
-    .lean<{ name?: string }>();
-  // A customer deleted after the invite went out takes their link with them.
-  if (!customer) return null;
-
-  return {
-    tokenId: String(row._id),
-    customerId: String(row.customer),
-    customerName: customer.name ?? '',
-  };
+  return { tokenId: String(row._id) };
 }
 
 /** The printable one-liner, derived the same way the admin path derives it. */
@@ -317,12 +225,12 @@ async function notifyResellerSet(customerId: string, customerName: string, fileN
 }
 
 /**
- * Accept a submission and consume the link.
+ * Accept a submission, create the customer, and consume the link.
  *
- * The identity fields land as a proposal for staff to approve. The reseller certificate is the
- * exception: it applies to the customer immediately, exemption included, because chasing that
- * document is the friction this feature exists to remove. The submission still records the file
- * and the fact that it set the flag, so the exemption can always be traced to its evidence.
+ * Everything applies on arrival — the exemption a certificate carries included. There is no
+ * approval step because there is nothing to approve against: the record did not exist a moment
+ * ago, so the submission is not overwriting anybody's work. The submission itself is kept as the
+ * evidence behind what was written, the certificate and the submitter's IP with it.
  */
 export async function submitIntake(
   token: string,
@@ -331,19 +239,19 @@ export async function submitIntake(
 ) {
   await connectDb();
 
+  const tokenHash = hashToken(token);
+
   /*
-   * Consume the token first, in one atomic findOneAndUpdate, and only then write anything.
-   *
-   * Reading it and updating it afterwards leaves a window: a double-tapped submit button, or a
-   * form posted twice from a flaky connection, would pass the read on both requests — and on an
-   * open invitation that means two customers, not just two submissions. The filter carries the
-   * same conditions the read enforced, so whichever request updates the row first is the only
-   * one that proceeds.
+   * Read the token, but leave it live. It is spent further down, at the moment the customer
+   * record is actually written — a submission that gets refused leaves the link usable, so
+   * somebody who typed the wrong email address can correct it and try again rather than being
+   * told to ask for a new invitation.
    */
-  const row = await CustomerIntakeToken.findOneAndUpdate(
-    { tokenHash: hashToken(token), consumedAt: null, expiresAt: { $gt: new Date() } },
-    { $set: { consumedAt: new Date() } },
-  ).lean<{ _id: unknown; customer: unknown; createdBy: unknown } | null>();
+  const row = await CustomerIntakeToken.findOne({
+    tokenHash,
+    consumedAt: null,
+    expiresAt: { $gt: new Date() },
+  }).lean<{ _id: unknown; createdBy: unknown } | null>();
   if (!row) throw new Error('This link has expired or has already been used');
 
   const name =
@@ -352,55 +260,85 @@ export async function submitIntake(
   const shipping = shippingBlock(input);
 
   /*
-   * Which record this belongs to.
-   *
-   * An open invitation has none yet. Before creating one, look for a live customer already using
-   * this email: someone sent an open link who is in fact on file should update that record rather
-   * than become a second copy of themselves — and the unique email index would refuse the insert
-   * anyway, with a message meaning nothing to the person filling in the form.
+   * The billing country decides both of the things the form never asks about. The schema already
+   * refuses a Pakistani address carrying a certificate, so this repeats the rule rather than
+   * introducing it — the service is exported and a future caller reaching it directly must not
+   * be able to make a PK customer tax-exempt.
    */
-  let customerId = row.customer ? String(row.customer) : null;
-  let created = false;
+  const country = input.addressParts?.country;
+  const certificate = canBeReseller(country) ? input.resellerCertificate : undefined;
+  const invoiceType = invoiceTypeFor(country, Boolean(certificate));
 
-  if (!customerId) {
-    const existing = await Customer.findOne({
-      email: input.email,
-      isDeleted: { $ne: true },
-    })
-      .select({ _id: 1 })
-      .lean<{ _id: unknown } | null>();
-
-    if (existing) {
-      // Falls through to the normal path: staff review it against what is already stored.
-      customerId = String(existing._id);
-    } else {
-      /*
-       * Applied on arrival rather than held for approval. Approval exists to stop a submission
-       * silently overwriting something staff had already verified — and on a record that did not
-       * exist a moment ago there is nothing to overwrite. Holding it back would only mean a
-       * customer who filled in the form still does not appear anywhere.
-       */
-      const doc = await Customer.create({
-        name: name ?? input.email,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        email: input.email,
-        phone: input.phone,
-        address: printable(input.addressParts, input.address),
-        addressParts,
-        shipping,
-        reseller: Boolean(input.resellerCertificate),
-        resellerCertificate: input.resellerCertificate,
-        // Whoever issued the invitation owns the record, so it is not left ownerless.
-        createdBy: row.createdBy,
-      });
-      customerId = String(doc._id);
-      created = true;
-    }
-
-    // Bind the token to whatever it resolved to, so the trail from invitation to record holds.
-    await CustomerIntakeToken.updateOne({ _id: row._id }, { $set: { customer: customerId } });
+  /*
+   * An email already on file ends this here.
+   *
+   * A link creates a customer; it never edits one. Whoever holds this URL is not necessarily the
+   * customer it names — invitations get forwarded, and sit in shared inboxes — so letting a
+   * submission land on an existing record would make a link a way to rewrite billing details
+   * somebody already verified. They are told to get in touch instead, which is a person's job to
+   * answer, not a form's. The link survives this: nothing was written, so there is nothing for
+   * spending it to protect.
+   */
+  const existing = await Customer.findOne({ email: input.email, isDeleted: { $ne: true } })
+    .select({ _id: 1 })
+    .lean<{ _id: unknown } | null>();
+  if (existing) {
+    logger.warn('customer intake refused: email already on file', {
+      customerId: String(existing._id),
+      tokenId: String(row._id),
+      ip: meta.ip,
+    });
+    throw new Error(ALREADY_ON_FILE);
   }
+
+  /*
+   * Spend the link, in one atomic findOneAndUpdate, and only then write the customer.
+   *
+   * The filter repeats the conditions the read enforced, so of two requests racing — a
+   * double-tapped submit button, or a form posted twice from a flaky connection — only the one
+   * that flips `consumedAt` proceeds. Checking and updating separately would let both through,
+   * and on an invitation that means two customer records, not two harmless duplicates.
+   */
+  const claimed = await CustomerIntakeToken.findOneAndUpdate(
+    { _id: row._id, consumedAt: null, expiresAt: { $gt: new Date() } },
+    { $set: { consumedAt: new Date() } },
+  ).lean<{ _id: unknown } | null>();
+  if (!claimed) throw new Error('This link has expired or has already been used');
+
+  let doc;
+  try {
+    doc = await Customer.create({
+      name: name ?? input.email,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      address: printable(input.addressParts, input.address),
+      addressParts,
+      shipping,
+      reseller: Boolean(certificate),
+      resellerCertificate: certificate,
+      // Derived, never asked for: see `invoiceTypeFor`.
+      invoiceType,
+      // Whoever issued the invitation owns the record, so it is not left ownerless.
+      createdBy: row.createdBy,
+    });
+  } catch (err) {
+    /*
+     * Nothing was created, so the link goes back to being usable — the same reasoning as the
+     * refusal above, applied to a failure nobody chose. The duplicate-key case is the check
+     * above losing a race with another submission claiming that address a moment earlier; it
+     * gets the same wording, since to the person reading it the situation is identical.
+     */
+    await CustomerIntakeToken.updateOne({ _id: row._id }, { $set: { consumedAt: null } });
+    if (isDuplicateKey(err)) throw new Error(ALREADY_ON_FILE);
+    throw err;
+  }
+
+  const customerId = String(doc._id);
+
+  // Bind the token to the record it made, so the trail from invitation to customer holds.
+  await CustomerIntakeToken.updateOne({ _id: row._id }, { $set: { customer: customerId } });
 
   const intake = await CustomerIntake.create({
     customer: customerId,
@@ -414,46 +352,26 @@ export async function submitIntake(
     addressParts,
     shipping,
     customerNote: input.customerNote,
-    resellerCertificate: input.resellerCertificate,
-    setReseller: Boolean(input.resellerCertificate),
-    createdCustomer: created,
-    // A record created from this submission has nothing pending about it.
-    status: created ? 'approved' : 'pending',
-    appliedFields: created ? [...INTAKE_FIELDS] : [],
+    resellerCertificate: certificate,
+    setReseller: Boolean(certificate),
     submittedIp: meta.ip,
     submittedUserAgent: meta.userAgent,
   });
 
   /*
-   * The exemption, for a submission landing on a record that already existed. A newly created
-   * customer got it in the insert above.
-   *
-   * `reseller` is only ever turned on here — never off — so a customer re-submitting cannot
-   * revoke an exemption staff granted, and the certificate is kept even if the flag is later
-   * cleared, because the invoices raised under it still need their evidence.
+   * Where the exemption came from. The flag and the certificate went on with the record above;
+   * this records the submission that carried them, so a tax position can always be traced to the
+   * document and the moment it arrived.
    */
-  if (input.resellerCertificate) {
-    if (!created) {
-      await Customer.updateOne(
-        { _id: customerId },
-        {
-          $set: {
-            reseller: true,
-            resellerCertificate: input.resellerCertificate,
-            resellerSource: { via: 'intake', intake: intake._id, at: new Date(), ip: meta.ip },
-          },
+  if (certificate) {
+    await Customer.updateOne(
+      { _id: customerId },
+      {
+        $set: {
+          resellerSource: { via: 'intake', intake: intake._id, at: new Date(), ip: meta.ip },
         },
-      );
-    } else {
-      await Customer.updateOne(
-        { _id: customerId },
-        {
-          $set: {
-            resellerSource: { via: 'intake', intake: intake._id, at: new Date(), ip: meta.ip },
-          },
-        },
-      );
-    }
+      },
+    );
 
     logger.info('reseller exemption set from customer intake', {
       customerId,
@@ -463,115 +381,15 @@ export async function submitIntake(
 
     // Told, not asked: the exemption is already live. This exists so it is noticed now rather
     // than a month later, on an invoice that quietly charged no sales tax.
-    await notifyResellerSet(customerId, name ?? input.email, input.resellerCertificate.name);
+    await notifyResellerSet(customerId, name ?? input.email, certificate.name);
   }
 
   logger.info('customer intake submitted', {
     customerId,
     intakeId: String(intake._id),
-    createdCustomer: created,
-    withCertificate: Boolean(input.resellerCertificate),
+    withCertificate: Boolean(certificate),
+    invoiceType,
   });
 
-  return { id: String(intake._id), customerId, name: name ?? '', created };
-}
-
-/** Pending submissions for one customer, newest first. */
-export async function listIntakes(actor: SessionUser, customerId: string) {
-  assertCan(actor.role, Permission.CustomerView);
-  await connectDb();
-  return (
-    CustomerIntake.find({ customer: customerId })
-      // The certificate's bytes are megabytes and the review screen only needs to know it arrived.
-      .select({ 'resellerCertificate.data': 0 })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean<CustomerIntakeDoc[]>()
-  );
-}
-
-const DUPLICATE_EMAIL = 'Another customer already uses that email address';
-
-function isDuplicateKey(err: unknown): boolean {
-  return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);
-}
-
-/**
- * Copy the accepted fields onto the customer and close the submission.
- *
- * `fields` is filtered against INTAKE_FIELDS rather than trusted, so naming `reseller` or
- * `products` in a hand-made request applies nothing. An empty list is a valid outcome: it
- * records that staff read the submission and kept the record as it stood.
- */
-export async function reviewIntake(
-  actor: SessionUser,
-  intakeId: string,
-  fields: string[],
-  decision: 'approved' | 'rejected' = 'approved',
-) {
-  assertCan(actor.role, Permission.CustomerEdit);
-  await connectDb();
-
-  const intake = await CustomerIntake.findById(intakeId);
-  if (!intake) throw new Error('Submission not found');
-  if (intake.status !== 'pending') throw new Error('This submission has already been reviewed');
-
-  const accepted = (
-    decision === 'approved'
-      ? fields.filter((f): f is IntakeField => (INTAKE_FIELDS as readonly string[]).includes(f))
-      : []
-  ) as IntakeField[];
-
-  if (accepted.length > 0) {
-    const customer = await Customer.findById(intake.customer);
-    if (!customer || customer.isDeleted) throw new Error('Customer not found');
-
-    for (const field of accepted) {
-      switch (field) {
-        case 'addressParts':
-          // The printable one-liner is derived, never accepted on its own, so the two halves of
-          // the address cannot be approved into disagreeing with each other.
-          customer.addressParts = intake.addressParts as CustomerDoc['addressParts'];
-          customer.address = intake.address ?? '';
-          break;
-        case 'address':
-          // Only meaningful when there are no structured parts to derive it from.
-          if (!intake.addressParts) customer.address = intake.address ?? '';
-          break;
-        case 'shipping':
-          customer.shipping = intake.shipping as unknown as CustomerDoc['shipping'];
-          break;
-        case 'name':
-          // Never blanked: a submission that gave first/last but no full name leaves the stored
-          // one alone rather than emptying the field every list and invoice reads.
-          customer.name = intake.name ?? customer.name;
-          break;
-        default:
-          customer.set(field, intake[field] ?? undefined);
-      }
-    }
-
-    try {
-      await customer.save();
-    } catch (err) {
-      if (isDuplicateKey(err)) throw new Error(DUPLICATE_EMAIL);
-      throw err;
-    }
-  }
-
-  intake.status = decision;
-  intake.appliedFields = accepted;
-  intake.reviewedBy = actor.userId as unknown as CustomerIntakeDoc['reviewedBy'];
-  intake.reviewedAt = new Date();
-  await intake.save();
-
-  logger.info('customer intake reviewed', {
-    intakeId,
-    customerId: String(intake.customer),
-    decision,
-    applied: accepted,
-    by: actor.userId,
-  });
-
-  return { id: intakeId, status: decision, applied: accepted };
+  return { id: String(intake._id), customerId, name: name ?? '', created: true };
 }

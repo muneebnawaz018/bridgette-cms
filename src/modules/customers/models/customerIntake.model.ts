@@ -3,7 +3,7 @@ import { registerModel } from '@/lib/db/registerModel';
 
 const { Schema } = mongoose;
 
-/** Same shape the customer record keeps, so an approved field copies across unchanged. */
+/** Same shape the customer record keeps, so the two always describe an address the same way. */
 const addressPartsSchema = () =>
   new Schema(
     {
@@ -19,28 +19,22 @@ const addressPartsSchema = () =>
   );
 
 /**
- * What a customer submitted through their intake link — held as a proposal, not applied.
+ * What a customer submitted through their invitation, exactly as it arrived.
  *
- * Stored separately from the Customer rather than written straight onto it, for two reasons: a
- * forwarded link must not be able to silently overwrite an address staff have already verified,
- * and a submission is evidence of what the customer asserted on a given day, which an in-place
- * update would destroy.
- *
- * The one exception is the reseller certificate, which applies on submission — see the service.
- * Even then the file and the claim are recorded here, so the exemption can be traced back to the
- * document that justified it.
+ * The customer record it created carries the same details, so this is not how the app reads
+ * them — it is the evidence behind them. A submission is what somebody asserted on a given day,
+ * from a given address, with a given certificate attached; later edits to the customer would
+ * destroy that, and a tax exemption in particular has to stay traceable to the document that
+ * justified it.
  */
 const customerIntakeSchema = new Schema(
   {
-    /*
-     * Set once the submission has a record to belong to. For an open invitation that is the
-     * customer this submission created, stamped after the insert rather than before it.
-     */
+    /** The customer this submission created, stamped after the insert rather than before it. */
     customer: { type: Schema.Types.ObjectId, ref: 'Customer', index: true },
     /** The token row this came through, so a submission is traceable to who invited whom. */
     token: { type: Schema.Types.ObjectId, ref: 'CustomerIntakeToken', required: true },
 
-    // ---- The customer-writable set. Nothing outside this list is accepted from the form. ----
+    // ---- What the form asks for. Nothing outside this list is accepted from it. ----
     name: { type: String },
     firstName: { type: String },
     lastName: { type: String },
@@ -83,26 +77,6 @@ const customerIntakeSchema = new Schema(
     /** Whether this submission is what turned the customer's exemption on. */
     setReseller: { type: Boolean, default: false },
 
-    // ---- Review ----
-    status: {
-      type: String,
-      enum: ['pending', 'approved', 'rejected'],
-      default: 'pending',
-      index: true,
-    },
-    /*
-     * How this submission was handled.
-     *
-     * An open invitation creates the customer from what arrived, so there is nothing for staff
-     * to approve — there was no prior value to overwrite, which is the only thing approval
-     * protects. Those land already applied, and this says so.
-     */
-    createdCustomer: { type: Boolean, default: false },
-    /** Which fields staff accepted, so a partial approval records what it took. */
-    appliedFields: [{ type: String }],
-    reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
-    reviewedAt: { type: Date },
-
     /** Where it came from. Kept for the audit trail behind a tax exemption. */
     submittedIp: { type: String },
     submittedUserAgent: { type: String },
@@ -110,8 +84,8 @@ const customerIntakeSchema = new Schema(
   { timestamps: true },
 );
 
-// The review screen asks "anything pending for this customer?" on every customer it opens.
-customerIntakeSchema.index({ customer: 1, status: 1, createdAt: -1 });
+// Read one way only: what did this customer send, newest first.
+customerIntakeSchema.index({ customer: 1, createdAt: -1 });
 
 export type CustomerIntakeDoc = InferSchemaType<typeof customerIntakeSchema>;
 

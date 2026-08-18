@@ -17,14 +17,14 @@ import EditRounded from '@mui/icons-material/EditRounded';
 import { useSnackbar } from 'notistack';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneField } from '@/components/ui/PhoneField';
-import { splitPhone } from '@/lib/format/countries';
+import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countries';
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { CustomerProductsField } from '@/components/customers/CustomerProductsField';
 import { useFormGuard } from '@/components/form/useFormGuard';
 import type { FormMode } from '@/components/ui/Modal';
 import { customerFormSchemaChecked } from '@/modules/customers/schemas';
 import { statesFor, type AddressParts } from '@/modules/customers/address';
-import { InvoiceType } from '@/modules/invoicing/enums';
+import { canBeReseller } from '@/modules/customers/invoiceType';
 import { apiPost, apiPatch } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
 import { CertificateDropzone, type CertificateFile } from './CertificateDropzone';
@@ -46,7 +46,6 @@ export interface EditableCustomer {
   addressParts?: AddressParts | null;
   notes?: string;
   reseller?: boolean;
-  invoiceType?: string;
   /** Product ids this customer buys. */
   products?: string[];
   /** Per-product discounts negotiated with this customer. */
@@ -78,7 +77,6 @@ interface FormValues {
   zipPlus4: string;
   notes: string;
   reseller: boolean;
-  invoiceType: string;
   /** Shipping. While sameAsBilling holds, the rest is ignored and nothing is stored. */
   shipSameAsBilling: boolean;
   shipName: string;
@@ -91,13 +89,6 @@ interface FormValues {
   shipZip: string;
   shipZipPlus4: string;
 }
-
-const TYPE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'No default' },
-  { value: InvoiceType.Tax, label: 'US Tax' },
-  { value: InvoiceType.Cash, label: 'US Cash' },
-  { value: InvoiceType.PK, label: 'Pakistan' },
-];
 
 /** Reseller drives tax exemption; a dropdown reads better than a lone checkbox in this row. */
 const RESELLER_OPTIONS: SelectOption[] = [
@@ -150,7 +141,6 @@ const EMPTY: FormValues = {
   zipPlus4: '',
   notes: '',
   reseller: false,
-  invoiceType: '',
   shipSameAsBilling: true,
   shipName: '',
   shipPhone: '',
@@ -184,7 +174,6 @@ function valuesFromCustomer(c: EditableCustomer): FormValues {
     zipPlus4: a.zipPlus4 ?? '',
     notes: c.notes ?? '',
     reseller: c.reseller ?? false,
-    invoiceType: c.invoiceType ?? '',
     shipSameAsBilling: c.shipping?.sameAsBilling !== false,
     shipName: c.shipping?.name ?? '',
     shipPhone: c.shipping?.phone ?? '',
@@ -235,7 +224,6 @@ function buildPayload(f: FormValues) {
     products: f.products,
     notes: f.notes.trim() || undefined,
     reseller: f.reseller,
-    invoiceType: (f.invoiceType || undefined) as InvoiceType | undefined,
   };
 }
 
@@ -332,13 +320,14 @@ export function CustomerFormDialog({
   const [submitted, setSubmitted] = useState(false);
   const [formKey, setFormKey] = useState(0);
   // These need a render to reflect a pick, so they live in state (mirrored into valuesRef).
-  const [invoiceType, setInvoiceType] = useState('');
   const [reseller, setReseller] = useState(false);
   const [state, setState] = useState('');
   const [country, setCountry] = useState<'US' | 'PK'>('US');
   // The phone picker is controlled (country + national half); the joined E.164 string is what
   // valuesRef carries and the API stores, same as UserFormDialog.
-  const [phone, setPhone] = useState({ iso2: 'us', national: '' });
+  // Codes are upper-case ('US'); a lower-case literal here matched no country and silently fell
+  // back to whichever sits first in the list.
+  const [phone, setPhone] = useState({ iso2: DEFAULT_COUNTRY_ISO2, national: '' });
   // Product ids the customer buys — controlled, since a pick has to re-render the chips.
   const [products, setProducts] = useState<string[]>([]);
   // Per-product discount overrides, held as strings so a half-typed value is not coerced. Blank
@@ -386,7 +375,6 @@ export function CustomerFormDialog({
     const next = customer ? valuesFromCustomer(customer) : { ...EMPTY };
     valuesRef.current = next;
     setInitial(next);
-    setInvoiceType(next.invoiceType);
     setReseller(next.reseller);
     setState(next.state);
     setCountry(next.country);
@@ -412,18 +400,11 @@ export function CustomerFormDialog({
     setFormKey((k) => k + 1);
   }, [open, customer, resetGuard]);
 
-  const pickType = useCallback(
-    (_name: string, v: string) => {
-      valuesRef.current.invoiceType = v;
-      setInvoiceType(v);
-      guard.refresh();
-    },
-    [guard],
-  );
   const pickReseller = useCallback(
     (_name: string, v: string) => {
-      valuesRef.current.reseller = v === 'yes';
-      setReseller(v === 'yes');
+      const isReseller = v === 'yes';
+      valuesRef.current.reseller = isReseller;
+      setReseller(isReseller);
       guard.refresh();
     },
     [guard],
@@ -500,7 +481,26 @@ export function CustomerFormDialog({
       valuesRef.current.country = next;
       valuesRef.current.state = '';
       setState('');
+      // The +4 add-on is US-only routing.
       if (next === 'PK') valuesRef.current.zipPlus4 = '';
+      /*
+       * A resale certificate exempts a customer from US sales tax, and Pakistani invoices carry
+       * none to be exempt from — so a customer moved to Pakistan stops being a reseller rather
+       * than keeping a flag nobody can now see or clear.
+       */
+      if (!canBeReseller(next)) {
+        valuesRef.current.reseller = false;
+        setReseller(false);
+      }
+      /*
+       * The phone's dial code follows the address country: a customer billed in Pakistan is
+       * reached on a +92 number far more often than not, and having to fix the prefix by hand
+       * after every country pick is the sort of step people forget. Digits already typed are
+       * kept — only the code in front of them changes — and the picker still overrides it.
+       */
+      const { national } = splitPhone(valuesRef.current.phone);
+      valuesRef.current.phone = joinPhone(next, national);
+      setPhone({ iso2: next, national });
       setCountry(next);
       guard.refresh();
     },
@@ -514,7 +514,7 @@ export function CustomerFormDialog({
 
   const setText = useCallback(
     (key: string, value: string) => {
-      // Only the string fields flow through here; reseller/invoiceType have their own handlers.
+      // Only the string fields flow through here; reseller has its own handler.
       valuesRef.current[key as TextKey] = value;
       guard.refresh();
     },
@@ -785,22 +785,28 @@ export function CustomerFormDialog({
                   national={phone.national}
                   onChange={changePhone}
                   onBlur={() => blurField('phone')}
+                  required
                   helperText={shown('phone')}
                   error={Boolean(shown('phone'))}
                   disabled={locked}
                 />
               </Grid>
-              {/* The account row: tax status and how they're billed. */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <SelectInput
-                  name="reseller"
-                  label="Reseller"
-                  value={reseller ? 'yes' : 'no'}
-                  options={RESELLER_OPTIONS}
-                  disabled={locked}
-                  onChange={pickReseller}
-                />
-              </Grid>
+              {/* Tax status, US only: a resale certificate exempts US sales tax, which Pakistani
+                  invoices do not charge, so the question does not arise there. The invoice type
+                  it implies is derived on the server — see `invoiceTypeFor` — so there is
+                  nothing else to pick here. */}
+              {canBeReseller(country) && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <SelectInput
+                    name="reseller"
+                    label="Reseller"
+                    value={reseller ? 'yes' : 'no'}
+                    options={RESELLER_OPTIONS}
+                    disabled={locked}
+                    onChange={pickReseller}
+                  />
+                </Grid>
+              )}
               {/* Only for resellers — the certificate is the evidence for the exemption, so it
                   has nowhere to belong on a customer who is not claiming one. */}
               {reseller && (
@@ -835,16 +841,6 @@ export function CustomerFormDialog({
                   />
                 </Grid>
               )}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <SelectInput
-                  name="invoiceType"
-                  label="Default invoice type"
-                  value={invoiceType}
-                  options={TYPE_OPTIONS}
-                  disabled={locked}
-                  onChange={pickType}
-                />
-              </Grid>
             </Grid>
           </FormSection>
 

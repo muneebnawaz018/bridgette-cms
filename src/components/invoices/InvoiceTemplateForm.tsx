@@ -111,12 +111,6 @@ export const TYPE_OPTIONS = [
   { value: InvoiceType.Cash, label: 'US Cash (no tax)' },
   { value: InvoiceType.PK, label: 'Pakistan' },
 ];
-/** Short forms for the customer picker's badges — the full labels are too long for a chip. */
-const TYPE_TAG: Record<InvoiceType, string> = {
-  [InvoiceType.Tax]: 'US Tax',
-  [InvoiceType.Cash]: 'US Cash',
-  [InvoiceType.PK]: 'Pakistan',
-};
 const TYPE_LABEL: Record<InvoiceType, string> = {
   [InvoiceType.Tax]: 'TAX INVOICE',
   [InvoiceType.Cash]: 'CASH INVOICE',
@@ -265,10 +259,9 @@ function CustomerNameField({
             >
               <span className="pick-top">
                 <span className="pick-nm">{c.name}</span>
-                {/* What actually changes the invoice: a reseller pays no sales tax, and the
-                    default type picks the template. Worth seeing before committing to a pick. */}
+                {/* What actually changes the invoice: a reseller pays no sales tax. Worth
+                    seeing before committing to a pick. */}
                 {c.reseller && <span className="pick-tag is-reseller">Reseller</span>}
-                {c.invoiceType && <span className="pick-tag">{TYPE_TAG[c.invoiceType]}</span>}
               </span>
               {/* Email first — two customers can share a name (and often do), so it is the line
                   that tells them apart. */}

@@ -11,10 +11,12 @@
 type CountryTuple = readonly [iso2: string, name: string, dial: string, groups?: readonly number[]];
 
 const RAW: readonly CountryTuple[] = [
+  // US first: it is what a blank field starts at and the country most numbers here belong to,
+  // so it heads the picker rather than sitting four rows down.
+  ['US', 'United States', '1', [3, 3, 4]],
   ['PK', 'Pakistan', '92', [3, 7]],
   ['AE', 'United Arab Emirates', '971', [2, 3, 4]],
   ['SA', 'Saudi Arabia', '966', [2, 3, 4]],
-  ['US', 'United States', '1', [3, 3, 4]],
   ['GB', 'United Kingdom', '44', [4, 6]],
   ['CA', 'Canada', '1', [3, 3, 4]],
   ['AU', 'Australia', '61', [3, 3, 3]],
@@ -165,8 +167,32 @@ export function formatNational(iso2: string, national: string): string {
   return parts.join(' ');
 }
 
-/** Business is Pakistan-based, so that is the sensible starting country. */
-export const DEFAULT_COUNTRY_ISO2 = 'PK';
+/**
+ * A plausible number for the picked country, used as the phone field's placeholder. Country-aware
+ * because a US field showing "300 1234567" reads as a mistake — 300 is not an area code — and the
+ * placeholder's whole job is to show the shape expected.
+ *
+ * 555-01xx is the reserved fictional range in the US and Canada, so the sample cannot be dialled.
+ */
+const SAMPLE_NATIONAL: Record<string, string> = {
+  US: '2025550123',
+  CA: '4165550123',
+  PK: '3001234567',
+};
+
+export function sampleNational(iso2: string): string {
+  return SAMPLE_NATIONAL[iso2] ?? '1234567890';
+}
+
+/** What an empty phone field starts at. Billing is US-first, so a new number is assumed to be. */
+export const DEFAULT_COUNTRY_ISO2 = 'US';
+
+/**
+ * Country for a stored number that predates E.164 — "0300-1234567" and the like. Those rows were
+ * typed in Pakistan, so reading them under the default would put a +1 in front of a Karachi
+ * mobile. Only ever applied to a number that is actually there: a blank field is not legacy data.
+ */
+const LEGACY_LOCAL_ISO2 = 'PK';
 
 export function countryByIso2(iso2: string): Country | undefined {
   return COUNTRIES.find((c) => c.iso2 === iso2);
@@ -181,9 +207,10 @@ export function countryByIso2(iso2: string): Country | undefined {
 export function splitPhone(e164: string | null | undefined): { iso2: string; national: string } {
   const value = (e164 ?? '').trim();
   if (!value.startsWith('+')) {
-    // Legacy/local format such as "0300-1234567": drop the trunk zero so it round-trips into
-    // a valid E.164 number under the default country.
-    return { iso2: DEFAULT_COUNTRY_ISO2, national: value.replace(/\D/g, '').replace(/^0+/, '') };
+    // Legacy/local format such as "0300-1234567": drop the trunk zero so it round-trips into a
+    // valid E.164 number. Nothing at all is a fresh field, which starts at the default country.
+    const digits = value.replace(/\D/g, '').replace(/^0+/, '');
+    return { iso2: digits ? LEGACY_LOCAL_ISO2 : DEFAULT_COUNTRY_ISO2, national: digits };
   }
   const digits = value.slice(1).replace(/\D/g, '');
   const match = [...COUNTRIES]

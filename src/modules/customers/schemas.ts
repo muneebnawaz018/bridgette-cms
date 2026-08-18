@@ -191,7 +191,12 @@ export const customerCreateSchema = z.object({
   firstName: optionalText(FIELD_MAX),
   lastName: optionalText(FIELD_MAX),
   email: emailField,
-  phone: optionalText(FIELD_MAX),
+  /** Required: every customer is reachable by phone, whoever entered them. */
+  phone: z
+    .string()
+    .trim()
+    .min(1, 'A phone number is required')
+    .max(FIELD_MAX, 'That value is too long'),
   address: optionalText(ADDRESS_MAX),
   addressParts: addressPartsSchema,
   shipping: shippingSchema.optional(),
@@ -200,6 +205,11 @@ export const customerCreateSchema = z.object({
   notes: optionalText(NOTES_MAX),
   reseller: z.boolean().optional(),
   resellerCertificate: resellerCertificateField,
+  /*
+   * Still part of the API's shape, but no longer honoured: the type is derived from the billing
+   * country and the reseller flag on every write (see `invoiceTypeFor`). Kept accepted so an
+   * existing caller sending it is not met with a rejection over a field that now has one answer.
+   */
   invoiceType: z.nativeEnum(InvoiceType).optional(),
 });
 // A create needs *some* name: either the full one or a first name to derive it from.
@@ -219,7 +229,11 @@ export const customerFormSchema = z.object({
     .max(FIELD_MAX, 'That value is too long'),
   lastName: z.string().trim().max(FIELD_MAX, 'That value is too long'),
   email: emailField,
-  phone: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+  phone: z
+    .string()
+    .trim()
+    .min(1, 'A phone number is required')
+    .max(FIELD_MAX, 'That value is too long'),
   country: z.enum(['US', 'PK']),
   line1: z
     .string()
@@ -237,8 +251,6 @@ export const customerFormSchema = z.object({
   products: productIdsField,
   notes: z.string().trim().max(NOTES_MAX, 'That note is too long'),
   reseller: z.boolean(),
-  // '' = no default type.
-  invoiceType: z.union([z.literal(''), z.nativeEnum(InvoiceType)]),
 
   // Shipping, flat like the rest of the form. Checked only when shipSameAsBilling is off.
   shipSameAsBilling: z.boolean(),

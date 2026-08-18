@@ -23,13 +23,10 @@ import {
   type EditableCustomer,
 } from '@/components/customers/CustomerFormDialog';
 import { IntakeLinkDialog } from '@/components/customers/IntakeLinkDialog';
-import { IntakeReviewDialog } from '@/components/customers/IntakeReviewDialog';
 import type { FormMode } from '@/components/ui/Modal';
 import { useApi } from '@/lib/api/useApi';
 import { useDebounced } from '@/lib/api/useDebounce';
 import { usePreferences } from '@/components/providers/PreferencesProvider';
-import Chip from '@mui/material/Chip';
-import { colors } from '@/lib/colors';
 import { apiDelete } from '@/lib/api/client';
 import type { AddressParts } from '@/modules/customers/address';
 
@@ -43,11 +40,9 @@ interface CustomerRow {
   phone?: string;
   address?: string;
   reseller?: boolean;
-  invoiceType?: string;
   /** Product ids this customer buys — the edit form prefills its picker from these. */
   products?: string[];
   /** True when this customer has sent details that nobody has reviewed yet. */
-  pendingIntake?: boolean;
   /** Delivery details, when they differ from billing. */
   shipping?: {
     sameAsBilling?: boolean;
@@ -59,16 +54,14 @@ interface CustomerRow {
   createdAt: string;
 }
 
-const TYPE_LABEL: Record<string, string> = { tax: 'US Tax', cash: 'US Cash', pk: 'Pakistan' };
-
 /*
  * Name + actions always survive. Widths below are floors, not targets — `flex` governs on a
  * roomy screen — so they are set to what actually fits the narrowest viewport each tier has to
  * serve: 568px at 900 (the rail costs 268 from 768 up), 436 at 768, 288 at 320.
  */
 const CUSTOMER_COLUMN_TIERS: ColumnTiers = {
-  // Address and billing default are reference data, not scanning data: first to go.
-  lg: ['location', 'invoiceType'],
+  // The address is reference data, not scanning data: first to go.
+  lg: ['location'],
   md: ['reseller'],
   sm: ['email'],
 };
@@ -103,22 +96,17 @@ export default function CustomersPage() {
   const [formCustomer, setFormCustomer] = useState<EditableCustomer | null>(null);
   // Rows open read-only. Editing is reached from the pencil inside, or from the row menu.
   const [formMode, setFormMode] = useState<FormMode>('edit');
-  // Sharing a link and reviewing what came back are two separate moments in the same flow, so
-  // they are two dialogs rather than one with a mode.
-  const [linkCustomer, setLinkCustomer] = useState<CustomerRow | null>(null);
   /*
-   * Opened with no customer attached: an open invitation, which creates nothing until somebody
-   * fills it in. Tracked separately from `linkCustomer` because "invite somebody new" and "no
-   * row selected yet" are otherwise the same null.
+   * The invitation dialog. It carries no customer: a link creates a record, it never edits one,
+   * so a customer already on file is never sent one and nothing they could submit can reach a
+   * record staff typed in.
    */
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [reviewCustomer, setReviewCustomer] = useState<CustomerRow | null>(null);
   const [toDelete, setToDelete] = useState<CustomerRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   /** Anything covering the list. Declared before the fetch, which reads it. */
-  const dialogOpen =
-    formOpen || Boolean(linkCustomer) || inviteOpen || Boolean(reviewCustomer) || Boolean(toDelete);
+  const dialogOpen = formOpen || inviteOpen || Boolean(toDelete);
 
   const params = new URLSearchParams({
     page: String(paginationModel.page + 1),
@@ -180,28 +168,11 @@ export default function CustomersPage() {
         flex: 1.3,
         minWidth: 130,
         renderCell: (p) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-            <Box
-              component="span"
-              sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-            >
-              {p.row.name}
-            </Box>
-            {/* The only place a waiting submission announces itself. Name is the one column that
-                survives every breakpoint, so the badge rides along with it. */}
-            {p.row.pendingIntake && (
-              <Chip
-                size="small"
-                label="New details"
-                onClick={() => setReviewCustomer(p.row)}
-                sx={{
-                  fontWeight: 700,
-                  bgcolor: colors.status.infoBg,
-                  color: colors.status.info,
-                  cursor: 'pointer',
-                }}
-              />
-            )}
+          <Box
+            component="span"
+            sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            {p.row.name}
           </Box>
         ),
       },
@@ -227,14 +198,6 @@ export default function CustomersPage() {
         },
       },
       {
-        field: 'invoiceType',
-        headerName: 'Default invoice type',
-        flex: 1.1,
-        minWidth: 150,
-        valueGetter: (_v, r) =>
-          r.invoiceType ? (TYPE_LABEL[r.invoiceType] ?? r.invoiceType) : '—',
-      },
-      {
         // Tax exemption deserves its own column rather than a suffix on another one.
         field: 'reseller',
         headerName: 'Reseller',
@@ -251,16 +214,6 @@ export default function CustomersPage() {
           const actions: RowAction[] = [];
           actions.push({ label: 'View', onClick: () => openView(p.row) });
           if (canEdit) actions.push({ label: 'Edit', onClick: () => openEdit(p.row) });
-          if (canEdit) {
-            actions.push({
-              label: 'Request details',
-              onClick: () => setLinkCustomer(p.row),
-            });
-            actions.push({
-              label: p.row.pendingIntake ? 'Review new details' : 'Review submissions',
-              onClick: () => setReviewCustomer(p.row),
-            });
-          }
           if (canDelete)
             actions.push({ label: 'Delete', danger: true, onClick: () => setToDelete(p.row) });
           if (actions.length === 0) return null;
@@ -331,21 +284,8 @@ export default function CustomersPage() {
         onSaved={() => void mutate()}
       />
 
-      <IntakeLinkDialog
-        open={Boolean(linkCustomer)}
-        customer={linkCustomer}
-        onClose={() => setLinkCustomer(null)}
-      />
-
-      {/* Same dialog, no customer: an open invitation, which creates nothing until it is used. */}
-      <IntakeLinkDialog open={inviteOpen} customer={null} onClose={() => setInviteOpen(false)} />
-
-      <IntakeReviewDialog
-        open={Boolean(reviewCustomer)}
-        customer={reviewCustomer}
-        onClose={() => setReviewCustomer(null)}
-        onApplied={() => void mutate()}
-      />
+      {/* An invitation, which creates nothing until somebody fills it in. */}
+      <IntakeLinkDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
 
       <ConfirmDialog
         open={Boolean(toDelete)}

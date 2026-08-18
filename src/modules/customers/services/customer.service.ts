@@ -11,6 +11,7 @@ import {
 } from '@/modules/products/services/product.service';
 import { Customer, type CustomerDoc } from '../models/customer.model';
 import { formatAddress, isBlankAddress } from '../address';
+import { canBeReseller, invoiceTypeFor } from '../invoiceType';
 import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
 
 /**
@@ -64,34 +65,6 @@ export async function listCustomers(
   const stages: PipelineStage[] = [
     { $match: activeMatch(query.search) },
     { $project: LIST_PROJECTION },
-    /*
-     * Whether this customer has an intake submission waiting on someone.
-     *
-     * Joined onto the list rather than fetched per row: without it the review dialog is only
-     * reachable by opening a row menu on the off-chance, so a customer could fill in their
-     * details and have that sit unnoticed indefinitely. The lookup projects a single `_id` and
-     * stops at the first match, so it costs one indexed hit per row.
-     */
-    {
-      $lookup: {
-        from: 'customerintakes',
-        let: { customerId: '$_id' },
-        as: 'pendingIntakes',
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [{ $eq: ['$customer', '$$customerId'] }, { $eq: ['$status', 'pending'] }],
-              },
-            },
-          },
-          { $limit: 1 },
-          { $project: { _id: 1 } },
-        ],
-      },
-    },
-    { $addFields: { pendingIntake: { $gt: [{ $size: '$pendingIntakes' }, 0] } } },
-    { $project: { pendingIntakes: 0 } },
   ];
   // Customers read best name-first; aggregatePaginate applies this sort inside its $facet page.
   return aggregatePaginate<CustomerDoc>(
@@ -249,6 +222,7 @@ const DUPLICATE_EMAIL = 'A customer with that email already exists';
 export async function createCustomer(actor: SessionUser, input: CustomerCreateInput) {
   assertCan(actor.role, Permission.CustomerCreate);
   await connectDb();
+  const resellerFlag = canBeReseller(input.addressParts?.country) && (input.reseller ?? false);
   try {
     const doc = await Customer.create({
       name: fullName(input),
@@ -261,9 +235,17 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
       shipping: shippingBlock(input),
       products: input.products ?? [],
       notes: input.notes,
-      reseller: input.reseller ?? false,
+      // Pakistan bills no US sales tax, so there is no exemption for a reseller flag to grant.
+      // The form disables the field there; this is what makes it true of the record.
+      reseller: resellerFlag,
       resellerCertificate: input.resellerCertificate ?? undefined,
-      invoiceType: input.invoiceType,
+      /*
+       * Derived from the country and that flag, not taken from the request. It is the same rule
+       * the customer intake applies, so a record staff type in and one a customer fills in by
+       * link cannot end up billed differently. `invoiceType` on the request is ignored; the type
+       * is still free to be changed per invoice, where the customer's is only the default.
+       */
+      invoiceType: invoiceTypeFor(input.addressParts?.country, resellerFlag),
       createdBy: actor.userId,
     });
     // After the insert, since the rows key on the customer id this call assigns.
@@ -322,7 +304,15 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
     doc.resellerCertificate = (input.resellerCertificate ??
       undefined) as unknown as CustomerDoc['resellerCertificate'];
   }
-  if (input.invoiceType !== undefined) doc.invoiceType = input.invoiceType;
+  /*
+   * Both read off the record as it now stands, so moving an existing customer to Pakistan clears
+   * the exemption and re-points the invoice type even when the request said nothing about
+   * either. The certificate stays: invoices already raised under the exemption still need their
+   * evidence. `input.invoiceType` is deliberately not applied — see `invoiceTypeFor`.
+   */
+  const country = doc.addressParts?.country;
+  if (!canBeReseller(country)) doc.reseller = false;
+  doc.invoiceType = invoiceTypeFor(country, Boolean(doc.reseller));
 
   try {
     await doc.save();

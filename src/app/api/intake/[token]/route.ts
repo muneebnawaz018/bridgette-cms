@@ -28,7 +28,8 @@ export const GET = handle<Ctx>(async (req, { params }) => {
   const intake = await openIntake(token);
   if (!intake) return fail('This link is no longer valid. Ask us for a new one.', 404);
 
-  return ok({ customerName: intake.customerName });
+  // Nothing about anybody comes back: an invitation belongs to no record until it is answered.
+  return ok({ valid: true });
 });
 
 /** POST — submit the form. Consumes the link; a second attempt gets the same 404 as above. */
