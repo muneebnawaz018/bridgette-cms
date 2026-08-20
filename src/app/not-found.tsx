@@ -69,8 +69,8 @@ export default function NotFound() {
             Page not found
           </Typography>
           <Typography sx={{ mt: 1, color: colors.text.secondary }}>
-            That link may be out of date, or the page may have moved. Nothing was lost — head
-            back to the portal and carry on.
+            That link may be out of date, or the page may have moved. Nothing was lost — head back
+            to the portal and carry on.
           </Typography>
         </Box>
 

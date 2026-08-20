@@ -21,61 +21,59 @@ export const OG_ALT = 'Bridgette Enterprises Management Portal';
 
 export function renderOpengraphCard(): ImageResponse {
   return new ImageResponse(
-    (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        padding: '0 88px',
+        background: `linear-gradient(135deg, ${colors.brand.red} 0%, ${colors.brand.redDark} 55%, #7a0b10 100%)`,
+        color: colors.brand.white,
+        fontFamily: 'sans-serif',
+      }}
+    >
       <div
         style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          padding: '0 88px',
-          background: `linear-gradient(135deg, ${colors.brand.red} 0%, ${colors.brand.redDark} 55%, #7a0b10 100%)`,
-          color: colors.brand.white,
-          fontFamily: 'sans-serif',
+          fontSize: 26,
+          letterSpacing: 12,
+          fontWeight: 600,
+          opacity: 0.72,
+          textTransform: 'uppercase',
         }}
       >
-        <div
-          style={{
-            fontSize: 26,
-            letterSpacing: 12,
-            fontWeight: 600,
-            opacity: 0.72,
-            textTransform: 'uppercase',
-          }}
-        >
-          Bridgette Enterprises
-        </div>
-
-        <div
-          style={{
-            marginTop: 22,
-            fontSize: 92,
-            fontWeight: 800,
-            letterSpacing: -2,
-            lineHeight: 1.05,
-          }}
-        >
-          Management Portal
-        </div>
-
-        <div style={{ marginTop: 28, fontSize: 34, opacity: 0.86, lineHeight: 1.35 }}>
-          Invoicing, payments, customers and shipping · in one place.
-        </div>
-
-        {/* Brand rule, mirroring the red underline used across the app's headings. */}
-        <div
-          style={{
-            marginTop: 44,
-            width: 168,
-            height: 8,
-            borderRadius: 4,
-            background: colors.brand.white,
-            opacity: 0.9,
-          }}
-        />
+        Bridgette Enterprises
       </div>
-    ),
+
+      <div
+        style={{
+          marginTop: 22,
+          fontSize: 92,
+          fontWeight: 800,
+          letterSpacing: -2,
+          lineHeight: 1.05,
+        }}
+      >
+        Management Portal
+      </div>
+
+      <div style={{ marginTop: 28, fontSize: 34, opacity: 0.86, lineHeight: 1.35 }}>
+        Invoicing, payments, customers and shipping · in one place.
+      </div>
+
+      {/* Brand rule, mirroring the red underline used across the app's headings. */}
+      <div
+        style={{
+          marginTop: 44,
+          width: 168,
+          height: 8,
+          borderRadius: 4,
+          background: colors.brand.white,
+          opacity: 0.9,
+        }}
+      />
+    </div>,
     OG_SIZE,
   );
 }
