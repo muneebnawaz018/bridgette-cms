@@ -40,6 +40,8 @@ interface CustomerRow {
   phone?: string;
   address?: string;
   reseller?: boolean;
+  /** Free-text team names. Edited in the dialog, which opens from a row. */
+  teams?: string[];
   /** Product ids this customer buys — the edit form prefills its picker from these. */
   products?: string[];
   /** True when this customer has sent details that nobody has reviewed yet. */
@@ -168,10 +170,7 @@ export default function CustomersPage() {
         flex: 1.3,
         minWidth: 130,
         renderCell: (p) => (
-          <Box
-            component="span"
-            sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-          >
+          <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {p.row.name}
           </Box>
         ),

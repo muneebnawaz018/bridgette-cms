@@ -330,8 +330,8 @@ export function IntakeLinkDialog({ open, onClose }: { open: boolean; onClose: ()
           <InfoOutlined fontSize="small" sx={{ mt: 0.15, flexShrink: 0 }} />
           <Typography variant="caption" sx={{ lineHeight: 1.6 }}>
             They appear in your customer list once they submit the form, not before. If the email
-            they enter already belongs to a customer, the form asks them to contact you instead —
-            a link never changes a record that already exists — and the link stays usable, so a
+            they enter already belongs to a customer, the form asks them to contact you instead — a
+            link never changes a record that already exists — and the link stays usable, so a
             mistyped address can be corrected.
           </Typography>
         </Box>

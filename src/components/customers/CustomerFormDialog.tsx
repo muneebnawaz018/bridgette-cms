@@ -20,9 +20,10 @@ import { PhoneField } from '@/components/ui/PhoneField';
 import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countries';
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { CustomerProductsField } from '@/components/customers/CustomerProductsField';
+import { CustomerTeamsField } from '@/components/customers/CustomerTeamsField';
 import { useFormGuard } from '@/components/form/useFormGuard';
 import type { FormMode } from '@/components/ui/Modal';
-import { customerFormSchemaChecked } from '@/modules/customers/schemas';
+import { customerFormSchemaChecked, TEAMS_MAX } from '@/modules/customers/schemas';
 import { statesFor, type AddressParts } from '@/modules/customers/address';
 import { canBeReseller } from '@/modules/customers/invoiceType';
 import { apiPost, apiPatch } from '@/lib/api/client';
@@ -46,6 +47,7 @@ export interface EditableCustomer {
   addressParts?: AddressParts | null;
   notes?: string;
   reseller?: boolean;
+  teams?: string[];
   /** Product ids this customer buys. */
   products?: string[];
   /** Per-product discounts negotiated with this customer. */
@@ -64,6 +66,8 @@ export interface EditableCustomer {
 interface FormValues {
   /** Product ids this customer buys. */
   products: string[];
+  /** Free-text team names, as typed on this record. */
+  teams: string[];
   firstName: string;
   lastName: string;
   email: string;
@@ -128,6 +132,7 @@ type TextKey =
 
 const EMPTY: FormValues = {
   products: [],
+  teams: [],
   firstName: '',
   lastName: '',
   email: '',
@@ -161,6 +166,7 @@ function valuesFromCustomer(c: EditableCustomer): FormValues {
   const sa = c.shipping?.addressParts ?? {};
   return {
     products: (c.products ?? []).map(String),
+    teams: c.teams ?? [],
     firstName: c.firstName ?? fallbackFirst,
     lastName: c.lastName ?? restName.join(' '),
     email: c.email ?? '',
@@ -224,6 +230,7 @@ function buildPayload(f: FormValues) {
           },
         },
     products: f.products,
+    teams: f.teams,
     notes: f.notes.trim() || undefined,
     reseller: f.reseller,
   };
@@ -332,6 +339,8 @@ export function CustomerFormDialog({
   const [phone, setPhone] = useState({ iso2: DEFAULT_COUNTRY_ISO2, national: '' });
   // Product ids the customer buys — controlled, since a pick has to re-render the chips.
   const [products, setProducts] = useState<string[]>([]);
+  // Controlled like the products picker: adding a team has to re-render its chips.
+  const [teams, setTeams] = useState<string[]>([]);
   // Per-product discount overrides, held as strings so a half-typed value is not coerced. Blank
   // means "no override" and the product's own discount applies.
   const [discounts, setDiscounts] = useState<Record<string, string>>({});
@@ -382,6 +391,7 @@ export function CustomerFormDialog({
     setCountry(next.country);
     setPhone(splitPhone(next.phone));
     setProducts(next.products);
+    setTeams(next.teams);
     setDiscounts(
       Object.fromEntries(
         (customer?.productDiscounts ?? []).map((d) => [d.product, String(d.discountPercent)]),
@@ -423,6 +433,14 @@ export function CustomerFormDialog({
     (ids: string[]) => {
       valuesRef.current.products = ids;
       setProducts(ids);
+      guard.refresh();
+    },
+    [guard],
+  );
+  const pickTeams = useCallback(
+    (next: string[]) => {
+      valuesRef.current.teams = next;
+      setTeams(next);
       guard.refresh();
     },
     [guard],
@@ -788,6 +806,17 @@ export function CustomerFormDialog({
                   required
                   helperText={shown('phone')}
                   error={Boolean(shown('phone'))}
+                  disabled={locked}
+                />
+              </Grid>
+              {/* Half a row, sharing it with Reseller: both describe the account rather than the
+                  address, and the box grows downward as chips wrap rather than pushing the
+                  reseller field around. */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <CustomerTeamsField
+                  value={teams}
+                  onChange={pickTeams}
+                  max={TEAMS_MAX}
                   disabled={locked}
                 />
               </Grid>

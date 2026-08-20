@@ -15,6 +15,34 @@ const NAME_MAX = 160;
 const FIELD_MAX = 200;
 const ADDRESS_MAX = 500;
 const NOTES_MAX = 2000;
+const TEAM_MAX = 60;
+/** How many teams one customer may hold. Exported so the form's cap is this same number. */
+export const TEAMS_MAX = 15;
+
+/**
+ * The teams a customer buys for. Typed freely on the form, so this is where the typing is made
+ * safe to store: blanks dropped, each name length-capped, and repeats removed case-insensitively
+ * — "Varsity" and "varsity" are one team, and the first spelling entered is the one kept.
+ *
+ * The 15 cap is a guard against a paste going into the wrong box, not a business rule anybody
+ * should hit; it is checked after de-duplication, so trying to add a name already there can
+ * never be what pushes a customer over it.
+ */
+export const teamsField = z
+  .array(z.string().trim().max(TEAM_MAX, 'That team name is too long'))
+  .default([])
+  .transform((names) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const name of names) {
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+    }
+    return out;
+  })
+  .refine((names) => names.length <= TEAMS_MAX, `A customer can have at most ${TEAMS_MAX} teams`);
 
 const nameField = z
   .string()
@@ -202,6 +230,7 @@ export const customerCreateSchema = z.object({
   shipping: shippingSchema.optional(),
   products: productIdsField,
   productDiscounts: productDiscountsField,
+  teams: teamsField,
   notes: optionalText(NOTES_MAX),
   reseller: z.boolean().optional(),
   resellerCertificate: resellerCertificateField,
@@ -245,6 +274,7 @@ export const customerFormSchema = z.object({
     .trim()
     .refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
   products: productIdsField,
+  teams: teamsField,
   notes: z.string().trim().max(NOTES_MAX, 'That note is too long'),
   reseller: z.boolean(),
 

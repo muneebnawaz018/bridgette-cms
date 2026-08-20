@@ -323,6 +323,7 @@ export async function submitIntake(
       address: printable(input.addressParts, input.address),
       addressParts,
       shipping,
+      teams: input.teams,
       reseller: Boolean(certificate),
       resellerCertificate: certificate,
       // Derived, never asked for: see `invoiceTypeFor`.
@@ -358,6 +359,7 @@ export async function submitIntake(
     address: printable(input.addressParts, input.address),
     addressParts,
     shipping,
+    teams: input.teams,
     customerNote: input.customerNote,
     resellerCertificate: certificate,
     setReseller: Boolean(certificate),

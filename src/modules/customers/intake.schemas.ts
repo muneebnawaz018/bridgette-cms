@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { phoneField } from '@/lib/validation/phone';
 import { canBeReseller } from './invoiceType';
-import { addressPartsSchema, shippingSchema } from './schemas';
+import { addressPartsSchema, shippingSchema, teamsField } from './schemas';
 
 /**
  * What a customer may send through their own intake link.
@@ -184,6 +184,11 @@ export const customerIntakeSubmitSchema = z
     address: optionalText(ADDRESS_MAX),
     addressParts: addressPartsSchema,
     shipping: shippingSchema.optional(),
+    /*
+     * Same field, same rules as the admin form — the customer naming their own teams is the
+     * person most likely to spell them the way they mean them.
+     */
+    teams: teamsField,
     customerNote: optionalText(NOTE_MAX),
     resellerCertificate: intakeCertificateSchema.optional(),
   })

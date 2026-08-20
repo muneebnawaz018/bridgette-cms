@@ -81,6 +81,14 @@ const customerSchema = new Schema(
     // array answers "which products", a rate row answers "at what price, unusually".
     products: [{ type: Schema.Types.ObjectId, ref: 'Product', index: true }],
 
+    /*
+     * Teams this customer buys for — a school's varsity and JV sides, a club's age groups. Free
+     * text typed on the customer record rather than a collection of their own: they are labels
+     * one customer uses to talk about their own orders, not entities the app reasons about, and
+     * a shared list would have every customer's team names in everybody else's picker.
+     */
+    teams: [{ type: String }],
+
     notes: { type: String },
 
     // A reseller is tax-exempt: invoices raised for this customer charge no sales tax. Picking

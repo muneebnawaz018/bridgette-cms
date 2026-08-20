@@ -19,6 +19,7 @@ export {
 export {
   customerCreateSchema,
   customerCreateSchemaChecked,
+  TEAMS_MAX,
   addressPartsSchema,
   customerUpdateSchema,
   customerFormSchema,

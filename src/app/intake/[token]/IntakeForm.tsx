@@ -17,6 +17,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countries';
 import { statesFor } from '@/modules/customers/address';
 import { customerIntakeSubmitSchema } from '@/modules/customers/intake.schemas';
+import { TEAMS_MAX } from '@/modules/customers/schemas';
 import { canBeReseller } from '@/modules/customers/invoiceType';
 import { apiPost } from '@/lib/api/client';
 import { type FieldErrors, toFieldErrors, serverFieldErrors } from '@/lib/form/errors';
@@ -25,6 +26,7 @@ import {
   CertificateDropzone,
   type CertificateFile,
 } from '@/components/customers/CertificateDropzone';
+import { CustomerTeamsField } from '@/components/customers/CustomerTeamsField';
 import { COMPANY_CONTACT_US } from '@/modules/legal/company';
 
 /*
@@ -106,6 +108,7 @@ function toPayload(
   shipCountry: Country,
   shipSame: boolean,
   certificate: CertificateFile | null,
+  teams: string[],
 ) {
   return {
     // The two required ones go through as typed, blank included: an omitted field reads back as
@@ -139,6 +142,7 @@ function toPayload(
             zipPlus4: shipCountry === 'US' ? v.shipZipPlus4 || undefined : undefined,
           },
         },
+    teams,
     customerNote: v.customerNote || undefined,
     // Never sent for a Pakistani address: US sales tax is what a certificate exempts.
     resellerCertificate: (canBeReseller(country) && certificate) || undefined,
@@ -192,6 +196,8 @@ export function IntakeForm({ token }: { token: string }) {
    * and nothing else, so the exemption follows from the file rather than from a tick.
    */
   const [reseller, setReseller] = useState(false);
+  /** Free-text team names. Controlled, since adding one has to render its chip. */
+  const [teams, setTeams] = useState<string[]>([]);
   const [certificate, setCertificate] = useState<CertificateFile | null>(null);
   const [certError, setCertError] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -252,6 +258,7 @@ export function IntakeForm({ token }: { token: string }) {
       shipCountry,
       shipSame,
       certificate,
+      teams,
     );
 
     const parsed = customerIntakeSubmitSchema.safeParse(payload);
@@ -370,6 +377,16 @@ export function IntakeForm({ token }: { token: string }) {
                 required
                 helperText={shown('phone')}
                 error={Boolean(shown('phone'))}
+                disabled={saving}
+              />
+            </Grid>
+            {/* Optional, and the same control staff use — the customer naming their own teams is
+                the person most likely to spell them the way they mean them. */}
+            <Grid size={12}>
+              <CustomerTeamsField
+                value={teams}
+                onChange={setTeams}
+                max={TEAMS_MAX}
                 disabled={saving}
               />
             </Grid>
@@ -663,12 +680,14 @@ export function IntakeForm({ token }: { token: string }) {
 
         <Divider sx={{ my: 2 }} />
         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          {/* Full width on a phone, where most of these are filled in: a 200px button floating
+              at the right edge of a narrow screen is easy to miss and awkward to hit. */}
           <SubmitButton
             variant="contained"
             size="large"
             loading={saving}
             onClick={submit}
-            sx={{ minWidth: 200 }}
+            sx={{ minWidth: 200, width: { xs: '100%', sm: 'auto' } }}
           >
             Send my details
           </SubmitButton>

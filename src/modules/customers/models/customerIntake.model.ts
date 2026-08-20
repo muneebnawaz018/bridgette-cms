@@ -55,6 +55,8 @@ const customerIntakeSchema = new Schema(
       ),
       default: undefined,
     },
+    /** The teams they named, kept with the rest of what they said. */
+    teams: [{ type: String }],
     /*
      * The customer's own message — kept apart from `customer.notes`, which is an internal staff
      * field. Merging the two would put private remarks in front of the customer and let them

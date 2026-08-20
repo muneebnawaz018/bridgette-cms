@@ -40,6 +40,7 @@ const LIST_PROJECTION = {
   reseller: 1,
   invoiceType: 1,
   products: 1,
+  teams: 1,
   shipping: 1,
   // The edit dialog opens from a list row, so every field it edits has to come back here.
   // Missing, the input opens blank and a save writes that blank over the stored value.
@@ -241,6 +242,7 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
       addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
       shipping: shippingBlock(input),
       products: input.products ?? [],
+      teams: input.teams ?? [],
       notes: input.notes,
       // Pakistan bills no US sales tax, so there is no exemption for a reseller flag to grant.
       // The form disables the field there; this is what makes it true of the record.
@@ -300,6 +302,9 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   if (input.products !== undefined) {
     doc.products = input.products as unknown as CustomerDoc['products'];
   }
+  // An empty array is a real value — it means "no teams" — so only an absent field leaves the
+  // stored list alone, the same rule `products` follows.
+  if (input.teams !== undefined) doc.teams = input.teams;
   if (input.notes !== undefined) doc.notes = input.notes;
   if (input.reseller !== undefined) doc.reseller = input.reseller;
   /*
