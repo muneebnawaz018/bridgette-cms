@@ -7,11 +7,21 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Popover from '@mui/material/Popover';
+import Select from '@mui/material/Select';
+import Popper from '@mui/material/Popper';
+import Paper from '@mui/material/Paper';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
+import Chip from '@mui/material/Chip';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import { DateCalendarField } from '@/components/form/DateCalendarField';
 import { companyContactFor, INVOICE_TERMS } from '@/modules/legal/company';
 import { InvoiceType, TAX_POLICY } from '@/modules/invoicing/enums';
 import type { CalcResult } from '@/modules/invoicing/calc';
 import { formatMoney } from '@/lib/format/money';
+import { shippingAddressesFor } from '@/modules/customers/shipping';
 import { formatPhone, telHref } from '@/lib/format/countries';
 import { NumberCell } from '@/components/form/NumberCell';
 import { cashappAmount, CASHAPP_PCT } from '@/components/invoices/InvoiceDocument';
@@ -83,7 +93,12 @@ export interface CustomerOption {
   invoiceType?: InvoiceType;
   /** Product ids this customer buys — the lines are filled from these on pick. */
   products?: string[];
-  /** Where goods go. `sameAsBilling` means SHIP TO repeats the billing party. */
+  /*
+   * Every delivery address on the record, so picking a customer can offer them all without a
+   * second request. Empty means goods go where the bill goes.
+   */
+  shippingAddresses?: { name?: string; phone?: string; address?: string }[];
+  /** The single address the list replaced, still on records saved before it existed. */
   shipping?: {
     sameAsBilling?: boolean;
     name?: string;
@@ -117,16 +132,40 @@ const TYPE_LABEL: Record<InvoiceType, string> = {
   [InvoiceType.PK]: 'INVOICE',
 };
 
+export interface ShipChoice {
+  /** What the dropdown row says. */
+  label: string;
+  name: string;
+  address: string;
+}
+
 /**
- * SHIP TO for a picked customer. A customer that ships to its billing address stores no separate
- * copy, so the billing party is repeated here rather than read back from a stale duplicate.
+ * Where a picked customer's goods can go: their saved delivery addresses, then the billing party.
+ *
+ * The billing option is last and always present — a customer with three warehouses still sends
+ * the occasional box to the office, and a customer with none has this as their only entry. The
+ * invoice keeps a copy of whichever is picked, so correcting the customer's address afterwards
+ * never rewrites where something already shipped.
+ */
+export function shipChoicesFor(opt: CustomerOption): ShipChoice[] {
+  const saved = shippingAddressesFor(opt).map((a, i) => {
+    const name = a.name || opt.name;
+    const address = a.address ?? '';
+    return { label: address ? `${name} — ${address}` : name || `Address ${i + 1}`, name, address };
+  });
+  return [
+    ...saved,
+    { label: `Same as billing — ${opt.name}`, name: opt.name, address: opt.address ?? '' },
+  ];
+}
+
+/**
+ * SHIP TO for a customer just picked. Their first saved delivery address, or the billing party
+ * when they have none — the first entry of `shipChoicesFor` either way.
  */
 export function shipToFor(opt: CustomerOption): { name: string; address: string } {
-  const ship = opt.shipping;
-  if (!ship || ship.sameAsBilling !== false) {
-    return { name: opt.name, address: opt.address ?? '' };
-  }
-  return { name: ship.name || opt.name, address: ship.address ?? '' };
+  const [first] = shipChoicesFor(opt);
+  return { name: first.name, address: first.address };
 }
 
 const usd = (n: number) => formatMoney('USD', Number(n ?? 0));
@@ -139,6 +178,62 @@ function fmtDate(s?: string): string {
 }
 
 const MIN_ROWS = 8;
+
+/*
+ * Both pickers open the same card: wider than the field they hang off, because what decides a
+ * pick is an email address or a product name, and narrower than the page so a long line still
+ * wraps to something readable. Shrinks with the viewport rather than pushing a phone sideways.
+ */
+const PICK_POPUP_WIDTH = 'min(460px, calc(100vw - 24px))';
+
+/*
+ * One dropdown for the whole template — SHIP TO, the customer search, the product picker.
+ *
+ * A white card, softly raised, corners rounded to the app's radius, rows with room to breathe
+ * and text that wraps rather than trailing off into an ellipsis. The picked row carries the
+ * brand tint. Everything that opens off this form looks like the same control, whichever kind
+ * of picker is underneath it.
+ */
+const PICK_MENU_PAPER_SX = {
+  mt: 0.5,
+  borderRadius: 2,
+  border: 'none',
+  boxShadow: '0 12px 32px rgba(16, 24, 40, 0.14)',
+  maxWidth: PICK_POPUP_WIDTH,
+} as const;
+
+/** A row in any of those menus. */
+const PICK_OPTION_SX = {
+  display: 'block',
+  px: 1.75,
+  py: 1.25,
+  fontSize: 14,
+  lineHeight: 1.45,
+  whiteSpace: 'normal',
+  wordBreak: 'break-word',
+  '&.Mui-selected, &[aria-selected="true"]': { bgcolor: PINK },
+  '&.Mui-selected:hover, &[aria-selected="true"]:hover': { bgcolor: PINK },
+} as const;
+
+/*
+ * The SHIP TO address picker, sized to sit on the template without looking like an app control
+ * dropped onto an invoice: template type, a hairline box, and the brand red on focus.
+ */
+const SHIP_SELECT_SX = {
+  mb: 0.75,
+  fontSize: 12,
+  bgcolor: PAPER,
+  '& .MuiSelect-select': { py: 0.5, px: 0.75 },
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: FIELD },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: FIELD },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: RED, borderWidth: 1 },
+} as const;
+
+/** Keep the card on screen when the field sits near the bottom or the right edge. */
+const POPPER_MODIFIERS = [
+  { name: 'preventOverflow', options: { padding: 8 } },
+  { name: 'flip', options: { padding: 8 } },
+];
 
 // Customer picker page size — loaded a page at a time as the dropdown scrolls (matches the API default).
 const CUST_PAGE = 20;
@@ -176,6 +271,7 @@ function CustomerNameField({
     loading: boolean;
   }>({ items: [], skip: 0, hasMore: false, loading: false });
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
   // Bumped per request; a response for an older seq is ignored (stale-guard against races).
   const seqRef = useRef(0);
 
@@ -215,7 +311,7 @@ function CustomerNameField({
   }, [open, query, fetchPage]);
 
   // Load the next page when scrolled near the bottom of the list.
-  const onScroll = (e: React.UIEvent<HTMLUListElement>) => {
+  const onScroll = (e: React.UIEvent<HTMLElement>) => {
     if (page.loading || !page.hasMore) return;
     const el = e.currentTarget;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 16) {
@@ -227,7 +323,7 @@ function CustomerNameField({
   const busy = page.loading || value.trim() !== query;
 
   return (
-    <div className="cust-field">
+    <Box className="cust-field" ref={anchorRef}>
       <input
         placeholder={placeholder}
         value={value}
@@ -243,45 +339,97 @@ function CustomerNameField({
           blurTimer.current = setTimeout(() => setOpen(false), 120);
         }}
       />
-      {open && (
-        <ul className="cust-menu" onScroll={onScroll}>
-          {page.items.map((c) => (
-            <li
-              key={c._id}
-              className="pick-opt"
-              // mousedown (not click) so it fires before the input's blur closes the menu.
-              onMouseDown={(e) => {
-                e.preventDefault();
-                if (blurTimer.current) clearTimeout(blurTimer.current);
-                onPick(c);
-                setOpen(false);
-              }}
-            >
-              <span className="pick-top">
-                <span className="pick-nm">{c.name}</span>
-                {/* What actually changes the invoice: a reseller pays no sales tax. Worth
-                    seeing before committing to a pick. */}
-                {c.reseller && <span className="pick-tag is-reseller">Reseller</span>}
-              </span>
-              {/* Email first — two customers can share a name (and often do), so it is the line
-                  that tells them apart. */}
-              {(c.email || c.phone) && (
-                <span className="pick-sub">
-                  {[c.email, formatPhone(c.phone)].filter(Boolean).join('  ·  ')}
-                </span>
-              )}
-              {c.address && <span className="pick-addr">{c.address}</span>}
-            </li>
-          ))}
-          {busy && (
-            <li className="cust-loading">
-              <CircularProgress size={20} thickness={5} sx={{ color: RED }} />
-            </li>
-          )}
-          {!busy && page.items.length === 0 && <li className="cust-empty">No customer found</li>}
-        </ul>
-      )}
-    </div>
+      {/*
+       * The app's own dropdown, not a menu drawn to the template's scale. The row that decides a
+       * pick carries a name, an email, a phone and an address, and at template size those were
+       * clipped to an ellipsis each — a customer picked from three truncated strings is a
+       * customer picked by guesswork. Full-size type, and every line wraps.
+       */}
+      <Popper
+        open={open}
+        anchorEl={anchorRef.current}
+        placement="bottom-start"
+        sx={{ zIndex: 30 }}
+        modifiers={POPPER_MODIFIERS}
+      >
+        <Paper
+          // Wider than the NAME field, which is narrow: an email address needs the room.
+          sx={{ ...PICK_MENU_PAPER_SX, overflow: 'hidden', width: PICK_POPUP_WIDTH }}
+        >
+          <List dense disablePadding sx={{ maxHeight: 360, overflowY: 'auto' }} onScroll={onScroll}>
+            {page.items.map((c) => (
+              <ListItemButton
+                key={c._id}
+                alignItems="flex-start"
+                sx={PICK_OPTION_SX}
+                // mousedown (not click) so it fires before the input's blur closes the menu.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (blurTimer.current) clearTimeout(blurTimer.current);
+                  onPick(c);
+                  setOpen(false);
+                }}
+              >
+                <Stack direction="row" alignItems="center" gap={0.75} flexWrap="wrap">
+                  <Typography variant="body2" sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
+                    {c.name}
+                  </Typography>
+                  {/* What actually changes the invoice: a reseller pays no sales tax. Worth
+                      seeing before committing to a pick. */}
+                  {c.reseller && (
+                    <Chip
+                      size="small"
+                      label="Reseller"
+                      sx={{
+                        height: 18,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        bgcolor: PINK,
+                        color: RED,
+                      }}
+                    />
+                  )}
+                </Stack>
+                {/* Email first — two customers can share a name (and often do), so it is the line
+                    that tells them apart. */}
+                {(c.email || c.phone) && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', wordBreak: 'break-word' }}
+                  >
+                    {[c.email, formatPhone(c.phone)].filter(Boolean).join('  ·  ')}
+                  </Typography>
+                )}
+                {c.address && (
+                  <Typography
+                    variant="caption"
+                    color="text.disabled"
+                    sx={{ display: 'block', wordBreak: 'break-word' }}
+                  >
+                    {c.address}
+                  </Typography>
+                )}
+              </ListItemButton>
+            ))}
+            {busy && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={20} thickness={5} sx={{ color: RED }} />
+              </Box>
+            )}
+            {!busy && page.items.length === 0 && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}
+              >
+                No customer found
+              </Typography>
+            )}
+          </List>
+        </Paper>
+      </Popper>
+    </Box>
   );
 }
 
@@ -315,6 +463,11 @@ export function InvoiceTemplateForm({
   // defaults.
   const [billKey, setBillKey] = useState(0);
   const [shipKey, setShipKey] = useState(0);
+  /*
+   * The billed customer's delivery addresses, carried on the option the picker returned — no
+   * second request, so the dropdown is populated the moment the customer is chosen.
+   */
+  const [shipChoices, setShipChoices] = useState<ShipChoice[]>([]);
   // Bumped (not toggled) so a second impatient click restarts the flash instead of being swallowed.
   const [nudge, setNudge] = useState(0);
   const [typeAnchor, setTypeAnchor] = useState<null | HTMLElement>(null);
@@ -397,9 +550,21 @@ export function InvoiceTemplateForm({
   // uncontrolled inputs' defaults.
   const handleBillPick = (opt: CustomerOption | null) => {
     onCustomerPick(opt);
+    // The parent fills SHIP TO with the first of these; the dropdown is how the other ones are
+    // reached. Cleared with the customer, since they belong to that record and no other.
+    setShipChoices(opt ? shipChoicesFor(opt) : []);
     setBillKey((k) => k + 1);
+    setShipKey((k) => k + 1);
   };
   // SHIP TO is also a customer pick (or blank). It only fills the ship name/address.
+  /** Picked from the customer's own addresses. Fills the two SHIP TO fields and nothing else. */
+  const pickShipChoice = (index: number) => {
+    const choice = shipChoices[index];
+    if (!choice) return;
+    setForm((f) => ({ ...f, shipName: choice.name, shipAddress: choice.address }));
+    setShipKey((k) => k + 1);
+  };
+
   const onShipPick = (opt: CustomerOption | null) => {
     setForm((f) => ({
       ...f,
@@ -506,60 +671,13 @@ export function InvoiceTemplateForm({
         .tpl-party .lbl { color: ${RED}; font-size: 10px; font-weight: 700; letter-spacing: .12em;
           border-bottom: 2px solid ${HAIR}; padding-bottom: 4px; margin-bottom: 8px; }
         .cust-field { position: relative; }
-        .cust-menu { list-style: none; margin: 2px 0 0; padding: 4px 0; position: absolute;
-          z-index: 20; left: 0; right: 0; background: ${PAPER}; border: 1px solid ${FIELD};
-          border-radius: 10px; box-shadow: 0 6px 18px ${HAIR}; max-height: 300px; overflow-y: auto; }
-        /* One option style for both pickers (customer + product): name and the tags that change
-           the invoice on top, the detail that decides the pick beneath. Every line clips rather
-           than wraps, so rows are a fixed height and the list scans. */
-        .pick-opt { padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column;
-          align-items: flex-start; justify-content: flex-start; text-align: left; gap: 1px;
-          border-bottom: 1px solid ${HAIR};
-          font-size: 13px; line-height: 1.35; color: ${BODY}; }
-        .pick-opt:last-child { border-bottom: none; }
-        .pick-opt:hover { background: ${FOCUS}; }
-        .pick-top { display: flex; align-items: center; gap: 6px; width: 100%; }
-        .pick-nm { font-weight: 700; min-width: 0; flex: 0 1 auto; overflow: hidden;
-          text-overflow: ellipsis; white-space: nowrap; }
-        /* margin-left:auto pins it right whatever the name's length; tabular figures keep the
-           column of prices aligned down the list. */
-        .pick-rate { margin-left: auto; padding-left: 12px; flex-shrink: 0; font-weight: 700;
-          font-variant-numeric: tabular-nums; }
-        .pick-tag { flex-shrink: 0; font-size: 9px; font-weight: 700; letter-spacing: .05em;
-          text-transform: uppercase; padding: 1px 6px; border-radius: 999px; line-height: 1.5;
-          background: ${CONTROL_BG}; color: ${MUTED}; }
-        .pick-tag.is-reseller { background: ${PINK}; color: ${RED}; }
-        .pick-sub, .pick-addr { font-size: 11px; color: ${MUTED}; max-width: 100%;
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .pick-addr { color: ${FAINT}; }
-        /* The product picker is a MUI Autocomplete, so its popup arrives with the app's Paper
-           and 1rem body type — twice the template's scale. Pull it back to the same card the
-           customer menu draws, and strip the option padding MUI applies to the li we style. */
-        .pick-pop { border: 1px solid ${FIELD} !important; border-radius: 10px !important;
-          box-shadow: 0 6px 18px ${HAIR} !important;
-          /* At least the cell's width, up to a line length that still reads. */
-          /* The floor is dropped on a phone: 300px anchored near the right edge is wider than the
-             room left for it, and the popper would rather overflow than shrink. */
-          min-width: min(300px, calc(100vw - 24px)); max-width: min(480px, calc(100vw - 24px)); }
-        .pick-pop .MuiAutocomplete-listbox { padding: 0; max-height: 300px; }
-        /* Two classes, to outrank MUI's own listbox-scoped option rule — that one is a row with
-           align-items:center, which left our two stacked lines centred. */
-        .pick-pop .MuiAutocomplete-option.pick-opt { display: flex; flex-direction: column;
-          align-items: flex-start; justify-content: flex-start; text-align: left;
-          padding: 8px 10px; min-height: 0; }
-        .pick-pop .MuiAutocomplete-noOptions { font-size: 11px; color: ${MUTED};
-          font-style: italic; text-align: center; padding: 14px 10px; }
-        /* Group headings ("For this customer" / "All products"). Sticky is MUI's own behaviour,
-           kept — it tells you which half of the list you have scrolled into. */
-        .pick-pop .MuiAutocomplete-groupLabel { font-size: 9px; font-weight: 700;
-          letter-spacing: .08em; text-transform: uppercase; color: ${MUTED};
-          background: ${CONTROL_BG}; line-height: 1; padding: 7px 10px;
-          border-bottom: 1px solid ${HAIR}; }
-        .pick-pop .MuiAutocomplete-groupUl { padding: 0; }
-        .cust-empty { padding: 14px 10px; color: ${MUTED}; font-size: 11px; font-style: italic;
-          text-align: center; }
-        .cust-loading { padding: 14px 10px; display: flex; align-items: center;
-          justify-content: center; }
+        /* Both pickers now open the app's own dropdown — a MUI Paper, at the app's type scale
+           rather than the template's — so the only rules left here are the ones that reach into
+           MUI's own classes for the product Autocomplete's group headings. */
+        .MuiAutocomplete-groupLabel { font-size: 10px; font-weight: 700; letter-spacing: .08em;
+          text-transform: uppercase; color: ${MUTED}; background: ${CONTROL_BG};
+          line-height: 1; padding: 8px 12px; border-bottom: 1px solid ${HAIR}; }
+        .MuiAutocomplete-groupUl { padding: 0; }
         table.tpl-items { width: 100%; border-collapse: collapse; }
         table.tpl-items th { background: ${RED}; color: ${PAPER}; font-size: 11px; padding: 6px 8px;
           border: 1px solid ${RED}; text-align: center; }
@@ -896,6 +1014,37 @@ export function InvoiceTemplateForm({
           </div>
           <div className="tpl-party" key={`ship-${shipKey}`}>
             <div className="lbl">SHIP TO</div>
+            {/* Only once a customer is picked, and only when they have more than the billing
+                address on file — one entry is already in the fields below, and a dropdown with
+                a single choice is furniture. */}
+            {shipChoices.length > 1 && (
+              <Select
+                size="small"
+                fullWidth
+                disabled={saving}
+                value={shipChoices.findIndex(
+                  (c) => c.name === form.shipName && c.address === form.shipAddress,
+                )}
+                onChange={(e) => pickShipChoice(Number(e.target.value))}
+                inputProps={{ 'aria-label': 'Delivery address' }}
+                // Sized to the template's type, but the app's control: a native <select> opens
+                // the operating system's own menu, which on a Mac is a dark panel that has
+                // nothing to do with the rest of this app.
+                sx={SHIP_SELECT_SX}
+                MenuProps={{ slotProps: { paper: { sx: PICK_MENU_PAPER_SX } } }}
+              >
+                {/* -1 while the fields have been typed into by hand, so an edited address is not
+                    silently shown as one of the saved ones. */}
+                <MenuItem value={-1} disabled sx={PICK_OPTION_SX}>
+                  Custom address
+                </MenuItem>
+                {shipChoices.map((c, i) => (
+                  <MenuItem key={c.label} value={i} sx={PICK_OPTION_SX}>
+                    {c.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
             <CustomerNameField
               value={form.shipName}
               placeholder="NAME"
@@ -954,36 +1103,82 @@ export function InvoiceTemplateForm({
                         })
                       }
                       slotProps={{
-                        paper: { className: 'pick-pop' },
-                        // MUI pins the popup to the anchor's width, and the PRODUCT cell is
-                        // narrower than a product name. Let it size to its content instead,
-                        // bounded by the CSS below, so names stop truncating.
-                        popper: { style: { width: 'auto' } },
+                        /*
+                         * The app's dropdown at its own scale, not squeezed to the template's.
+                         * The PRODUCT cell is narrower than most product names, so the popup is
+                         * sized to the card both pickers use rather than to its anchor.
+                         */
+                        paper: { sx: { ...PICK_MENU_PAPER_SX, width: PICK_POPUP_WIDTH } },
+                        // Left-aligned under the PRODUCT cell, sized to the card rather than to
+                        // that narrow cell. MUI's own flip/overflow modifiers are left alone —
+                        // replacing them was what pulled the menu off to one side.
+                        popper: { placement: 'bottom-start', style: { width: 'auto' } },
+                        /*
+                         * Reached through the listbox, not the option's own sx: MUI styles its
+                         * options as `.MuiAutocomplete-listbox .MuiAutocomplete-option`, two
+                         * classes deep, which outranks anything a single generated class can
+                         * say — which is why the rows kept MUI's cramped padding and size.
+                         */
+                        listbox: {
+                          sx: {
+                            maxHeight: 360,
+                            py: 0,
+                            '& .MuiAutocomplete-option': PICK_OPTION_SX,
+                          },
+                        },
                       }}
                       // Same option layout as the customer picker: name and code on top, the
                       // numbers that decide the pick beneath. MUI owns the li (keyboard nav,
-                      // highlight), so pick-opt only styles what is inside it.
-                      renderOption={(props, o) => (
-                        <li {...props} key={o._id} className={`${props.className ?? ''} pick-opt`}>
-                          {/* Price sits at the right edge, where the table's UNIT PRICE column
-                              puts it — the row then spans the width instead of trailing off. */}
-                          <span className="pick-top">
-                            <span className="pick-nm">{o.name}</span>
-                            {o.sku && <span className="pick-tag">{o.sku}</span>}
-                            <span className="pick-rate">
-                              {usd(o.rate)}
-                              {o.unit ? ` / ${o.unit}` : ''}
-                            </span>
-                          </span>
-                          {/* Only worth a second line when this customer is not on the list
-                              price — otherwise the rate above says everything. */}
-                          {o.negotiated && (
-                            <span className="pick-sub">
-                              Negotiated&nbsp;&nbsp;·&nbsp;&nbsp;list {usd(o.defaultRate)}
-                            </span>
-                          )}
-                        </li>
-                      )}
+                      // highlight), so this only lays out what is inside it.
+                      renderOption={(props, o) => {
+                        const { key, ...rest } = props as typeof props & { key?: string };
+                        return (
+                          <Box
+                            component="li"
+                            key={key ?? o._id}
+                            {...rest}
+                            sx={{ display: 'block !important' }}
+                          >
+                            {/* Price at the right edge, where the table's UNIT PRICE column puts
+                                it — the row spans the width instead of trailing off. */}
+                            <Stack direction="row" alignItems="center" gap={0.75}>
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 700, minWidth: 0, wordBreak: 'break-word' }}
+                              >
+                                {o.name}
+                              </Typography>
+                              {o.sku && (
+                                <Chip
+                                  size="small"
+                                  label={o.sku}
+                                  sx={{ height: 18, fontSize: 10, fontWeight: 700, flexShrink: 0 }}
+                                />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  ml: 'auto',
+                                  pl: 1.5,
+                                  flexShrink: 0,
+                                  fontWeight: 700,
+                                  fontVariantNumeric: 'tabular-nums',
+                                }}
+                              >
+                                {usd(o.rate)}
+                                {o.unit ? ` / ${o.unit}` : ''}
+                              </Typography>
+                            </Stack>
+                            {/* Only worth a second line when this customer is not on the list
+                                price — otherwise the rate above says everything. */}
+                            {o.negotiated && (
+                              <Typography variant="caption" color="text.secondary">
+                                Negotiated&nbsp;&nbsp;·&nbsp;&nbsp;list {usd(o.defaultRate)}
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      }}
                       renderInput={(params) => (
                         <div ref={params.InputProps.ref}>
                           <input {...params.inputProps} placeholder="Pick a product" />

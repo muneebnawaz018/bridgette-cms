@@ -9,6 +9,7 @@ export {
   updateCustomer,
   deleteCustomer,
 } from './services/customer.service';
+export { shippingAddressesFor, toStoredAddresses, type ShippingAddress } from './shipping';
 export {
   US_STATES,
   formatAddress,
@@ -20,6 +21,7 @@ export {
   customerCreateSchema,
   customerCreateSchemaChecked,
   TEAMS_MAX,
+  SHIPPING_MAX,
   addressPartsSchema,
   customerUpdateSchema,
   customerFormSchema,

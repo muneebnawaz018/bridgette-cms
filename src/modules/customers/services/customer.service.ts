@@ -13,6 +13,7 @@ import {
 import { Customer, type CustomerDoc } from '../models/customer.model';
 import { formatAddress, isBlankAddress } from '../address';
 import { canBeReseller, invoiceTypeFor } from '../invoiceType';
+import { toStoredAddresses } from '../shipping';
 import type { CustomerCreateInput, CustomerUpdateInput, ListCustomerInput } from '../schemas';
 
 /**
@@ -41,6 +42,9 @@ const LIST_PROJECTION = {
   invoiceType: 1,
   products: 1,
   teams: 1,
+  shippingAddresses: 1,
+  // The single address the list replaced. Still read so a record saved before it existed opens
+  // in the dialog with its address intact rather than blank.
   shipping: 1,
   // The edit dialog opens from a list row, so every field it edits has to come back here.
   // Missing, the input opens blank and a save writes that blank over the stored value.
@@ -106,8 +110,12 @@ export async function listCustomerOptions(
 
   // Fetch one extra row to detect a next page without a separate count query.
   const rows = await Customer.find(filter)
-    // `products` and `shipping` ride along: picking a customer on an invoice fills its lines and
-    // its SHIP TO block, and a second round trip for either would show as a visible lag.
+    /*
+     * `products` and the delivery addresses ride along: picking a customer on an invoice fills
+     * its lines and its SHIP TO block, and a second round trip for either would show as a
+     * visible lag. Both shipping shapes are projected, since the picker offers whichever the
+     * record holds — see `shippingAddressesFor`.
+     */
     .select({
       name: 1,
       email: 1,
@@ -116,6 +124,7 @@ export async function listCustomerOptions(
       reseller: 1,
       invoiceType: 1,
       products: 1,
+      shippingAddresses: 1,
       shipping: 1,
     })
     .sort({ name: 1 })
@@ -240,6 +249,9 @@ export async function createCustomer(actor: SessionUser, input: CustomerCreateIn
       phone: input.phone,
       address: printableAddress(input),
       addressParts: isBlankAddress(input.addressParts) ? undefined : input.addressParts,
+      shippingAddresses: toStoredAddresses(input.shippingAddresses),
+      // The intake form sends one address in the old shape; keep it so nothing is lost, and let
+      // `shippingAddressesFor` read whichever of the two a record ended up with.
       shipping: shippingBlock(input),
       products: input.products ?? [],
       teams: input.teams ?? [],
@@ -294,7 +306,16 @@ export async function updateCustomer(actor: SessionUser, id: string, input: Cust
   } else if (input.address !== undefined) {
     doc.address = input.address;
   }
-  if (input.shipping !== undefined) {
+  /*
+   * The list wins, and clears the single address it replaced: a record edited through the form
+   * comes out in one shape, so no reader has to wonder which of the two is current.
+   */
+  if (input.shippingAddresses !== undefined) {
+    doc.shippingAddresses = toStoredAddresses(
+      input.shippingAddresses,
+    ) as unknown as CustomerDoc['shippingAddresses'];
+    doc.shipping = undefined as unknown as CustomerDoc['shipping'];
+  } else if (input.shipping !== undefined) {
     doc.shipping = shippingBlock(input) as unknown as CustomerDoc['shipping'];
   }
   // An empty array is a real value here — it means "unlink everything" — so only an absent

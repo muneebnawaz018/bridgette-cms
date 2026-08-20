@@ -13,6 +13,7 @@ import { CustomerIntakeToken } from '../models/customerIntakeToken.model';
 import { CustomerIntake } from '../models/customerIntake.model';
 import { formatAddress, isBlankAddress } from '../address';
 import { canBeReseller, invoiceTypeFor } from '../invoiceType';
+import { toStoredAddresses } from '../shipping';
 import type { CustomerIntakeSubmitInput } from '../intake.schemas';
 import { INTAKE_TTL_DAYS } from '../intake.constants';
 
@@ -322,7 +323,16 @@ export async function submitIntake(
       phone: input.phone,
       address: printable(input.addressParts, input.address),
       addressParts,
-      shipping,
+      /*
+       * The form asks for one delivery address; the record holds a list. Written as a list of
+       * one — or none, when they ship to the billing address — so a customer created here is the
+       * same shape as one staff typed in, and staff can add the rest without a migration.
+       */
+      shippingAddresses: shipping.sameAsBilling
+        ? []
+        : toStoredAddresses([
+            { name: shipping.name, phone: shipping.phone, addressParts: shipping.addressParts },
+          ]),
       teams: input.teams,
       reseller: Boolean(certificate),
       resellerCertificate: certificate,

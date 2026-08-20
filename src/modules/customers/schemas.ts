@@ -18,6 +18,8 @@ const NOTES_MAX = 2000;
 const TEAM_MAX = 60;
 /** How many teams one customer may hold. Exported so the form's cap is this same number. */
 export const TEAMS_MAX = 15;
+/** How many delivery addresses one customer may hold. */
+export const SHIPPING_MAX = 10;
 
 /**
  * The teams a customer buys for. Typed freely on the form, so this is where the typing is made
@@ -177,6 +179,33 @@ export const shippingSchema = z
       : v,
   );
 
+/**
+ * Every place goods can be sent for one customer.
+ *
+ * A list rather than the single `shipping` block above, because a customer is often one billing
+ * party with several delivery points — a club's two grounds, a school and its coach's address.
+ * An empty list is the normal case and means "send it where the bill goes"; the invoice repeats
+ * the billing party rather than storing a copy that goes stale when the billing address is
+ * corrected.
+ *
+ * `shipping` stays accepted for the customer's own intake form, which asks for one address, and
+ * for records saved before this existed. See modules/customers/shipping.
+ */
+export const shippingAddressSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'A shipping name is required')
+    .max(FIELD_MAX, 'That value is too long'),
+  phone: optionalText(FIELD_MAX),
+  addressParts: addressPartsSchema,
+});
+
+export const shippingAddressesField = z
+  .array(shippingAddressSchema)
+  .max(SHIPPING_MAX, `A customer can have at most ${SHIPPING_MAX} shipping addresses`)
+  .optional();
+
 /** Product ids this customer buys — 24-char ObjectIds, deduped so a repeat pick is harmless. */
 const productIdsField = z
   .array(z.string().regex(/^[a-f\d]{24}$/i, 'That is not a valid product'))
@@ -228,6 +257,7 @@ export const customerCreateSchema = z.object({
   address: optionalText(ADDRESS_MAX),
   addressParts: addressPartsSchema,
   shipping: shippingSchema.optional(),
+  shippingAddresses: shippingAddressesField,
   products: productIdsField,
   productDiscounts: productDiscountsField,
   teams: teamsField,
@@ -278,20 +308,27 @@ export const customerFormSchema = z.object({
   notes: z.string().trim().max(NOTES_MAX, 'That note is too long'),
   reseller: z.boolean(),
 
-  // Shipping, flat like the rest of the form. Checked only when shipSameAsBilling is off.
+  /*
+   * Shipping. One entry per delivery address, all strings like the rest of the form, and only
+   * looked at once `shipSameAsBilling` is switched off.
+   */
   shipSameAsBilling: z.boolean(),
-  shipName: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  shipPhone: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  shipCountry: z.enum(['US', 'PK']),
-  shipLine1: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  shipLine2: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  shipCity: z.string().trim().max(FIELD_MAX, 'That value is too long'),
-  shipState: z.string().trim(),
-  shipZip: z.string().trim(),
-  shipZipPlus4: z
-    .string()
-    .trim()
-    .refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
+  shipAddresses: z.array(
+    z.object({
+      name: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+      phone: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+      country: z.enum(['US', 'PK']),
+      line1: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+      line2: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+      city: z.string().trim().max(FIELD_MAX, 'That value is too long'),
+      state: z.string().trim(),
+      zip: z.string().trim(),
+      zipPlus4: z
+        .string()
+        .trim()
+        .refine((v) => !v || /^\d{4}$/.test(v), 'The +4 add-on is 4 digits'),
+    }),
+  ),
 });
 
 /** Billing rules always; shipping rules only once it is not a copy of billing. */
@@ -299,29 +336,47 @@ export const customerFormSchemaChecked = customerFormSchema
   .superRefine(addressRules)
   .superRefine((f, ctx) => {
     if (f.shipSameAsBilling) return;
-    if (!f.shipName.trim()) {
+
+    // Switched off with nothing filled in says the goods go somewhere else without saying where.
+    if (f.shipAddresses.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['shipName'],
-        message: 'A shipping name is required',
+        path: ['shipAddresses'],
+        message: 'Add a delivery address, or ship to the billing address',
       });
+      return;
     }
-    if (!f.shipLine1.trim()) {
+
+    if (f.shipAddresses.length > SHIPPING_MAX) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['shipLine1'],
-        message: 'A street address is required',
+        path: ['shipAddresses'],
+        message: `A customer can have at most ${SHIPPING_MAX} shipping addresses`,
       });
     }
-    // Same city/state/zip rules as billing, re-pathed onto the ship* fields.
-    addressRules({ country: f.shipCountry, city: f.shipCity, state: f.shipState, zip: f.shipZip }, {
-      ...ctx,
-      addIssue: (issue) => {
-        const key = String(issue.path?.[0] ?? '');
-        const mapped = `ship${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-        ctx.addIssue({ ...issue, path: [mapped] });
-      },
-    } as z.RefinementCtx);
+
+    f.shipAddresses.forEach((a, i) => {
+      if (!a.name.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['shipAddresses', i, 'name'],
+          message: 'A shipping name is required',
+        });
+      }
+      if (!a.line1.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['shipAddresses', i, 'line1'],
+          message: 'A street address is required',
+        });
+      }
+      // The billing city/state/zip rules, re-pathed onto this entry so the right box lights up.
+      addressRules(a, {
+        ...ctx,
+        addIssue: (issue) =>
+          ctx.addIssue({ ...issue, path: ['shipAddresses', i, ...(issue.path ?? [])] }),
+      } as z.RefinementCtx);
+    });
   });
 
 export const listCustomerSchema = z.object({

@@ -21,9 +21,15 @@ import { splitPhone, joinPhone, DEFAULT_COUNTRY_ISO2 } from '@/lib/format/countr
 import { FormSection, TextInput, SelectInput, type SelectOption } from '@/components/form/fields';
 import { CustomerProductsField } from '@/components/customers/CustomerProductsField';
 import { CustomerTeamsField } from '@/components/customers/CustomerTeamsField';
+import {
+  CustomerShippingAddresses,
+  EMPTY_SHIP_ADDRESS,
+  type ShipAddressValue,
+} from '@/components/customers/CustomerShippingAddresses';
 import { useFormGuard } from '@/components/form/useFormGuard';
 import type { FormMode } from '@/components/ui/Modal';
-import { customerFormSchemaChecked, TEAMS_MAX } from '@/modules/customers/schemas';
+import { customerFormSchemaChecked, TEAMS_MAX, SHIPPING_MAX } from '@/modules/customers/schemas';
+import { shippingAddressesFor } from '@/modules/customers/shipping';
 import { statesFor, type AddressParts } from '@/modules/customers/address';
 import { canBeReseller } from '@/modules/customers/invoiceType';
 import { apiPost, apiPatch } from '@/lib/api/client';
@@ -54,6 +60,14 @@ export interface EditableCustomer {
   productDiscounts?: { product: string; discountPercent: number }[];
   /** Metadata only — the list never carries the file's bytes. */
   resellerCertificate?: { name?: string; contentType?: string; size?: number } | null;
+  /** Every delivery address on this record. */
+  shippingAddresses?: {
+    name?: string;
+    phone?: string;
+    address?: string;
+    addressParts?: AddressParts | null;
+  }[];
+  /** The single address the list replaced; still present on records saved before it existed. */
   shipping?: {
     sameAsBilling?: boolean;
     name?: string;
@@ -81,17 +95,9 @@ interface FormValues {
   zipPlus4: string;
   notes: string;
   reseller: boolean;
-  /** Shipping. While sameAsBilling holds, the rest is ignored and nothing is stored. */
+  /** Shipping. While sameAsBilling holds, the list is ignored and nothing is stored. */
   shipSameAsBilling: boolean;
-  shipName: string;
-  shipPhone: string;
-  shipCountry: 'US' | 'PK';
-  shipLine1: string;
-  shipLine2: string;
-  shipCity: string;
-  shipState: string;
-  shipZip: string;
-  shipZipPlus4: string;
+  shipAddresses: ShipAddressValue[];
 }
 
 /** Reseller drives tax exemption; a dropdown reads better than a lone checkbox in this row. */
@@ -111,6 +117,18 @@ const STATE_OPTIONS: Record<'US' | 'PK', SelectOption[]> = {
   PK: statesFor('PK').map((s) => ({ value: s.code, label: s.name })),
 };
 
+/**
+ * Read a delivery-address field out of the values by its schema path, or undefined when the key
+ * is not one of them. Blur handling needs the value behind a key, and these do not sit on the
+ * flat object the way every other input's does.
+ */
+function shipFieldValue(values: FormValues, key: string): string | undefined {
+  const match = /^shipAddresses\.(\d+)\.(\w+)$/.exec(key);
+  if (!match) return undefined;
+  const entry = values.shipAddresses[Number(match[1])];
+  return entry ? (entry[match[2] as keyof ShipAddressValue] ?? '') : '';
+}
+
 type TextKey =
   | 'firstName'
   | 'lastName'
@@ -121,14 +139,7 @@ type TextKey =
   | 'city'
   | 'zip'
   | 'zipPlus4'
-  | 'notes'
-  | 'shipName'
-  | 'shipPhone'
-  | 'shipLine1'
-  | 'shipLine2'
-  | 'shipCity'
-  | 'shipZip'
-  | 'shipZipPlus4';
+  | 'notes';
 
 const EMPTY: FormValues = {
   products: [],
@@ -147,15 +158,7 @@ const EMPTY: FormValues = {
   notes: '',
   reseller: false,
   shipSameAsBilling: true,
-  shipName: '',
-  shipPhone: '',
-  shipCountry: 'US',
-  shipLine1: '',
-  shipLine2: '',
-  shipCity: '',
-  shipState: '',
-  shipZip: '',
-  shipZipPlus4: '',
+  shipAddresses: [],
 };
 
 function valuesFromCustomer(c: EditableCustomer): FormValues {
@@ -163,7 +166,7 @@ function valuesFromCustomer(c: EditableCustomer): FormValues {
   // shows something sensible rather than two empty boxes.
   const [fallbackFirst = '', ...restName] = (c.name ?? '').trim().split(/\s+/);
   const a = c.addressParts ?? {};
-  const sa = c.shipping?.addressParts ?? {};
+  const shipList = shippingAddressesFor(c);
   return {
     products: (c.products ?? []).map(String),
     teams: c.teams ?? [],
@@ -180,16 +183,25 @@ function valuesFromCustomer(c: EditableCustomer): FormValues {
     zipPlus4: a.zipPlus4 ?? '',
     notes: c.notes ?? '',
     reseller: c.reseller ?? false,
-    shipSameAsBilling: c.shipping?.sameAsBilling !== false,
-    shipName: c.shipping?.name ?? '',
-    shipPhone: c.shipping?.phone ?? '',
-    shipCountry: sa.country === 'PK' ? 'PK' : 'US',
-    shipLine1: sa.line1 ?? '',
-    shipLine2: sa.line2 ?? '',
-    shipCity: sa.city ?? '',
-    shipState: sa.state ?? '',
-    shipZip: sa.zip ?? '',
-    shipZipPlus4: sa.zipPlus4 ?? '',
+    /*
+     * Read through `shippingAddressesFor`, which understands both the list and the single block
+     * it replaced — a record saved before this existed opens with its address in place.
+     */
+    shipSameAsBilling: shipList.length === 0,
+    shipAddresses: shipList.map((entry) => {
+      const p = entry.addressParts ?? {};
+      return {
+        name: entry.name ?? '',
+        phone: entry.phone ?? '',
+        country: p.country === 'PK' ? ('PK' as const) : ('US' as const),
+        line1: p.line1 ?? '',
+        line2: p.line2 ?? '',
+        city: p.city ?? '',
+        state: p.state ?? '',
+        zip: p.zip ?? '',
+        zipPlus4: p.zipPlus4 ?? '',
+      };
+    }),
   };
 }
 
@@ -212,23 +224,25 @@ function buildPayload(f: FormValues) {
       zip: f.zip.trim() || undefined,
       zipPlus4: f.zipPlus4.trim() || undefined,
     },
-    // Always sent, so switching back to "same as billing" actually clears the stored block.
-    shipping: f.shipSameAsBilling
-      ? { sameAsBilling: true }
-      : {
-          sameAsBilling: false,
-          name: f.shipName.trim() || undefined,
-          phone: f.shipPhone.trim() || undefined,
+    /*
+     * Always sent, so switching back to "same as billing" actually clears the stored list. The
+     * service derives each printable one-liner from these parts, so the two can never disagree.
+     */
+    shippingAddresses: f.shipSameAsBilling
+      ? []
+      : f.shipAddresses.map((a) => ({
+          name: a.name.trim(),
+          phone: a.phone.trim() || undefined,
           addressParts: {
-            country: f.shipCountry,
-            line1: f.shipLine1.trim() || undefined,
-            line2: f.shipLine2.trim() || undefined,
-            city: f.shipCity.trim() || undefined,
-            state: f.shipState || undefined,
-            zip: f.shipZip.trim() || undefined,
-            zipPlus4: f.shipZipPlus4.trim() || undefined,
+            country: a.country,
+            line1: a.line1.trim() || undefined,
+            line2: a.line2.trim() || undefined,
+            city: a.city.trim() || undefined,
+            state: a.state || undefined,
+            zip: a.zip.trim() || undefined,
+            zipPlus4: a.zipPlus4.trim() || undefined,
           },
-        },
+        })),
     products: f.products,
     teams: f.teams,
     notes: f.notes.trim() || undefined,
@@ -255,17 +269,9 @@ const TAB_FIELDS: readonly (readonly string[])[] = [
     'zipPlus4',
     'notes',
   ],
-  [
-    'shipName',
-    'shipPhone',
-    'shipLine1',
-    'shipLine2',
-    'shipCity',
-    'shipState',
-    'shipZip',
-    'shipZipPlus4',
-    'products',
-  ],
+  // Delivery-address errors are pathed per entry (`shipAddresses.1.city`), so this tab matches
+  // on the prefix rather than listing keys that depend on how many addresses exist.
+  ['shipAddresses', 'products'],
 ];
 const TAB_LABELS = ['Customer', 'Shipping & products'] as const;
 
@@ -353,8 +359,19 @@ export function CustomerFormDialog({
   const [certError, setCertError] = useState<string>('');
   // Shipping bits that drive layout, so they need a render: the toggle and the two selects.
   const [shipSame, setShipSame] = useState(true);
-  const [shipCountry, setShipCountry] = useState<'US' | 'PK'>('US');
-  const [shipState, setShipState] = useState('');
+  /*
+   * Rendered from state, edited through the ref. State carries what has to be drawn — how many
+   * addresses there are, and each one's country and state, which are selects — while typing in
+   * a street box writes straight to the ref, so nine other addresses do not re-render per key.
+   */
+  const [shipAddresses, setShipAddresses] = useState<ShipAddressValue[]>([]);
+  const [expandedShip, setExpandedShip] = useState<number | null>(0);
+  /*
+   * Bumped whenever the list gains or loses an entry. The address inputs are uncontrolled, so
+   * without remounting them, removing the first address would leave the second one's text in the
+   * boxes that now belong to the first.
+   */
+  const [shipRevision, setShipRevision] = useState(0);
   const [tab, setTab] = useState(0);
 
   // Drives the Save button. isValid is the same parse as `validate`, reduced to a boolean.
@@ -400,8 +417,9 @@ export function CustomerFormDialog({
     setCertificate(undefined);
     setCertError('');
     setShipSame(next.shipSameAsBilling);
-    setShipCountry(next.shipCountry);
-    setShipState(next.shipState);
+    setShipAddresses(next.shipAddresses);
+    setExpandedShip(next.shipAddresses.length === 1 ? 0 : null);
+    setShipRevision((r) => r + 1);
     // Creating has nothing to view, so it always opens editable.
     setMode(customer ? initialModeRef.current : 'edit');
     setTab(0);
@@ -457,29 +475,70 @@ export function CustomerFormDialog({
     (same: boolean) => {
       valuesRef.current.shipSameAsBilling = same;
       setShipSame(same);
+      /*
+       * Switching the toggle off is the same intent as "add an address", so the first one opens
+       * ready to type into. Without it the answer to "where does it go instead" is an empty
+       * panel with a plus icon somebody has to find.
+       */
+      if (!same && valuesRef.current.shipAddresses.length === 0) {
+        valuesRef.current.shipAddresses.push({ ...EMPTY_SHIP_ADDRESS });
+        setShipAddresses(valuesRef.current.shipAddresses.map((a) => ({ ...a })));
+        setExpandedShip(0);
+        setShipRevision((r) => r + 1);
+      }
       guard.refresh();
     },
     [guard],
   );
 
-  const pickShipCountry = useCallback(
-    (_name: string, v: string) => {
-      const next = v === 'PK' ? 'PK' : 'US';
-      valuesRef.current.shipCountry = next;
-      // The old list's code is meaningless under the new one, and +4 is US-only.
-      valuesRef.current.shipState = '';
-      setShipState('');
-      if (next === 'PK') valuesRef.current.shipZipPlus4 = '';
-      setShipCountry(next);
+  /*
+   * One entry point for every field on every delivery address, so the ref and what is on screen
+   * cannot drift apart. Text edits stop at the ref; the two selects also land in state, because
+   * a picked country changes which state list and which boxes are rendered.
+   */
+  const changeShipField = useCallback(
+    (index: number, field: keyof ShipAddressValue, value: string) => {
+      const list = valuesRef.current.shipAddresses;
+      const entry = list[index];
+      if (!entry) return;
+
+      if (field === 'country') {
+        const country = value === 'PK' ? 'PK' : 'US';
+        entry.country = country;
+        // A state code from the other country's list is not in this one's, and +4 is US-only.
+        entry.state = '';
+        if (country === 'PK') entry.zipPlus4 = '';
+        setShipAddresses(list.map((a) => ({ ...a })));
+      } else if (field === 'state') {
+        entry.state = value;
+        setShipAddresses(list.map((a) => ({ ...a })));
+      } else {
+        entry[field] = value;
+      }
       guard.refresh();
     },
     [guard],
   );
 
-  const pickShipState = useCallback(
-    (_name: string, v: string) => {
-      valuesRef.current.shipState = v;
-      setShipState(v);
+  const addShipAddress = useCallback(() => {
+    const list = valuesRef.current.shipAddresses;
+    if (list.length >= SHIPPING_MAX) return;
+    list.push({ ...EMPTY_SHIP_ADDRESS });
+    setShipAddresses(list.map((a) => ({ ...a })));
+    // Only the new one stays open: the dialog has a fixed height, and two expanded addresses do
+    // not fit in it.
+    setExpandedShip(list.length - 1);
+    setShipRevision((r) => r + 1);
+    guard.refresh();
+  }, [guard]);
+
+  const removeShipAddress = useCallback(
+    (index: number) => {
+      const list = valuesRef.current.shipAddresses;
+      list.splice(index, 1);
+      setShipAddresses(list.map((a) => ({ ...a })));
+      setExpandedShip(list.length ? Math.min(index, list.length - 1) : null);
+      setShipRevision((r) => r + 1);
       guard.refresh();
     },
     [guard],
@@ -545,7 +604,19 @@ export function CustomerFormDialog({
     (key: string) => {
       // Leaving a box you never typed in is not a mistake. First name is autofocused on open, so
       // clicking anything at all used to blur it and open a brand-new form in red.
-      const value = valuesRef.current[key as TextKey];
+      /*
+       * Delivery-address fields are pathed (`shipAddresses.1.city`) rather than being keys on
+       * the flat values, so they are read out of the list. Anything else is a plain key.
+       */
+      const value = shipFieldValue(valuesRef.current, key) ?? valuesRef.current[key as TextKey];
+      /*
+       * Typing in a delivery address writes to the ref alone, so leaving the box is where what is
+       * drawn catches up: the collapsed row's summary, and whether the address counts as finished
+       * — which is what decides if another one can be added.
+       */
+      if (key.startsWith('shipAddresses.')) {
+        setShipAddresses(valuesRef.current.shipAddresses.map((a) => ({ ...a })));
+      }
       if (!guard.dirty && typeof value === 'string' && value.trim() === '') return;
       setTouched((t) => (t[key] ? t : { ...t, [key]: true }));
       setErrors(validate(valuesRef.current));
@@ -572,15 +643,20 @@ export function CustomerFormDialog({
 
   /** True when a field on this tab is currently showing an error. */
   const tabHasError = useCallback(
-    (index: number) => TAB_FIELDS[index].some((key) => Boolean(shown(key))),
-    [shown],
+    (index: number) =>
+      TAB_FIELDS[index].some((key) =>
+        key === 'shipAddresses'
+          ? Object.keys(errors).some((k) => k.startsWith('shipAddresses') && Boolean(shown(k)))
+          : Boolean(shown(key)),
+      ),
+    [shown, errors],
   );
 
   /** Every input is inert while saving or while the dialog is being read rather than edited. */
   const locked = saving || readOnly;
 
-  /* Same-as-billing means the shipping block is not stored, so its inputs are inert — greyed
-     rather than gone, to keep the panel's height steady across the toggle. */
+  /* Same-as-billing means nothing is stored, so the whole list is replaced by a line of prose
+     rather than left on screen as fields nobody can use. */
   /*
    * The certificate's display name, and whether the box should offer to attach one. `null` on
    * `certificate` means "remove on save", so a stored file must not count as present once the
@@ -592,8 +668,6 @@ export function CustomerFormDialog({
       : (certificate?.name ?? customer?.resellerCertificate?.name ?? null);
   /** The stored file's size when nothing new has been picked, so the box reads the same either way. */
   const certSize = certificate?.size ?? customer?.resellerCertificate?.size;
-
-  const shipDisabled = locked || shipSame;
 
   const close = useCallback(() => {
     setErrors({});
@@ -1016,159 +1090,26 @@ export function CustomerFormDialog({
               }
               label="Ships to the billing address"
             />
-            {shipSame && (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {shipSame ? (
+              <Typography variant="body2" color="text.secondary">
                 Invoices for this customer will show the billing name and address under SHIP TO.
                 Nothing is stored separately, so correcting the billing address corrects both.
               </Typography>
+            ) : (
+              <CustomerShippingAddresses
+                values={shipAddresses}
+                errors={errors}
+                expanded={expandedShip}
+                onExpand={setExpandedShip}
+                onFieldChange={changeShipField}
+                onBlurField={blurField}
+                onAdd={addShipAddress}
+                onRemove={removeShipAddress}
+                max={SHIPPING_MAX}
+                revision={shipRevision}
+                disabled={locked}
+              />
             )}
-            {/* The fields stay on screen and grey out rather than disappearing: the layout keeps
-              its height when the switch is flipped, and a returning editor can still read the
-              delivery address that was set up before.
-
-              MUI's own disabled styling is subtle enough that the block still reads as clickable,
-              so the whole group is dimmed and made inert: `pointer-events: none` stops the hover
-              and caret feedback that made it look live, and `aria-hidden` keeps a screen reader
-              from walking fields nobody can reach. The individual inputs stay `disabled` too —
-              this is the visual layer, not the guard. */}
-            <Grid
-              container
-              spacing={2}
-              aria-hidden={shipSame}
-              sx={
-                shipSame
-                  ? { opacity: 0.45, pointerEvents: 'none', transition: 'opacity .18s ease' }
-                  : { transition: 'opacity .18s ease' }
-              }
-            >
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextInput
-                  name="shipName"
-                  label="Ship to name"
-                  placeholder="e.g. Acme Warehouse"
-                  defaultValue={initial.shipName}
-                  helperText={shown('shipName')}
-                  error={Boolean(shown('shipName'))}
-                  required
-                  disabled={shipDisabled}
-                  onChange={setText}
-                  onBlur={blurField}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextInput
-                  name="shipPhone"
-                  label="Contact phone"
-                  placeholder="e.g. 415 555 0132"
-                  defaultValue={initial.shipPhone}
-                  helperText={shown('shipPhone')}
-                  error={Boolean(shown('shipPhone'))}
-                  disabled={shipDisabled}
-                  onChange={setText}
-                  onBlur={blurField}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <SelectInput
-                  name="shipCountry"
-                  label="Country"
-                  value={shipCountry}
-                  options={COUNTRY_OPTIONS}
-                  disabled={shipDisabled}
-                  onChange={pickShipCountry}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 5 }}>
-                <TextInput
-                  name="shipLine1"
-                  label="Street address"
-                  placeholder={
-                    shipCountry === 'US' ? 'e.g. 5775 Riverside Dr' : 'e.g. 12 Gulberg Blvd'
-                  }
-                  defaultValue={initial.shipLine1}
-                  helperText={shown('shipLine1')}
-                  error={Boolean(shown('shipLine1'))}
-                  required
-                  disabled={shipDisabled}
-                  onChange={setText}
-                  onBlur={blurField}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextInput
-                  name="shipLine2"
-                  label="Apt / suite / unit"
-                  placeholder="e.g. Suite 300"
-                  defaultValue={initial.shipLine2}
-                  helperText={shown('shipLine2')}
-                  error={Boolean(shown('shipLine2'))}
-                  disabled={shipDisabled}
-                  onChange={setText}
-                  onBlur={blurField}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: shipCountry === 'PK' ? 4 : 5 }}>
-                <TextInput
-                  name="shipCity"
-                  label="City"
-                  placeholder={shipCountry === 'US' ? 'e.g. Atlanta' : 'e.g. Lahore'}
-                  defaultValue={initial.shipCity}
-                  helperText={shown('shipCity')}
-                  error={Boolean(shown('shipCity'))}
-                  required
-                  disabled={shipDisabled}
-                  onChange={setText}
-                  onBlur={blurField}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: shipCountry === 'PK' ? 4 : 3 }}>
-                <SelectInput
-                  name="shipState"
-                  label={shipCountry === 'PK' ? 'Province' : 'State'}
-                  value={shipState}
-                  options={STATE_OPTIONS[shipCountry]}
-                  placeholderLabel={shipCountry === 'PK' ? 'Pick a province' : 'Pick a state'}
-                  helperText={shown('shipState')}
-                  error={Boolean(shown('shipState'))}
-                  required
-                  disabled={shipDisabled}
-                  onChange={pickShipState}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: shipCountry === 'PK' ? 4 : 2 }}>
-                <TextInput
-                  name="shipZip"
-                  label={shipCountry === 'PK' ? 'Postal code' : 'ZIP'}
-                  placeholder={shipCountry === 'PK' ? 'e.g. 54000' : 'e.g. 30328'}
-                  defaultValue={initial.shipZip}
-                  helperText={shown('shipZip')}
-                  error={Boolean(shown('shipZip'))}
-                  required
-                  inputMode="numeric"
-                  maxLength={5}
-                  disabled={shipDisabled}
-                  onChange={setText}
-                  onBlur={blurField}
-                />
-              </Grid>
-              {shipCountry === 'US' && (
-                <Grid size={{ xs: 12, sm: 2 }}>
-                  <TextInput
-                    name="shipZipPlus4"
-                    label="+4"
-                    placeholder="e.g. 1234"
-                    defaultValue={initial.shipZipPlus4}
-                    helperText={shown('shipZipPlus4')}
-                    error={Boolean(shown('shipZipPlus4'))}
-                    inputMode="numeric"
-                    maxLength={4}
-                    disabled={shipDisabled}
-                    onChange={setText}
-                    onBlur={blurField}
-                  />
-                </Grid>
-              )}
-            </Grid>
           </FormSection>
 
           {/* Saved with the rest of the form — the ids live on the customer record, so there is

@@ -176,8 +176,8 @@ export default function NewInvoicePage() {
       billEmail: opt ? (opt.email ?? '') : f.billEmail,
       billPhone: opt ? (opt.phone ?? '') : f.billPhone,
       billAddress: opt ? (opt.address ?? '') : f.billAddress,
-      // SHIP TO comes along too — for most customers that is the billing party repeated, and
-      // for the rest it is the delivery address they were set up with.
+      // SHIP TO comes along too: their first saved delivery address, or the billing party when
+      // they have none. The dropdown on the SHIP TO block reaches the rest.
       shipName: opt ? shipToFor(opt).name : f.shipName,
       shipAddress: opt ? shipToFor(opt).address : f.shipAddress,
       // The customer carries the tax profile: reseller exemption, and (if set) the invoice type.

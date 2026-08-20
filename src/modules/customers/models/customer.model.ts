@@ -54,10 +54,31 @@ const customerSchema = new Schema(
     addressParts: { type: addressPartsSchema(), default: undefined },
 
     /*
-     * Where goods go, when that is not where the bill goes. `sameAsBilling` is the normal case
-     * and the default, in which case the name and address here stay empty and every reader falls
-     * back to the billing party — storing a copy would go stale the moment the billing address
-     * was corrected.
+     * Every place goods can be sent for this customer — a club's two grounds, a school and the
+     * coach who signs for the boxes. Empty is the normal case and means "where the bill goes":
+     * readers fall back to the billing party rather than to a copy that goes stale the moment
+     * the billing address is corrected.
+     *
+     * Raising an invoice picks one of these and the invoice keeps its own copy, so correcting a
+     * customer's address later never rewrites where something already shipped.
+     */
+    shippingAddresses: [
+      new Schema(
+        {
+          name: { type: String },
+          phone: { type: String },
+          address: { type: String },
+          addressParts: { type: addressPartsSchema(), default: undefined },
+        },
+        { _id: false },
+      ),
+    ],
+
+    /*
+     * The single address the list above replaced. Still written by the customer's own intake
+     * form, which asks for one, and still present on records saved before the list existed —
+     * `shippingAddressesFor` reads either shape, and saving through the admin form migrates the
+     * record by writing the list and clearing this.
      */
     shipping: {
       type: new Schema(
