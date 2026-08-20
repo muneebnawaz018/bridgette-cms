@@ -53,6 +53,27 @@ async function sessionIsLive(req: NextRequest, token: string, kind: 'access' | '
 export async function middleware(req: NextRequest) {
   const access = req.cookies.get(ACCESS_COOKIE)?.value;
 
+  /*
+   * `/` is a signpost, not a page, and it has to say so in the status line.
+   *
+   * The redirect used to live in app/page.tsx. `redirect()` there throws after the shell has
+   * already flushed, so Next could not answer with a redirect status: the bare domain returned
+   * `200 OK` carrying a `<meta http-equiv="refresh">`, with no title and no robots tag, because
+   * the throw came before metadata resolved. That is the URL people type and link to, and a
+   * titleless 200 is exactly what a crawler files as a thin page. Deciding here, one hop
+   * earlier, makes it a real 307 that nothing has to render to produce.
+   *
+   * 307 rather than 308: the destination genuinely varies by visitor, so the redirect is
+   * temporary in the literal sense.
+   */
+  if (req.nextUrl.pathname === '/') {
+    const token = access ?? req.cookies.get(REFRESH_COOKIE)?.value;
+    const kind = access ? 'access' : 'refresh';
+    // A signed-out visitor carries no cookie, so this costs a crawler no database probe.
+    const signedIn = Boolean(token) && (await sessionIsLive(req, token as string, kind));
+    return NextResponse.redirect(new URL(signedIn ? '/dashboard' : '/login', req.url), 307);
+  }
+
   if (AUTH_PAGES.includes(req.nextUrl.pathname)) {
     const token = access ?? req.cookies.get(REFRESH_COOKIE)?.value;
     const kind = access ? 'access' : 'refresh';
@@ -117,6 +138,8 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    // The bare domain, so it answers with a redirect status instead of rendering one.
+    '/',
     // Signed-out pages, so a signed-in visitor skips them. See AUTH_PAGES above.
     '/login',
     '/forgot-password',
