@@ -80,7 +80,7 @@ function isComplete(a: ShipAddressValue): boolean {
 /** What the collapsed row says. Enough to tell two addresses apart without opening either. */
 function summarise(a: ShipAddressValue, index: number): string {
   const where = [a.line1, a.city].filter(Boolean).join(', ');
-  if (a.name && where) return `${a.name} — ${where}`;
+  if (a.name && where) return `${a.name} · ${where}`;
   return a.name || where || `Address ${index + 1}`;
 }
 
@@ -129,10 +129,14 @@ export function CustomerShippingAddresses({
 
   return (
     <Box>
+      {/* Wraps on a phone: the heading and a labelled button together are wider than a 320px
+          dialog column, and the button dropping to its own line beats either one being clipped. */}
       <Stack
         direction="row"
         alignItems="center"
         justifyContent="space-between"
+        flexWrap="wrap"
+        useFlexGap
         sx={{ mb: 1, gap: 1 }}
       >
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>

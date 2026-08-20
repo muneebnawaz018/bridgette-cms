@@ -22,6 +22,9 @@ import type { LegalDoc } from '@/modules/legal/types';
  * and this page's own controls (`.no-print`) and lifts the `.print-region` to the page, so the
  * browser's Save-as-PDF produces exactly what is on screen with no extra dependency.
  */
+/* h4 is 2.125rem, which a title like "Billing Terms & Conditions" cannot hold on a phone. */
+const TITLE_SIZE = { xs: '1.6rem', sm: '2.125rem' };
+
 export function LegalDocument({
   doc,
   showContact = true,
@@ -43,14 +46,19 @@ export function LegalDocument({
   return (
     <Box className="rise-in" sx={{ maxWidth: 860, mx: 'auto' }}>
       {/* Controls — excluded from the printed PDF. */}
-      <Box className="no-print" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+      {/* Back, title and the download button share one line from sm up; on a phone the button
+          drops to its own full-width row rather than squeezing the title into two characters. */}
+      <Box
+        className="no-print"
+        sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2.5 }}
+      >
         {/* Returns to wherever the reader came from — the invoice, the footer, the dashboard —
             rather than always landing on one fixed page. */}
         <IconButton onClick={() => router.back()} aria-label="Back" sx={{ mr: 0.5 }}>
           <ArrowBackRounded />
         </IconButton>
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, fontSize: TITLE_SIZE }}>
             {doc.title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -61,6 +69,7 @@ export function LegalDocument({
           variant="contained"
           startIcon={<FileDownloadRounded />}
           onClick={() => window.print()}
+          sx={{ width: { xs: '100%', sm: 'auto' }, flexShrink: 0 }}
         >
           Download PDF
         </Button>
@@ -69,7 +78,7 @@ export function LegalDocument({
       <Paper className="print-region" sx={{ p: { xs: 3, md: 5 } }}>
         {/* Document header — shown on screen and in the PDF. */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, fontSize: TITLE_SIZE }}>
             {doc.title}
           </Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>

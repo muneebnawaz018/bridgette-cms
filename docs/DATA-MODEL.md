@@ -57,8 +57,8 @@ Collections derived from the requirements spec, section 7. Money fields are
 
 ## Shipping
 
-- **shipments** — invoiceId, carrier, shippingDate, expectedDelivery, actualDelivery, packageCount, service, cost, status (`notShipped`…`delivered`…`lost`), notes.
-- **trackingNumbers** — shipmentId, number, url, status. (Multiple per invoice.)
+- **shipments** — invoiceId (**unique**), trackingId, agent, shippedAt, eta, createdBy, updatedBy. One per invoice: an invoice is a single order that leaves in a single consignment, so there is one tracking number to chase rather than a ledger of them. Kept out of the invoice document because an invoice must not change once finalized while shipping details are corrected freely afterwards.
+- Not built yet: actualDelivery, packageCount, service, cost, `status` (the `ShippingStatus` enum in `modules/invoicing/enums.ts` is defined and waiting), and multiple tracking numbers per invoice.
 
 ## Documents
 

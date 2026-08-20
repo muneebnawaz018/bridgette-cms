@@ -151,11 +151,11 @@ export function shipChoicesFor(opt: CustomerOption): ShipChoice[] {
   const saved = shippingAddressesFor(opt).map((a, i) => {
     const name = a.name || opt.name;
     const address = a.address ?? '';
-    return { label: address ? `${name} — ${address}` : name || `Address ${i + 1}`, name, address };
+    return { label: address ? `${name} · ${address}` : name || `Address ${i + 1}`, name, address };
   });
   return [
     ...saved,
-    { label: `Same as billing — ${opt.name}`, name: opt.name, address: opt.address ?? '' },
+    { label: `Same as billing · ${opt.name}`, name: opt.name, address: opt.address ?? '' },
   ];
 }
 

@@ -23,6 +23,7 @@ import { NoAccess } from '@/components/ui/NoAccess';
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu';
 import { ExportInvoicesModal } from '@/components/invoices/ExportInvoicesModal';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
+import { ShipmentDialog } from '@/components/invoices/ShipmentDialog';
 import { SendInvoiceSummary } from '@/components/invoices/SendInvoiceSummary';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusChip, invoiceStateTone, invoiceStateLabel } from '@/components/ui/StatusChip';
@@ -60,17 +61,34 @@ type Action = { kind: 'archive' | 'delete'; row: InvoiceRow };
 /** Which of the row actions this user may take on this particular invoice. */
 function rowActions(
   row: InvoiceRow,
-  perms: { canPay: boolean; canArchive: boolean; canDelete: boolean; canSend: boolean },
+  perms: {
+    canPay: boolean;
+    canArchive: boolean;
+    canDelete: boolean;
+    canSend: boolean;
+    canShip: boolean;
+  },
   onPay: (row: InvoiceRow) => void,
   onAct: (kind: 'archive' | 'delete', row: InvoiceRow) => void,
   onPdf: (row: InvoiceRow) => void,
   onCsv: (row: InvoiceRow) => void,
   onSend: (row: InvoiceRow) => void,
+  onShip: (row: InvoiceRow) => void,
 ): RowAction[] {
   const actions: RowAction[] = [];
   const paid = row.state === 'paid' || row.state === 'draft';
   if (perms.canPay && !row.isArchived && !row.isDeleted && !paid) {
     actions.push({ label: 'Record payment', onClick: () => onPay(row) });
+  }
+  /*
+   * One entry for all three of add / edit / view: the row does not carry the shipment, and
+   * asking the list for one per invoice to decide a menu label would be a query per row. The
+   * dialog knows which it is the moment it opens.
+   */
+  // Drafts are excluded on the same grounds as the PDF below: nothing ships against a document
+  // that is not final yet, so the entry is not offered rather than opening onto a refusal.
+  if (perms.canShip && !row.isDeleted && row.state !== 'draft') {
+    actions.push({ label: 'Shipping details', onClick: () => onShip(row) });
   }
   // A draft is not a real document yet, so no PDF; the CSV summary is fine for any row.
   if (!row.isDeleted && row.state !== 'draft') {
@@ -147,6 +165,8 @@ export default function InvoicesPage() {
   const canDelete = useCan(Permission.InvoiceDelete);
   // Sending is a customer-facing act, so it rides on edit rather than plain view.
   const canSend = useCan(Permission.InvoiceEdit);
+  const canShip = useCan(Permission.ShipmentView);
+  const canManageShip = useCan(Permission.ShipmentManage);
 
   const columnVisibility = useBreakpointColumns(INVOICE_COLUMN_TIERS);
 
@@ -210,6 +230,10 @@ export default function InvoicesPage() {
   // Record-payment dialog. The modal owns the form and the request; the page only says which
   // invoice is being paid.
   const [payFor, setPayFor] = useState<InvoiceRow | null>(null);
+
+  // Shipping details dialog. Like the payment one, it owns its own fetch and form; the page
+  // only says which invoice is being looked at.
+  const [shipFor, setShipFor] = useState<InvoiceRow | null>(null);
 
   // Archive / delete dialog (both need a reason)
   const [action, setAction] = useState<Action | null>(null);
@@ -350,7 +374,7 @@ export default function InvoicesPage() {
         <RowActionsMenu
           actions={rowActions(
             p.row,
-            { canPay, canArchive, canDelete, canSend },
+            { canPay, canArchive, canDelete, canSend, canShip },
             setPayFor,
             openAction,
             // A real generated PDF, not the browser's print dialog on a styled page — the same
@@ -358,6 +382,7 @@ export default function InvoicesPage() {
             (row) => window.open(`/api/invoices/${row._id}/pdf`, '_blank'),
             downloadInvoiceCsv,
             setToSend,
+            setShipFor,
           )}
         />
       ),
@@ -448,6 +473,12 @@ export default function InvoicesPage() {
         invoice={payFor}
         onClose={() => setPayFor(null)}
         onRecorded={() => void mutate()}
+      />
+
+      <ShipmentDialog
+        invoice={shipFor}
+        canManage={canManageShip}
+        onClose={() => setShipFor(null)}
       />
 
       {/* Archive / delete, both require a reason */}

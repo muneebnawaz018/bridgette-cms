@@ -31,6 +31,12 @@ export enum Permission {
   PaymentRecord = 'payment:record',
   PaymentManage = 'payment:manage',
 
+  // Shipping. Read is granted wherever invoices are readable — "where is my order" is a
+  // question everyone answers — while recording and correcting it stays with the roles that
+  // work the invoice itself.
+  ShipmentView = 'shipment:view',
+  ShipmentManage = 'shipment:manage',
+
   // Ops
   SettingsManage = 'settings:manage',
   ReportsView = 'reports:view',

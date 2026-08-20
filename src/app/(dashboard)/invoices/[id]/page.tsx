@@ -39,6 +39,7 @@ import { InvoiceDocument, type InvoiceDocumentData } from '@/components/invoices
 import Link from '@mui/material/Link';
 import { paymentFieldLabel } from '@/modules/payments/methodFields';
 import { RecordPaymentModal } from '@/components/invoices/RecordPaymentModal';
+import { ShipmentDialog } from '@/components/invoices/ShipmentDialog';
 import { SendInvoiceSummary } from '@/components/invoices/SendInvoiceSummary';
 import { useApi } from '@/lib/api/useApi';
 import { apiPatch, apiPost } from '@/lib/api/client';
@@ -154,6 +155,8 @@ export default function InvoiceDetailPage() {
   // permission anyone holds — see updateInvoice.
   const canEdit = useCan(Permission.InvoiceEdit);
   const canPay = useCan(Permission.PaymentRecord);
+  const canShip = useCan(Permission.ShipmentView);
+  const canManageShip = useCan(Permission.ShipmentManage);
 
   const { data: invoice, isLoading, error, mutate } = useApi<Invoice>(`/api/invoices/${id}`);
   const { data: payments, mutate: mutatePayments } = useApi<Payment[]>(
@@ -202,6 +205,8 @@ export default function InvoiceDetailPage() {
 
   // The record-payment modal owns its own form and request.
   const [payOpen, setPayOpen] = useState(false);
+  // Same for shipping details — add, edit and read all live in the one dialog.
+  const [shipOpen, setShipOpen] = useState(false);
 
   /*
    * Emailing the invoice. Creating one no longer does this on its own: there is no unsend, so
@@ -431,11 +436,19 @@ export default function InvoiceDetailPage() {
           {!form && (
             <RowActionsMenu
               ariaLabel="Invoice actions"
-              actions={
-                canPay && !locked && invoice.state !== 'paid' && invoice.state !== 'draft'
+              actions={[
+                ...(canPay && !locked && invoice.state !== 'paid' && invoice.state !== 'draft'
                   ? [{ label: 'Record payment', onClick: () => setPayOpen(true) }]
-                  : []
-              }
+                  : []),
+                /*
+                 * Offered on archived invoices too: the dialog opens read-only there, and
+                 * "where did this go" is still a fair question about an invoice in history.
+                 * Drafts are the exception, since nothing ships against one.
+                 */
+                ...(canShip && !invoice.isDeleted && invoice.state !== 'draft'
+                  ? [{ label: 'Shipping details', onClick: () => setShipOpen(true) }]
+                  : []),
+              ]}
             />
           )}
           {form && (
@@ -678,6 +691,12 @@ export default function InvoiceDetailPage() {
           void mutate();
           void mutatePayments();
         }}
+      />
+
+      <ShipmentDialog
+        invoice={shipOpen ? invoice : null}
+        canManage={canManageShip}
+        onClose={() => setShipOpen(false)}
       />
     </Box>
   );

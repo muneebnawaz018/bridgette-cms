@@ -30,6 +30,8 @@ const ADMIN_PERMS: Permission[] = [
   Permission.ProductView,
   Permission.PaymentRecord,
   Permission.PaymentManage,
+  Permission.ShipmentView,
+  Permission.ShipmentManage,
   Permission.SettingsManage,
   Permission.ReportsView,
   Permission.AuditView,
@@ -46,6 +48,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     Permission.CustomerView,
     Permission.ProductView,
     Permission.PaymentRecord,
+    Permission.ShipmentView,
+    Permission.ShipmentManage,
     Permission.ReportsView,
   ],
   [Role.Sales]: [
@@ -53,11 +57,13 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     Permission.InvoiceView,
     Permission.CustomerView,
     Permission.ProductView,
+    Permission.ShipmentView,
   ],
   [Role.ReadOnly]: [
     Permission.InvoiceView,
     Permission.CustomerView,
     Permission.ProductView,
+    Permission.ShipmentView,
     Permission.ReportsView,
   ],
 };

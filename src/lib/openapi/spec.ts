@@ -67,6 +67,20 @@ export const openApiSpec = {
           },
         },
       },
+      ShipmentInput: {
+        type: 'object',
+        required: ['trackingId', 'agent', 'shippedAt'],
+        properties: {
+          trackingId: { type: 'string' },
+          agent: { type: 'string', description: 'Courier / forwarding agent' },
+          shippedAt: { type: 'string', format: 'date', description: 'YYYY-MM-DD' },
+          eta: {
+            type: 'string',
+            format: 'date',
+            description: 'YYYY-MM-DD; blank clears it. Never before shippedAt.',
+          },
+        },
+      },
       InvoiceItem: {
         type: 'object',
         required: ['description', 'quantity', 'unitPrice'],
@@ -510,6 +524,39 @@ export const openApiSpec = {
           201: { description: 'Recorded' },
           400: { description: 'Overpayment / invalid' },
         },
+      },
+    },
+    '/api/invoices/{id}/shipment': {
+      get: {
+        tags: ['Invoices'],
+        summary: 'Shipping details for an invoice (ShipmentView) — null when nothing has shipped',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Shipment, or null' } },
+      },
+      post: {
+        tags: ['Invoices'],
+        summary: 'Add shipping details (ShipmentManage) — one shipment per invoice',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ShipmentInput' } },
+          },
+        },
+        responses: {
+          201: { description: 'Added' },
+          400: { description: 'Already shipped / archived invoice' },
+        },
+      },
+      patch: {
+        tags: ['Invoices'],
+        summary: 'Edit shipping details (ShipmentManage) — replaces all four fields',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ShipmentInput' } },
+          },
+        },
+        responses: { 200: { description: 'Updated' }, 400: { description: 'Not shipped yet' } },
       },
     },
     '/api/invoices/{id}/archive': {
