@@ -156,6 +156,7 @@ export function InvoiceDocument({
           border-bottom: 2px solid ${HAIR}; padding-bottom: 4px; margin-bottom: 8px; }
         .inv-party .nm { font-weight: 700; }
         .inv-party .val { color: ${CELL}; margin-top: 2px; white-space: pre-line; }
+        .inv-items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         table.inv-items { width: 100%; border-collapse: collapse; }
         table.inv-items th { background: ${RED}; color: ${PAPER}; font-size: 11px; padding: 6px 8px;
           border: 1px solid ${RED}; text-align: center; }
@@ -222,8 +223,12 @@ export function InvoiceDocument({
           .inv-lower { flex-direction: column; gap: 18px; }
           .inv-totals { width: 100%; }
           table.inv-items th, table.inv-items td { font-size: 10px; padding: 4px 5px; }
+          /* Below this the columns stop being legible, so the row scrolls instead. */
+          table.inv-items { min-width: 520px; }
         }
         @media print {
+          /* Paper has no scrollbars and no viewport: the wrapper must not clip or scroll. */
+          .inv-items-wrap { overflow: visible; }
           /* margin: 0 is what removes the browser's own header and footer — the date, the page
              title, the localhost URL and "1/1". They are drawn into the page margin, so a page
              with no margin has nowhere to put them. The document then supplies the physical
@@ -299,39 +304,44 @@ export function InvoiceDocument({
           <Party label="SHIP TO" party={invoice.shipTo} />
         </div>
 
-        <table className="inv-items">
-          <thead>
-            <tr>
-              <th className="desc">DESCRIPTION</th>
-              <th style={{ width: 70 }}>QTY</th>
-              <th style={{ width: 110 }}>UNIT PRICE</th>
-              {hasLineDiscount && <th style={{ width: 70 }}>DISC %</th>}
-              <th style={{ width: 110 }}>TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((it, i) => (
-              <tr key={i}>
-                <td>{it.description}</td>
-                <td className="qty">{it.quantity}</td>
-                <td className="num">{usd(it.unitPrice)}</td>
-                {hasLineDiscount && (
-                  <td className="qty">{it.discountPercent ? `${it.discountPercent}%` : '—'}</td>
-                )}
-                <td className="num">{usd(it.lineTotal)}</td>
+        {/* The line table keeps a width its columns can be read at and scrolls inside its own
+            box on a phone, rather than squeezing six columns into 320px or pushing the page
+            sideways. The wrapper is display:contents when printing, so paper is unaffected. */}
+        <div className="inv-items-wrap">
+          <table className="inv-items">
+            <thead>
+              <tr>
+                <th className="desc">DESCRIPTION</th>
+                <th style={{ width: 70 }}>QTY</th>
+                <th style={{ width: 110 }}>UNIT PRICE</th>
+                {hasLineDiscount && <th style={{ width: 70 }}>DISC %</th>}
+                <th style={{ width: 110 }}>TOTAL</th>
               </tr>
-            ))}
-            {Array.from({ length: pad }).map((_, i) => (
-              <tr key={`pad-${i}`}>
-                <td>&nbsp;</td>
-                <td />
-                <td />
-                {hasLineDiscount && <td />}
-                <td />
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((it, i) => (
+                <tr key={i}>
+                  <td>{it.description}</td>
+                  <td className="qty">{it.quantity}</td>
+                  <td className="num">{usd(it.unitPrice)}</td>
+                  {hasLineDiscount && (
+                    <td className="qty">{it.discountPercent ? `${it.discountPercent}%` : '—'}</td>
+                  )}
+                  <td className="num">{usd(it.lineTotal)}</td>
+                </tr>
+              ))}
+              {Array.from({ length: pad }).map((_, i) => (
+                <tr key={`pad-${i}`}>
+                  <td>&nbsp;</td>
+                  <td />
+                  <td />
+                  {hasLineDiscount && <td />}
+                  <td />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <div className="inv-lower">
           <div className="inv-terms">

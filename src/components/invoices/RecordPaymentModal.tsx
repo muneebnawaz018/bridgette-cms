@@ -252,6 +252,9 @@ export function RecordPaymentModal({
         icon={<PaymentsRounded />}
         // Two columns need the room; at xs they would each be barely wider than their label.
         maxWidth="sm"
+        // Amount, method, the method's own fields, a note and a proof upload: a phone screen
+        // holds none of that in a floating card.
+        fullScreenOnMobile
         busy={saving}
         actions={
           <>

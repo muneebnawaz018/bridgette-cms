@@ -137,6 +137,8 @@ export function UserDetailsModal({
       title={user ? user.name : 'User'}
       description={user ? user.email : undefined}
       maxWidth="md"
+      // A full profile card — avatar, contact rows, sessions — which is a long read on a phone.
+      fullScreenOnMobile
       busy={uploading}
       actions={
         <>

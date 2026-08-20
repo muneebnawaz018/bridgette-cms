@@ -172,6 +172,7 @@ export function EditProfileDialog({
       title="Edit profile"
       icon={<EditRounded />}
       maxWidth="sm"
+      fullScreenOnMobile
       busy={busy}
       actions={
         <>

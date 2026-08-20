@@ -198,6 +198,8 @@ export function IntakeLinkDialog({ open, onClose }: { open: boolean; onClose: ()
       }
       icon={<LinkRounded />}
       maxWidth="sm"
+      // A link to copy, an address to type, and the share buttons under both.
+      fullScreenOnMobile
       actions={
         <Button variant="outlined" color="inherit" onClick={onClose} startIcon={<CheckRounded />}>
           Done

@@ -701,6 +701,7 @@ export function InvoiceTemplateForm({
         .tpl-items .rm button { border: none; background: none; cursor: pointer; color: ${RED};
           font-size: 16px; line-height: 1; }
         .tpl-items .rm button:disabled { color: ${HAIR}; cursor: default; }
+        .tpl-items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .tpl-addline { margin: 8px 0 0; }
         .tpl-addline button { border: none; background: none; color: ${RED}; font-weight: 700;
           cursor: pointer; font-size: 13px; padding: 4px 0; }
@@ -808,6 +809,8 @@ export function InvoiceTemplateForm({
           .tpl-totals { width: 100%; }
           .tpl-notes { padding: 4px 16px 20px; }
           table.tpl-items th, table.tpl-items td { font-size: 10px; }
+          /* Below the floor the columns stop being legible, so the row scrolls instead. */
+          table.tpl-items { min-width: 560px; }
         }
       `}</style>
 
@@ -1061,208 +1064,217 @@ export function InvoiceTemplateForm({
           </div>
         </div>
 
-        <table className="tpl-items">
-          <thead>
-            <tr>
-              <th style={{ width: 200 }}>PRODUCT</th>
-              <th>DESCRIPTION</th>
-              <th style={{ width: 70 }}>QTY</th>
-              <th style={{ width: 120 }}>UNIT PRICE</th>
-              <th style={{ width: 70 }}>DISC %</th>
-              <th style={{ width: 110 }}>TOTAL</th>
-              <th className="rm" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((line, i) => (
-              <tr key={i} className={nudge > 0 && i === rows.length - 1 ? 'nudge' : undefined}>
-                <td>
-                  {products.length > 0 ? (
-                    <Autocomplete<ProductOption, false, false, false>
-                      options={products}
-                      getOptionLabel={(o) => (o.sku ? `${o.name} (${o.sku})` : o.name)}
-                      isOptionEqualToValue={(o, v) => o._id === v._id}
-                      // Only worth splitting when the customer actually has linked products;
-                      // otherwise every row would sit under one pointless "All products" header.
-                      groupBy={
-                        products.some((p) => p.linked)
-                          ? (o) => (o.linked ? 'For this customer' : 'All products')
-                          : undefined
-                      }
-                      value={products.find((p) => p._id === line.productId) ?? null}
-                      disabled={saving}
-                      onChange={(_e, picked) =>
-                        picked &&
-                        // Picking a product fills the description + the customer's rate; both stay editable.
-                        setLine(i, {
-                          productId: picked._id,
-                          productName: picked.name,
-                          description: picked.description || picked.name,
-                          unitPrice: picked.rate,
-                          discountPercent: picked.discount ?? 0,
-                        })
-                      }
-                      slotProps={{
-                        /*
-                         * The app's dropdown at its own scale, not squeezed to the template's.
-                         * The PRODUCT cell is narrower than most product names, so the popup is
-                         * sized to the card both pickers use rather than to its anchor.
-                         */
-                        paper: { sx: { ...PICK_MENU_PAPER_SX, width: PICK_POPUP_WIDTH } },
-                        // Left-aligned under the PRODUCT cell, sized to the card rather than to
-                        // that narrow cell. MUI's own flip/overflow modifiers are left alone —
-                        // replacing them was what pulled the menu off to one side.
-                        popper: { placement: 'bottom-start', style: { width: 'auto' } },
-                        /*
-                         * Reached through the listbox, not the option's own sx: MUI styles its
-                         * options as `.MuiAutocomplete-listbox .MuiAutocomplete-option`, two
-                         * classes deep, which outranks anything a single generated class can
-                         * say — which is why the rows kept MUI's cramped padding and size.
-                         */
-                        listbox: {
-                          sx: {
-                            maxHeight: 360,
-                            py: 0,
-                            '& .MuiAutocomplete-option': PICK_OPTION_SX,
+        {/* Seven columns do not fit a phone. The table keeps a width its cells can be read at
+            and scrolls inside its own box, so the page itself never slides sideways. */}
+        <div className="tpl-items-wrap">
+          <table className="tpl-items">
+            <thead>
+              <tr>
+                <th style={{ width: 200 }}>PRODUCT</th>
+                <th>DESCRIPTION</th>
+                <th style={{ width: 70 }}>QTY</th>
+                <th style={{ width: 120 }}>UNIT PRICE</th>
+                <th style={{ width: 70 }}>DISC %</th>
+                <th style={{ width: 110 }}>TOTAL</th>
+                <th className="rm" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((line, i) => (
+                <tr key={i} className={nudge > 0 && i === rows.length - 1 ? 'nudge' : undefined}>
+                  <td>
+                    {products.length > 0 ? (
+                      <Autocomplete<ProductOption, false, false, false>
+                        options={products}
+                        getOptionLabel={(o) => (o.sku ? `${o.name} (${o.sku})` : o.name)}
+                        isOptionEqualToValue={(o, v) => o._id === v._id}
+                        // Only worth splitting when the customer actually has linked products;
+                        // otherwise every row would sit under one pointless "All products" header.
+                        groupBy={
+                          products.some((p) => p.linked)
+                            ? (o) => (o.linked ? 'For this customer' : 'All products')
+                            : undefined
+                        }
+                        value={products.find((p) => p._id === line.productId) ?? null}
+                        disabled={saving}
+                        onChange={(_e, picked) =>
+                          picked &&
+                          // Picking a product fills the description + the customer's rate; both stay editable.
+                          setLine(i, {
+                            productId: picked._id,
+                            productName: picked.name,
+                            description: picked.description || picked.name,
+                            unitPrice: picked.rate,
+                            discountPercent: picked.discount ?? 0,
+                          })
+                        }
+                        slotProps={{
+                          /*
+                           * The app's dropdown at its own scale, not squeezed to the template's.
+                           * The PRODUCT cell is narrower than most product names, so the popup is
+                           * sized to the card both pickers use rather than to its anchor.
+                           */
+                          paper: { sx: { ...PICK_MENU_PAPER_SX, width: PICK_POPUP_WIDTH } },
+                          // Left-aligned under the PRODUCT cell, sized to the card rather than to
+                          // that narrow cell. MUI's own flip/overflow modifiers are left alone —
+                          // replacing them was what pulled the menu off to one side.
+                          popper: { placement: 'bottom-start', style: { width: 'auto' } },
+                          /*
+                           * Reached through the listbox, not the option's own sx: MUI styles its
+                           * options as `.MuiAutocomplete-listbox .MuiAutocomplete-option`, two
+                           * classes deep, which outranks anything a single generated class can
+                           * say — which is why the rows kept MUI's cramped padding and size.
+                           */
+                          listbox: {
+                            sx: {
+                              maxHeight: 360,
+                              py: 0,
+                              '& .MuiAutocomplete-option': PICK_OPTION_SX,
+                            },
                           },
-                        },
-                      }}
-                      // Same option layout as the customer picker: name and code on top, the
-                      // numbers that decide the pick beneath. MUI owns the li (keyboard nav,
-                      // highlight), so this only lays out what is inside it.
-                      renderOption={(props, o) => {
-                        const { key, ...rest } = props as typeof props & { key?: string };
-                        return (
-                          <Box
-                            component="li"
-                            key={key ?? o._id}
-                            {...rest}
-                            sx={{ display: 'block !important' }}
-                          >
-                            {/* Price at the right edge, where the table's UNIT PRICE column puts
+                        }}
+                        // Same option layout as the customer picker: name and code on top, the
+                        // numbers that decide the pick beneath. MUI owns the li (keyboard nav,
+                        // highlight), so this only lays out what is inside it.
+                        renderOption={(props, o) => {
+                          const { key, ...rest } = props as typeof props & { key?: string };
+                          return (
+                            <Box
+                              component="li"
+                              key={key ?? o._id}
+                              {...rest}
+                              sx={{ display: 'block !important' }}
+                            >
+                              {/* Price at the right edge, where the table's UNIT PRICE column puts
                                 it — the row spans the width instead of trailing off. */}
-                            <Stack direction="row" alignItems="center" gap={0.75}>
-                              <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 700, minWidth: 0, wordBreak: 'break-word' }}
-                              >
-                                {o.name}
-                              </Typography>
-                              {o.sku && (
-                                <Chip
-                                  size="small"
-                                  label={o.sku}
-                                  sx={{ height: 18, fontSize: 10, fontWeight: 700, flexShrink: 0 }}
-                                />
-                              )}
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  ml: 'auto',
-                                  pl: 1.5,
-                                  flexShrink: 0,
-                                  fontWeight: 700,
-                                  fontVariantNumeric: 'tabular-nums',
-                                }}
-                              >
-                                {usd(o.rate)}
-                                {o.unit ? ` / ${o.unit}` : ''}
-                              </Typography>
-                            </Stack>
-                            {/* Only worth a second line when this customer is not on the list
+                              <Stack direction="row" alignItems="center" gap={0.75}>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ fontWeight: 700, minWidth: 0, wordBreak: 'break-word' }}
+                                >
+                                  {o.name}
+                                </Typography>
+                                {o.sku && (
+                                  <Chip
+                                    size="small"
+                                    label={o.sku}
+                                    sx={{
+                                      height: 18,
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                )}
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    ml: 'auto',
+                                    pl: 1.5,
+                                    flexShrink: 0,
+                                    fontWeight: 700,
+                                    fontVariantNumeric: 'tabular-nums',
+                                  }}
+                                >
+                                  {usd(o.rate)}
+                                  {o.unit ? ` / ${o.unit}` : ''}
+                                </Typography>
+                              </Stack>
+                              {/* Only worth a second line when this customer is not on the list
                                 price — otherwise the rate above says everything. */}
-                            {o.negotiated && (
-                              <Typography variant="caption" color="text.secondary">
-                                Negotiated&nbsp;&nbsp;·&nbsp;&nbsp;list {usd(o.defaultRate)}
-                              </Typography>
-                            )}
-                          </Box>
-                        );
-                      }}
-                      renderInput={(params) => (
-                        <div ref={params.InputProps.ref}>
-                          <input {...params.inputProps} placeholder="Pick a product" />
-                        </div>
-                      )}
+                              {o.negotiated && (
+                                <Typography variant="caption" color="text.secondary">
+                                  Negotiated&nbsp;&nbsp;·&nbsp;&nbsp;list {usd(o.defaultRate)}
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <div ref={params.InputProps.ref}>
+                            <input {...params.inputProps} placeholder="Pick a product" />
+                          </div>
+                        )}
+                      />
+                    ) : (
+                      <input placeholder="—" disabled />
+                    )}
+                  </td>
+                  <td>
+                    <input
+                      placeholder="Description"
+                      value={line.description}
+                      disabled={saving}
+                      onChange={(e) => setLine(i, { description: e.target.value })}
                     />
-                  ) : (
-                    <input placeholder="—" disabled />
-                  )}
-                </td>
-                <td>
-                  <input
-                    placeholder="Description"
-                    value={line.description}
-                    disabled={saving}
-                    onChange={(e) => setLine(i, { description: e.target.value })}
-                  />
-                </td>
-                <td>
-                  <NumberCell
-                    className="num-in"
-                    aria-label="Quantity"
-                    value={line.quantity}
-                    min={0}
-                    disabled={saving}
-                    onChange={(quantity) => setLine(i, { quantity })}
-                  />
-                </td>
-                <td>
-                  <NumberCell
-                    className="num-in"
-                    aria-label="Unit price"
-                    value={line.unitPrice}
-                    min={0}
-                    disabled={saving}
-                    onChange={(unitPrice) => setLine(i, { unitPrice })}
-                  />
-                </td>
-                <td>
-                  {/* Clamped by the control as well as server-side, so the live total on screen
+                  </td>
+                  <td>
+                    <NumberCell
+                      className="num-in"
+                      aria-label="Quantity"
+                      value={line.quantity}
+                      min={0}
+                      disabled={saving}
+                      onChange={(quantity) => setLine(i, { quantity })}
+                    />
+                  </td>
+                  <td>
+                    <NumberCell
+                      className="num-in"
+                      aria-label="Unit price"
+                      value={line.unitPrice}
+                      min={0}
+                      disabled={saving}
+                      onChange={(unitPrice) => setLine(i, { unitPrice })}
+                    />
+                  </td>
+                  <td>
+                    {/* Clamped by the control as well as server-side, so the live total on screen
                       can never disagree with what the invoice will be saved as. */}
-                  <NumberCell
-                    className="num-in"
-                    aria-label="Discount percent"
-                    min={0}
-                    max={100}
-                    value={line.discountPercent ?? 0}
-                    disabled={saving}
-                    onChange={(discountPercent) => setLine(i, { discountPercent })}
-                  />
-                </td>
-                <td className="tot">{usd(preview.lineTotals[i] ?? 0)}</td>
-                <td className="rm">
-                  <button
-                    type="button"
-                    aria-label="Remove product"
-                    disabled={saving}
-                    onClick={() =>
-                      setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
-                    }
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {Array.from({ length: pad }).map((_, i) => (
-              <tr
-                key={`pad-${i}`}
-                className="pad"
-                onClick={saving ? undefined : requestNewLine}
-                title={lastFilled ? 'Click to add a product' : 'Fill the product above first'}
-              >
-                <td>&nbsp;</td>
-                <td />
-                <td />
-                <td />
-                <td />
-                <td className="tot" />
-                <td className="rm" />
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    <NumberCell
+                      className="num-in"
+                      aria-label="Discount percent"
+                      min={0}
+                      max={100}
+                      value={line.discountPercent ?? 0}
+                      disabled={saving}
+                      onChange={(discountPercent) => setLine(i, { discountPercent })}
+                    />
+                  </td>
+                  <td className="tot">{usd(preview.lineTotals[i] ?? 0)}</td>
+                  <td className="rm">
+                    <button
+                      type="button"
+                      aria-label="Remove product"
+                      disabled={saving}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
+                      }
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {Array.from({ length: pad }).map((_, i) => (
+                <tr
+                  key={`pad-${i}`}
+                  className="pad"
+                  onClick={saving ? undefined : requestNewLine}
+                  title={lastFilled ? 'Click to add a product' : 'Fill the product above first'}
+                >
+                  <td>&nbsp;</td>
+                  <td />
+                  <td />
+                  <td />
+                  <td />
+                  <td className="tot" />
+                  <td className="rm" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {errors.items && <div className="tpl-err">{errors.items}</div>}
 
         <div className="tpl-addline">
