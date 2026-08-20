@@ -47,16 +47,27 @@ const nextConfig = {
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
       // Cross-origin isolation for our own resources.
       { key: 'X-DNS-Prefetch-Control', value: 'off' },
-      // The root layout already sets a noindex meta tag, but that only reaches responses
-      // Next renders as HTML documents. Route Handlers (/api-docs) and any file response
-      // never see it. The header covers every response regardless of type.
-      //
-      // Note there is deliberately no robots.txt with `Disallow: /`. Disallow stops a
-      // crawler fetching the URL at all, so it never reads the noindex — a URL linked from
-      // somewhere else can then still be indexed, listing-only. Letting the crawler in and
-      // telling it noindex is what actually keeps pages out.
-      { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
     ];
+
+    /*
+     * Keep every page out of search except the two public ones.
+     *
+     * The root layout already sets a noindex meta tag, but that only reaches responses Next
+     * renders as HTML documents. Route Handlers (/api-docs) and any file response never see it,
+     * so the header covers the rest.
+     *
+     * The negative lookahead spares `/` and `/login`, which are the sign-in page under two
+     * URLs. They are public either way, they are all a crawler can reach, and the sign-in route
+     * carries its own description, canonical and organisation markup. Everything past them
+     * stays out: an invoice, a customer record and a one-time intake link do not belong in a
+     * search result.
+     *
+     * Note there is deliberately no robots.txt with `Disallow: /`. Disallow stops a crawler
+     * fetching the URL at all, so it never reads the noindex, and a URL linked from somewhere
+     * else can then still be indexed, listing-only. Letting the crawler in and telling it
+     * noindex is what actually keeps pages out.
+     */
+    const noIndex = [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }];
 
     // HSTS only in production: sending it from localhost pins http://localhost to https in
     // the browser and is a genuine nuisance to undo.
@@ -69,6 +80,29 @@ const nextConfig = {
 
     return [
       { source: '/:path*', headers: securityHeaders },
+      /*
+       * Listed explicitly rather than as "everything but the sign-in page": a negative
+       * lookahead in a header source is read differently by path-to-regexp than it looks, and
+       * got this exactly backwards on the first attempt: noindex on the one public page and
+       * nothing on the private ones. A list is longer and cannot be misread.
+       */
+      ...[
+        '/dashboard',
+        '/invoices',
+        '/customers',
+        '/users',
+        '/settings',
+        '/profile',
+        '/terms',
+        '/billing-terms',
+        '/intake',
+        '/print',
+        '/api',
+        '/api-docs',
+      ].flatMap((base) => [
+        { source: base, headers: noIndex },
+        { source: `${base}/:path*`, headers: noIndex },
+      ]),
       // Authenticated JSON must never sit in a shared or browser cache.
       {
         source: '/api/:path*',

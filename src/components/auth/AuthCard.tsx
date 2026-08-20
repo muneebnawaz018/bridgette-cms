@@ -139,7 +139,10 @@ export function AuthCard({
             />
           </Box>
 
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          {/* `component="h1"` keeps the h4 type scale but emits a real <h1>. Without it the
+              sign-in page — the only page here a crawler can index — opened its heading
+              outline at <h4>, which reads as a page with no main heading. */}
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
             {title}
           </Typography>
           {subtitle && (

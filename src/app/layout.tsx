@@ -38,19 +38,21 @@ export const metadata: Metadata = {
   keywords: ['Bridgette Enterprises', 'invoicing', 'management system', 'customer support portal'],
   authors: [{ name: 'Bridgette Enterprises LLC' }],
   robots: { index: false, follow: false }, // internal tool — keep out of search engines
+  // No `images` here: the 1200x630 card in `opengraph-image.tsx` supplies them for every
+  // route. Listing `/brand/logo.png` as well produced a second, 1978x1145 candidate that
+  // some platforms picked over the purpose-built one.
   openGraph: {
     type: 'website',
     siteName: APP_NAME,
     title: APP_TITLE,
     description: APP_DESCRIPTION,
     url: SITE_URL,
-    images: [{ url: '/brand/logo.png', width: 1978, height: 1145, alt: 'Bridgette Enterprises' }],
+    locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
     title: APP_TITLE,
     description: APP_DESCRIPTION,
-    images: ['/brand/logo.png'],
   },
 };
 

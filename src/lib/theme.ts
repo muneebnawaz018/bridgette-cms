@@ -96,6 +96,19 @@ export const theme = createTheme({
     overline: { fontWeight: 700, letterSpacing: '0.08em', fontSize: '0.68rem' },
   },
   components: {
+    /*
+     * Text links carry the darker red, not the brand red.
+     *
+     * The brand red on the app's off-white panel is 4.06:1, just under WCAG AA's 4.5:1 for body
+     * text, so "Forgot password?" and every other inline link failed the contrast check. The
+     * darker one is 5.6:1 on the same background and still unmistakably the brand. Buttons are
+     * unaffected: their text is white on a filled red, which passes comfortably.
+     */
+    MuiLink: {
+      styleOverrides: {
+        root: { color: colors.brand.redDark, textDecorationColor: redA(0.4) },
+      },
+    },
     MuiCssBaseline: {
       styleOverrides: {
         body: { backgroundColor: colors.surface.canvas },

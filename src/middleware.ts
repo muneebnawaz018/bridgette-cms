@@ -22,8 +22,47 @@ function accessMaxAge(): number {
  *   polling. The refresh token carries role+email so no DB lookup is needed here.
  * - Neither valid → 401 (API) or redirect to /login (pages).
  */
+/**
+ * The pages meant for signed-out visitors. A signed-in one is sent to the dashboard from here
+ * rather than from the layout that renders them: reading a cookie inside the layout makes the
+ * route dynamic, and a dynamic route streams its metadata into the body instead of the head,
+ * which costs the sign-in page its description in every crawler that reads the document.
+ */
+const AUTH_PAGES = ['/login', '/forgot-password', '/reset-password', '/set-password'];
+
+/** Whether a session is live: the signature verifies AND the device session is not revoked. */
+async function sessionIsLive(req: NextRequest, token: string, kind: 'access' | 'refresh') {
+  try {
+    if (kind === 'access') await verifyAccessToken(token);
+    else await verifyRefreshToken(token);
+  } catch {
+    return false;
+  }
+  /*
+   * The edge cannot reach Mongo, so revocation is checked through a Node probe. It matters
+   * here as much as on the refresh path below: bouncing a revoked session off the sign-in page
+   * would send it to the dashboard, whose own check would send it straight back, and the two
+   * would trade the visitor back and forth forever.
+   */
+  const check = await fetch(new URL('/api/auth/session-check', req.url), {
+    headers: { cookie: req.headers.get('cookie') ?? '' },
+  });
+  return check.ok;
+}
+
 export async function middleware(req: NextRequest) {
   const access = req.cookies.get(ACCESS_COOKIE)?.value;
+
+  if (AUTH_PAGES.includes(req.nextUrl.pathname)) {
+    const token = access ?? req.cookies.get(REFRESH_COOKIE)?.value;
+    const kind = access ? 'access' : 'refresh';
+    if (token && (await sessionIsLive(req, token, kind))) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+    // Signed out, which is who these pages are for.
+    return NextResponse.next();
+  }
+
   if (access) {
     try {
       await verifyAccessToken(access);
@@ -78,6 +117,11 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    // Signed-out pages, so a signed-in visitor skips them. See AUTH_PAGES above.
+    '/login',
+    '/forgot-password',
+    '/reset-password',
+    '/set-password',
     '/dashboard/:path*',
     '/invoices/:path*',
     '/terms/:path*',
